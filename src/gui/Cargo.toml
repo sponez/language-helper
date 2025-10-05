@@ -1,0 +1,8 @@
+[package]
+name = "gui"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+core = { path = "../core" }
+iced = { version = "0.13", features = ["tokio", "lazy"] }

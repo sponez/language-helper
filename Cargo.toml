@@ -1,0 +1,19 @@
+[workspace]
+members = ["core", "gui", "persistence"]
+resolver = "3"
+
+[workspace.package]
+name = "language-helper"
+version = "0.1.0"
+edition = "2021"
+authors = ["ganzuk1998@gmail.com"]
+description = "A simplified Rust library for vocabulary management with words, meanings, and translations"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/sponez/language-helper"
+documentation = "https://docs.rs/language-helper"
+keywords = ["vocabulary", "language", "translation", "dictionary", "linguistics"]
+categories = ["data-structures", "text-processing"]
+readme = "README.md"
+exclude = ["target/*"]
+
+[workspace.dependencies]
