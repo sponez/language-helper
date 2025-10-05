@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "gui", "persistence"]
+members = ["api", "core", "gui", "persistence"]
 resolver = "3"
 
 [workspace.package]
