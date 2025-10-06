@@ -1,8 +1,8 @@
 [package]
-name = "gui"
+name = "app"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
 api = { path = "../api" }
-iced = { version = "0.13", features = ["tokio", "lazy"] }
+core = { path = "../core" }

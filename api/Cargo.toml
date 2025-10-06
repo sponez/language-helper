@@ -4,4 +4,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-persistence = { path = "../core" }
+thiserror = { workspace = true }
+serde = { workspace = true, features = ["derive"] }

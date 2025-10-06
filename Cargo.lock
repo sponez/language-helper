@@ -106,6 +106,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "api"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "app"
+version = "0.1.0"
+dependencies = [
+ "api",
+ "core",
+]
+
+[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1344,7 +1360,7 @@ dependencies = [
 name = "gui"
 version = "0.1.0"
 dependencies = [
- "core",
+ "api",
  "iced",
 ]
 
