@@ -19,3 +19,4 @@ exclude = ["target/*"]
 [workspace.dependencies]
 thiserror = "1"
 serde = "1"
+serde_json = "1"
