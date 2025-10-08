@@ -5,4 +5,6 @@ edition.workspace = true
 
 [dependencies]
 api = { path = "../api" }
+
 iced = { version = "0.13", features = ["tokio", "lazy"] }
+thiserror = { workspace = true }
