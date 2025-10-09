@@ -37,3 +37,62 @@ impl<R: UserRepository + 'static> AppApi for AppApiImpl<R> {
         &self.users_api
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::user::User;
+    use crate::repositories::user_repository::UserRepository;
+    use crate::services::user_service::UserService;
+    use crate::errors::CoreError;
+
+    /// Mock repository for testing
+    struct MockUserRepository;
+
+    impl UserRepository for MockUserRepository {
+        fn find_all(&self) -> Result<Vec<User>, CoreError> {
+            Ok(vec![User::new_unchecked("test".to_string())])
+        }
+
+        fn find_by_username(&self, username: &str) -> Result<Option<User>, CoreError> {
+            if username == "test" {
+                Ok(Some(User::new_unchecked("test".to_string())))
+            } else {
+                Ok(None)
+            }
+        }
+
+        fn save(&self, user: User) -> Result<User, CoreError> {
+            Ok(user)
+        }
+
+        fn delete(&self, _username: &str) -> Result<bool, CoreError> {
+            Ok(true)
+        }
+    }
+
+    #[test]
+    fn test_app_api_impl_creation() {
+        let repo = MockUserRepository;
+        let service = UserService::new(repo);
+        let users_api = UsersApiImpl::new(service);
+        let app_api = AppApiImpl::new(users_api);
+
+        // Verify users_api is accessible
+        let usernames = app_api.users_api().get_usernames();
+        assert!(usernames.is_ok());
+    }
+
+    #[test]
+    fn test_app_api_impl_users_api_integration() {
+        let repo = MockUserRepository;
+        let service = UserService::new(repo);
+        let users_api = UsersApiImpl::new(service);
+        let app_api = AppApiImpl::new(users_api);
+
+        // Test that we can call methods through the trait
+        let result = app_api.users_api().get_user_by_username("test");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().username, "test");
+    }
+}

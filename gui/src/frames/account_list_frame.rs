@@ -64,6 +64,35 @@ impl FrameState {
 /// - A dropdown list (PickList) containing all available usernames plus "Add new user" option
 /// - A text input field (shown when "Add new user" is selected)
 /// - OK and Exit buttons
+///
+/// # Arguments
+///
+/// * `state` - Reference to the main application state
+/// * `frame_state` - Reference to the account list frame state
+///
+/// # Returns
+///
+/// An `Element` containing the rendered UI for this frame.
+///
+/// # UI Behavior
+///
+/// - When a username is selected, the OK button confirms the selection and sends `Message::Account`
+/// - When "Add new user" is selected, a text input appears for entering a new username
+/// - In "add new user" mode, the OK button creates the new user account
+/// - The Exit button sends `Message::Exit` to close the application
+///
+/// # Examples
+///
+/// ```no_run
+/// use gui::app_gui::State;
+/// use gui::frames::account_list_frame::{FrameState, view};
+/// use lh_api::app_api::AppApi;
+///
+/// fn render_account_selection(state: &State, frame_state: &FrameState) {
+///     let element = view(state, frame_state);
+///     // element can now be used in the Iced application
+/// }
+/// ```
 pub fn view<'a>(state: &'a State, frame_state: &'a FrameState) -> Element<'a, Message> {
     let mut usernames = state
         .get_app_api()
@@ -146,4 +175,33 @@ pub fn view<'a>(state: &'a State, frame_state: &'a FrameState) -> Element<'a, Me
         .center_x(300)
         .center_y(300)
         .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_frame_state_default() {
+        let state = FrameState::default();
+
+        assert!(state.selected_username.is_none());
+        assert!(!state.is_adding_new_user);
+        assert!(state.new_username_input.is_empty());
+        assert_eq!(state.add_new_user_option, "+ Add new user");
+    }
+
+    #[test]
+    fn test_frame_state_new() {
+        let state = FrameState::new();
+
+        assert!(state.selected_username.is_none());
+        assert!(!state.is_adding_new_user);
+        assert!(state.new_username_input.is_empty());
+    }
+
+    #[test]
+    fn test_add_new_user_constant() {
+        assert_eq!(ADD_NEW_USER, "+ Add new user");
+    }
 }

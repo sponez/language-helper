@@ -21,7 +21,8 @@ pub struct State {
 
     /// The currently selected user account
     current_account: Option<String>,
-    /// State specific to the account list screen
+
+    /// Frame states
     account_list_state: account_list_frame::FrameState,
 }
 
@@ -105,7 +106,9 @@ impl State {
 /// # Message Flow
 ///
 /// - `Message::Account(username)` - Confirms account selection and updates `current_account`
-/// - `Message::FrameMessage::UsernameSelected(username)` - Updates the selected username in the frame state
+/// - `Message::FrameMessage::OptionSelected(selection)` - Updates the selected username or enters "add new user" mode
+/// - `Message::FrameMessage::NewUsernameChanged(input)` - Updates the new username input field
+/// - `Message::FrameMessage::CreateNewUser` - Creates a new user account
 /// - `Message::Exit` - Signals that the application should exit
 ///
 /// # Examples
@@ -280,7 +283,7 @@ mod tests {
 
         update(
             &mut state,
-            Message::FrameMessage(FrameMessage::UsernameSelected("bob".to_string())),
+            Message::FrameMessage(FrameMessage::OptionSelected("bob".to_string())),
         );
 
         assert_eq!(
@@ -298,7 +301,7 @@ mod tests {
         // Simulate selecting from PickList
         update(
             &mut state,
-            Message::FrameMessage(FrameMessage::UsernameSelected("alice".to_string())),
+            Message::FrameMessage(FrameMessage::OptionSelected("alice".to_string())),
         );
         assert_eq!(
             state.account_list_state.selected_username,
@@ -318,7 +321,7 @@ mod tests {
         // Select first username
         update(
             &mut state,
-            Message::FrameMessage(FrameMessage::UsernameSelected("alice".to_string())),
+            Message::FrameMessage(FrameMessage::OptionSelected("alice".to_string())),
         );
         assert_eq!(
             state.account_list_state.selected_username,
@@ -328,7 +331,7 @@ mod tests {
         // Change selection
         update(
             &mut state,
-            Message::FrameMessage(FrameMessage::UsernameSelected("bob".to_string())),
+            Message::FrameMessage(FrameMessage::OptionSelected("bob".to_string())),
         );
         assert_eq!(
             state.account_list_state.selected_username,
@@ -351,23 +354,168 @@ mod tests {
     }
 
     #[test]
-    fn test_ok_pressed_message_is_noop() {
-        let api = create_mock_api(vec!["alice".to_string()]);
+    fn test_exit_message() {
+        let api = create_mock_api(vec![]);
         let mut state = State::new(api);
 
-        // Select username first
+        let should_exit = update(&mut state, Message::Exit);
+
+        assert!(should_exit);
+    }
+
+    #[test]
+    fn test_exit_message_does_not_change_state() {
+        let api = create_mock_api(vec!["alice".to_string()]);
+        let mut state = State::new(api);
+        state.current_account = Some("alice".to_string());
+
+        let should_exit = update(&mut state, Message::Exit);
+
+        assert!(should_exit);
+        assert_eq!(state.current_account, Some("alice".to_string()));
+    }
+
+    #[test]
+    fn test_new_username_changed_message() {
+        let api = create_mock_api(vec![]);
+        let mut state = State::new(api);
+
         update(
             &mut state,
-            Message::FrameMessage(FrameMessage::UsernameSelected("alice".to_string())),
+            Message::FrameMessage(FrameMessage::NewUsernameChanged("test_user".to_string())),
         );
 
-        // OkPressed message should not change anything
-        update(&mut state, Message::FrameMessage(FrameMessage::OkPressed));
+        assert_eq!(state.account_list_state.new_username_input, "test_user");
+    }
 
-        assert_eq!(
-            state.account_list_state.selected_username,
-            Some("alice".to_string())
+    #[test]
+    fn test_create_new_user_message() {
+        let api = create_mock_api(vec![]);
+        let mut state = State::new(api);
+        state.account_list_state.is_adding_new_user = true;
+        state.account_list_state.new_username_input = "new_user".to_string();
+
+        update(&mut state, Message::FrameMessage(FrameMessage::CreateNewUser));
+
+        assert_eq!(state.current_account, Some("new_user".to_string()));
+        assert!(!state.account_list_state.is_adding_new_user);
+        assert!(state.account_list_state.new_username_input.is_empty());
+    }
+
+    #[test]
+    fn test_add_new_user_option_selection() {
+        let api = create_mock_api(vec!["alice".to_string()]);
+        let mut state = State::new(api);
+        state.account_list_state.selected_username = Some("alice".to_string());
+
+        update(
+            &mut state,
+            Message::FrameMessage(FrameMessage::OptionSelected("+ Add new user".to_string())),
         );
+
+        assert!(state.account_list_state.is_adding_new_user);
+        assert!(state.account_list_state.selected_username.is_none());
+        assert!(state.account_list_state.new_username_input.is_empty());
+    }
+
+    #[test]
+    fn test_switching_from_add_new_user_to_existing() {
+        let api = create_mock_api(vec!["alice".to_string()]);
+        let mut state = State::new(api);
+        state.account_list_state.is_adding_new_user = true;
+        state.account_list_state.new_username_input = "partial".to_string();
+
+        update(
+            &mut state,
+            Message::FrameMessage(FrameMessage::OptionSelected("alice".to_string())),
+        );
+
+        assert!(!state.account_list_state.is_adding_new_user);
+        assert_eq!(state.account_list_state.selected_username, Some("alice".to_string()));
+    }
+
+    #[test]
+    fn test_create_new_user_with_empty_input() {
+        let api = create_mock_api(vec![]);
+        let mut state = State::new(api);
+        state.account_list_state.is_adding_new_user = true;
+        state.account_list_state.new_username_input = "".to_string();
+
+        update(&mut state, Message::FrameMessage(FrameMessage::CreateNewUser));
+
+        // Should remain in add new user mode with no account created
         assert!(state.current_account.is_none());
+        assert!(state.account_list_state.is_adding_new_user);
+    }
+
+    #[test]
+    fn test_create_new_user_with_whitespace() {
+        let api = create_mock_api(vec![]);
+        let mut state = State::new(api);
+        state.account_list_state.is_adding_new_user = true;
+        state.account_list_state.new_username_input = "   ".to_string();
+
+        update(&mut state, Message::FrameMessage(FrameMessage::CreateNewUser));
+
+        // Should remain in add new user mode with no account created
+        assert!(state.current_account.is_none());
+        assert!(state.account_list_state.is_adding_new_user);
+    }
+
+    #[test]
+    fn test_create_new_user_trims_whitespace() {
+        let api = create_mock_api(vec![]);
+        let mut state = State::new(api);
+        state.account_list_state.is_adding_new_user = true;
+        state.account_list_state.new_username_input = "  charlie  ".to_string();
+
+        update(&mut state, Message::FrameMessage(FrameMessage::CreateNewUser));
+
+        assert_eq!(state.current_account, Some("charlie".to_string()));
+        assert!(!state.account_list_state.is_adding_new_user);
+        assert!(state.account_list_state.new_username_input.is_empty());
+    }
+
+    #[test]
+    fn test_option_selected_clears_previous_selection() {
+        let api = create_mock_api(vec!["alice".to_string(), "bob".to_string()]);
+        let mut state = State::new(api);
+        state.account_list_state.selected_username = Some("alice".to_string());
+
+        update(
+            &mut state,
+            Message::FrameMessage(FrameMessage::OptionSelected("+ Add new user".to_string())),
+        );
+
+        assert!(state.account_list_state.selected_username.is_none());
+        assert!(state.account_list_state.is_adding_new_user);
+    }
+
+    #[test]
+    fn test_new_username_input_updates_correctly() {
+        let api = create_mock_api(vec![]);
+        let mut state = State::new(api);
+
+        update(
+            &mut state,
+            Message::FrameMessage(FrameMessage::NewUsernameChanged("test".to_string())),
+        );
+        assert_eq!(state.account_list_state.new_username_input, "test");
+
+        update(
+            &mut state,
+            Message::FrameMessage(FrameMessage::NewUsernameChanged("test123".to_string())),
+        );
+        assert_eq!(state.account_list_state.new_username_input, "test123");
+    }
+
+    #[test]
+    fn test_frame_exit_message_returns_false() {
+        let api = create_mock_api(vec![]);
+        let mut state = State::new(api);
+
+        let should_exit = update(&mut state, Message::FrameMessage(FrameMessage::Exit));
+
+        assert!(!should_exit);
     }
 }

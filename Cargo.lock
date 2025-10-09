@@ -1796,6 +1796,7 @@ dependencies = [
  "lh_core",
  "rusqlite",
  "tempfile",
+ "thiserror",
 ]
 
 [[package]]

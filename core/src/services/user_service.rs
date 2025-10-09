@@ -160,20 +160,17 @@ impl<R: UserRepository> UserService<R> {
         &self,
         username: String,
     ) -> Result<User, CoreError> {
-        // Business logic: validate username is not empty
-        if username.trim().is_empty() {
-            return Err(CoreError::validation_error("Username cannot be empty"));
-        }
+        // Domain validation happens in User::new()
+        let user = User::new(username)?;
 
         // Business logic: check if user already exists
-        if self.repository.find_by_username(&username)?.is_some() {
+        if self.repository.find_by_username(&user.username)?.is_some() {
             return Err(CoreError::validation_error(format!(
                 "User with username '{}' already exists",
-                username
+                user.username
             )));
         }
 
-        let user = User::new(username);
         self.repository.save(user)
     }
 
@@ -216,7 +213,8 @@ impl<R: UserRepository> UserService<R> {
             return Err(CoreError::not_found("User", &username));
         }
 
-        let user = User::new(username);
+        // Domain validation happens in User::new()
+        let user = User::new(username)?;
         self.repository.save(user)
     }
 
@@ -315,8 +313,8 @@ mod tests {
     #[test]
     fn test_get_all_usernames() {
         let users = vec![
-            User::new("user1".to_string()),
-            User::new("user2".to_string()),
+            User::new_unchecked("user1".to_string()),
+            User::new_unchecked("user2".to_string()),
         ];
         let repo = MockUserRepository::with_users(users);
         let service = UserService::new(repo);
@@ -329,9 +327,7 @@ mod tests {
 
     #[test]
     fn test_get_user_by_username_found() {
-        let user = User::new(
-            "john_doe".to_string(),
-        );
+        let user = User::new_unchecked("john_doe".to_string());
         let repo = MockUserRepository::with_users(vec![user.clone()]);
         let service = UserService::new(repo);
 
@@ -383,15 +379,11 @@ mod tests {
 
     #[test]
     fn test_create_user_duplicate_username() {
-        let existing_user = User::new(
-            "existing".to_string(),
-        );
+        let existing_user = User::new_unchecked("existing".to_string());
         let repo = MockUserRepository::with_users(vec![existing_user]);
         let service = UserService::new(repo);
 
-        let result = service.create_user(
-            "existing".to_string(),
-        );
+        let result = service.create_user("existing".to_string());
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -423,9 +415,7 @@ mod tests {
 
     #[test]
     fn test_delete_user_success() {
-        let user = User::new(
-            "delete_me".to_string(),
-        );
+        let user = User::new_unchecked("delete_me".to_string());
         let repo = MockUserRepository::with_users(vec![user]);
         let service = UserService::new(repo);
 
