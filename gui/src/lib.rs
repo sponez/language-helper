@@ -6,14 +6,43 @@
 //!
 //! # Architecture
 //!
-//! The GUI is structured into:
-//! - **app_gui**: Main application state and message routing
-//! - **frames**: Individual screen components (e.g., account selection)
+//! The GUI follows a clean orchestrator pattern:
+//! - **gui_orchestrator**: Main orchestration layer for routing messages and managing screen transitions
+//! - **frames**: Individual screen components (self-contained with their own logic)
+//!
+//! ## Orchestrator Pattern
+//!
+//! The orchestrator pattern separates concerns cleanly:
+//!
+//! ### Orchestrator (gui_orchestrator)
+//! - Manages which screen is displayed
+//! - Routes messages to appropriate frames
+//! - Handles screen transitions based on frame events
+//! - Contains NO business logic
+//!
+//! ### Frames (frames/*)
+//! - Self-contained UI components
+//! - Own their state and business logic
+//! - Handle API calls internally
+//! - Emit events to orchestrator for screen transitions
+//! - Define their own Messages for internal communication
+//!
+//! ## Adding a New Screen
+//!
+//! To add a new screen:
+//! 1. Create a new frame module in `frames/` with:
+//!    - `State` struct (private fields)
+//!    - `Message` enum (internal messages)
+//!    - `FrameEvent` enum (events for orchestrator)
+//!    - `new()`, `update()`, `view()` methods
+//! 2. Add variant to `Screen` enum in orchestrator
+//! 3. Add variant to orchestrator's `Message` enum
+//! 4. Add routing logic in orchestrator's `update()` and `view()`
 //!
 //! # Example
 //!
 //! ```no_run
-//! use gui::app_gui::State;
+//! use gui::gui_orchestrator::State;
 //! use lh_api::app_api::AppApi;
 //!
 //! fn initialize_gui(api: Box<dyn AppApi>) -> State {
@@ -22,4 +51,4 @@
 //! ```
 
 pub mod frames;
-pub mod app_gui;
+pub mod gui_orchestrator;

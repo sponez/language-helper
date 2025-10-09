@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 lh_api = { path = "../api" }
+lh_core = { path = "../core" }
 
 iced = { version = "0.13", features = ["tokio", "lazy"] }
 thiserror = { workspace = true }

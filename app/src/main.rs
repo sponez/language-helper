@@ -10,7 +10,7 @@ use lh_core::repositories::adapters::UserRepositoryAdapter;
 use lh_core::services::user_service::UserService;
 use lh_persistence::SqliteUserRepository;
 
-use gui::app_gui;
+use gui::gui_orchestrator;
 
 mod config;
 use config::AppConfig;
@@ -21,7 +21,7 @@ use config::AppConfig;
 /// It serves as the bridge between the Iced framework and the application's GUI logic.
 struct LanguageHelperApp {
     /// The application GUI state
-    state: app_gui::State,
+    state: gui_orchestrator::State,
 }
 
 impl LanguageHelperApp {
@@ -36,15 +36,15 @@ impl LanguageHelperApp {
     /// A tuple containing:
     /// - The new `LanguageHelperApp` instance
     /// - An initial task (currently none)
-    fn new(app_api: Box<dyn lh_api::app_api::AppApi>) -> (Self, Task<app_gui::Message>) {
-        let state = app_gui::State::new(app_api);
+    fn new(app_api: Box<dyn lh_api::app_api::AppApi>) -> (Self, Task<gui_orchestrator::Message>) {
+        let state = gui_orchestrator::State::new(app_api);
         (Self { state }, Task::none())
     }
 
     /// Handles application messages and updates state.
     ///
     /// This method processes user interactions and system events, delegating
-    /// to the GUI layer's update function.
+    /// to the GUI orchestrator's update function.
     ///
     /// # Arguments
     ///
@@ -54,8 +54,8 @@ impl LanguageHelperApp {
     ///
     /// A task to be executed by the Iced runtime. If the application should exit,
     /// returns a task to close the window.
-    fn update(&mut self, message: app_gui::Message) -> Task<app_gui::Message> {
-        let should_exit = app_gui::update(&mut self.state, message);
+    fn update(&mut self, message: gui_orchestrator::Message) -> Task<gui_orchestrator::Message> {
+        let should_exit = gui_orchestrator::update(&mut self.state, message);
 
         if should_exit {
             // Close the window to exit the application
@@ -68,14 +68,14 @@ impl LanguageHelperApp {
 
     /// Renders the application's current view.
     ///
-    /// This method delegates to the GUI layer to generate the visual representation
+    /// This method delegates to the GUI orchestrator to generate the visual representation
     /// of the current application state.
     ///
     /// # Returns
     ///
     /// An `Element` containing the rendered UI
-    fn view(&self) -> Element<'_, app_gui::Message> {
-        app_gui::view(&self.state)
+    fn view(&self) -> Element<'_, gui_orchestrator::Message> {
+        gui_orchestrator::view(&self.state)
     }
 }
 
