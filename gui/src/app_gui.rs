@@ -127,7 +127,7 @@ pub fn update(state: &mut State, message: Message) -> bool {
         Message::FrameMessage(frame_msg) => match frame_msg {
             account_list_frame::FrameMessage::OptionSelected(selection) => {
                 // Check if "Add new user" was selected
-                if selection == "➕ Add new user" {
+                if selection == "+ Add new user" {
                     state.account_list_state.is_adding_new_user = true;
                     state.account_list_state.selected_username = None;
                     state.account_list_state.new_username_input.clear();
@@ -222,10 +222,18 @@ mod tests {
 
         fn get_user_by_username(&self, username: &str) -> Option<UserDto> {
             if self.usernames.contains(&username.to_string()) {
-                Some(UserDto {})
+                Some(UserDto {
+                    username: username.to_string(),
+                })
             } else {
                 None
             }
+        }
+
+        fn create_user(&self, _username: String) -> Result<UserDto, ApiError> {
+            Ok(UserDto {
+                username: _username,
+            })
         }
     }
 

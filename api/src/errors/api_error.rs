@@ -28,6 +28,21 @@ pub enum ApiErrorCode {
     ///
     /// Used when a requested resource does not exist.
     NotFound,
+
+    /// Validation error.
+    ///
+    /// Used when input data fails validation rules.
+    ValidationError,
+
+    /// Conflict error.
+    ///
+    /// Used when the operation conflicts with existing data (e.g., duplicate username).
+    Conflict,
+
+    /// Internal server error.
+    ///
+    /// Used for unexpected internal errors.
+    InternalError,
 }
 
 /// Structured error body for API responses.
@@ -126,6 +141,75 @@ impl ApiError {
     /// ```
     pub fn not_found(message: impl Into<String>) -> Self {
         ApiError::Simple(ApiErrorCode::NotFound, message.into())
+    }
+
+    /// Creates a new "validation error" error.
+    ///
+    /// This is a convenience constructor for validation failures.
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - The error message (can be `&str` or `String`)
+    ///
+    /// # Returns
+    ///
+    /// A new `ApiError::Simple` with `ValidationError` code.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lh_api::errors::api_error::ApiError;
+    ///
+    /// let error = ApiError::validation_error("Username cannot be empty");
+    /// ```
+    pub fn validation_error(message: impl Into<String>) -> Self {
+        ApiError::Simple(ApiErrorCode::ValidationError, message.into())
+    }
+
+    /// Creates a new "conflict" error.
+    ///
+    /// This is a convenience constructor for conflict errors.
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - The error message (can be `&str` or `String`)
+    ///
+    /// # Returns
+    ///
+    /// A new `ApiError::Simple` with `Conflict` code.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lh_api::errors::api_error::ApiError;
+    ///
+    /// let error = ApiError::conflict("Username already exists");
+    /// ```
+    pub fn conflict(message: impl Into<String>) -> Self {
+        ApiError::Simple(ApiErrorCode::Conflict, message.into())
+    }
+
+    /// Creates a new "internal error" error.
+    ///
+    /// This is a convenience constructor for internal server errors.
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - The error message (can be `&str` or `String`)
+    ///
+    /// # Returns
+    ///
+    /// A new `ApiError::Simple` with `InternalError` code.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lh_api::errors::api_error::ApiError;
+    ///
+    /// let error = ApiError::internal_error("Database connection failed");
+    /// ```
+    pub fn internal_error(message: impl Into<String>) -> Self {
+        ApiError::Simple(ApiErrorCode::InternalError, message.into())
     }
 
     /// Converts the error into a serializable error body.

@@ -7,8 +7,32 @@ use lh_api::apis::user_api::UsersApi;
 use lh_api::errors::api_error::ApiError;
 use lh_api::models::user::UserDto;
 
+use crate::domain::user::User;
+use crate::errors::CoreError;
 use crate::services::user_service::UserService;
 use crate::repositories::user_repository::UserRepository;
+
+/// Helper function to map CoreError to ApiError
+fn map_core_error_to_api_error(error: CoreError) -> ApiError {
+    match error {
+        CoreError::NotFound { entity, id } => {
+            ApiError::not_found(format!("{} '{}' not found", entity, id))
+        }
+        CoreError::ValidationError { message } => {
+            ApiError::validation_error(message)
+        }
+        CoreError::RepositoryError { message } => {
+            ApiError::internal_error(format!("Internal error: {}", message))
+        }
+    }
+}
+
+/// Helper function to map domain User to UserDto
+fn map_user_to_dto(user: User) -> UserDto {
+    UserDto {
+        username: user.username,
+    }
+}
 
 /// Implementation of the UsersApi trait.
 ///
@@ -37,7 +61,7 @@ impl<R: UserRepository> UsersApi for UsersApiImpl<R> {
     fn get_usernames(&self) -> Result<Vec<String>, ApiError> {
         self.user_service
             .get_all_usernames()
-            .map_err(|e| ApiError::not_found(e.to_string()))
+            .map_err(map_core_error_to_api_error)
     }
 
     fn get_user_by_username(&self, username: &str) -> Option<UserDto> {
@@ -45,19 +69,13 @@ impl<R: UserRepository> UsersApi for UsersApiImpl<R> {
             .get_user_by_username(username)
             .ok()
             .flatten()
-            .map(|_user| UserDto {
-                // Map domain User to UserDto
-                // Add fields as needed
-            })
+            .map(map_user_to_dto)
     }
 
     fn create_user(&self, username: String) -> Result<UserDto, ApiError> {
         self.user_service
             .create_user(username)
-            .map(|_user| UserDto {
-                // Map domain User to UserDto
-                // Add fields as needed
-            })
-            .map_err(|e| ApiError::not_found(e.to_string()))
+            .map(map_user_to_dto)
+            .map_err(map_core_error_to_api_error)
     }
 }

@@ -2,6 +2,8 @@
 //!
 //! This module defines the user model used for data transfer.
 
+use serde::{Deserialize, Serialize};
+
 /// Data transfer object representing a user.
 ///
 /// This struct is used to transfer user information between different layers
@@ -13,10 +15,11 @@
 /// use lh_api::models::user::UserDto;
 ///
 /// let user = UserDto {
-///     // Initialize fields here
+///     username: "john_doe".to_string(),
 /// };
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UserDto {
-    // fields go here
+    /// The username of the user
+    pub username: String,
 }

@@ -11,6 +11,9 @@ use lh_persistence::SqliteUserRepository;
 
 use gui::app_gui;
 
+mod config;
+use config::AppConfig;
+
 /// Main iced Application struct
 struct LanguageHelperApp {
     state: app_gui::State,
@@ -40,11 +43,14 @@ impl LanguageHelperApp {
 }
 
 fn main() -> iced::Result {
+    // Load configuration
+    let config = AppConfig::from_env();
+
     // Initialize the dependency injection chain:
     // Persistence Layer -> Core Layer -> API Layer -> GUI Layer
 
     // 1. Create the repository (persistence layer)
-    let repository = SqliteUserRepository::new("data/users.db")
+    let repository = SqliteUserRepository::new(&config.database_path)
         .expect("Failed to initialize database");
 
     // 2. Create the service (core layer)

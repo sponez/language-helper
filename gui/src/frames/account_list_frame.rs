@@ -9,7 +9,7 @@ use iced::{Element, Length};
 use crate::app_gui::{Message, State};
 
 /// Special option in the pick list for adding a new user
-const ADD_NEW_USER: &str = "➕ Add new user";
+const ADD_NEW_USER: &str = "+ Add new user";
 
 /// Internal messages specific to the account list frame.
 ///
