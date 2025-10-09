@@ -3,7 +3,7 @@
 //! This is the main entry point for the Language Helper application.
 //! It sets up the dependency injection, initializes all layers, and runs the GUI.
 
-use iced::{Element, Task};
+use iced::{Element, Task, window};
 
 use lh_core::api_impl::{AppApiImpl, UsersApiImpl};
 use lh_core::services::user_service::UserService;
@@ -23,8 +23,15 @@ impl LanguageHelperApp {
     }
 
     fn update(&mut self, message: app_gui::Message) -> Task<app_gui::Message> {
-        app_gui::update(&mut self.state, message);
-        Task::none()
+        let should_exit = app_gui::update(&mut self.state, message);
+
+        if should_exit {
+            // Close the window to exit the application
+            window::get_latest()
+                .and_then(|id| window::close(id))
+        } else {
+            Task::none()
+        }
     }
 
     fn view(&self) -> Element<'_, app_gui::Message> {

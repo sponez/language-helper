@@ -50,4 +50,14 @@ impl<R: UserRepository> UsersApi for UsersApiImpl<R> {
                 // Add fields as needed
             })
     }
+
+    fn create_user(&self, username: String) -> Result<UserDto, ApiError> {
+        self.user_service
+            .create_user(username)
+            .map(|_user| UserDto {
+                // Map domain User to UserDto
+                // Add fields as needed
+            })
+            .map_err(|e| ApiError::not_found(e.to_string()))
+    }
 }
