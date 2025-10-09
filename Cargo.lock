@@ -109,8 +109,11 @@ dependencies = [
 name = "app"
 version = "0.1.0"
 dependencies = [
+ "gui",
+ "iced",
  "lh_api",
  "lh_core",
+ "lh_persistence",
 ]
 
 [[package]]
@@ -1781,6 +1784,7 @@ dependencies = [
 name = "lh_core"
 version = "0.1.0"
 dependencies = [
+ "lh_api",
  "thiserror",
 ]
 

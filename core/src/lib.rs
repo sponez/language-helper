@@ -41,6 +41,7 @@
 //! }
 //! ```
 
+pub mod api_impl;
 pub mod domain;
 pub mod errors;
 pub mod repositories;
