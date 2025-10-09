@@ -12,7 +12,7 @@ use crate::apis::user_api::UsersApi;
 /// # Examples
 ///
 /// ```no_run
-/// use api::app_api::AppApi;
+/// use lh_api::app_api::AppApi;
 ///
 /// fn process_users(api: &dyn AppApi) {
 ///     let usernames = api.users_api().get_usernames();

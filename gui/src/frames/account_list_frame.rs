@@ -118,10 +118,10 @@ pub fn view<'a>(state: &'a State, frame_state: &'a FrameState) -> Element<'a, Me
 mod tests {
     use super::*;
     use crate::app_gui;
-    use api::apis::user_api::UsersApi;
-    use api::app_api::AppApi;
-    use api::errors::api_error::ApiError;
-    use api::models::user::UserDto;
+    use lh_api::apis::user_api::UsersApi;
+    use lh_api::app_api::AppApi;
+    use lh_api::errors::api_error::ApiError;
+    use lh_api::models::user::UserDto;
 
     /// Mock implementation of UsersApi for testing
     struct MockUsersApi {

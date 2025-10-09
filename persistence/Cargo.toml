@@ -1,5 +1,5 @@
 [package]
-name = "persistence"
+name = "lh_persistence"
 version.workspace = true
 edition.workspace = true
 

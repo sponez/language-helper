@@ -28,8 +28,6 @@ impl User {
     /// # Arguments
     ///
     /// * `username` - The username for the user
-    /// * `email` - The email address for the user
-    /// * `full_name` - Optional full name for the user
     ///
     /// # Returns
     ///
@@ -40,11 +38,8 @@ impl User {
     /// ```
     /// use lh_core::domain::user::User;
     ///
-    /// let user = User::new(
-    ///     "jane_smith".to_string(),
-    ///     "jane@example.com".to_string(),
-    ///     Some("Jane Smith".to_string())
-    /// );
+    /// let user = User::new("jane_smith".to_string());
+    /// assert_eq!(user.username, "jane_smith");
     /// ```
     pub fn new(username: String) -> Self {
         Self { username }

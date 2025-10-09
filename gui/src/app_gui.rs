@@ -3,7 +3,7 @@
 //! This module provides the main state management and message routing for the GUI application.
 //! It coordinates between different screens and handles user interactions.
 
-use api::app_api::AppApi;
+use lh_api::app_api::AppApi;
 
 use iced::Element;
 
@@ -61,7 +61,7 @@ impl State {
     ///
     /// ```no_run
     /// use gui::app_gui::State;
-    /// use api::app_api::AppApi;
+    /// use lh_api::app_api::AppApi;
     ///
     /// fn create_app_state(api: Box<dyn AppApi>) -> State {
     ///     State::new(api)
@@ -105,7 +105,7 @@ impl State {
 ///
 /// ```no_run
 /// use gui::app_gui::{State, Message, update};
-/// use api::app_api::AppApi;
+/// use lh_api::app_api::AppApi;
 ///
 /// fn handle_user_selection(state: &mut State, username: String) {
 ///     update(state, Message::Account(username));
@@ -160,9 +160,9 @@ pub fn view(state: &State) -> Element<'_, Message> {
 mod tests {
     use super::*;
     use crate::frames::account_list_frame::FrameMessage;
-    use api::apis::user_api::UsersApi;
-    use api::errors::api_error::ApiError;
-    use api::models::user::UserDto;
+    use lh_api::apis::user_api::UsersApi;
+    use lh_api::errors::api_error::ApiError;
+    use lh_api::models::user::UserDto;
 
     /// Mock implementation of UsersApi for testing
     struct MockUsersApi {

@@ -132,8 +132,6 @@ impl<R: UserRepository> UserService<R> {
     /// # Arguments
     ///
     /// * `username` - The username for the new user
-    /// * `email` - The email address for the new user
-    /// * `full_name` - Optional full name for the new user
     ///
     /// # Returns
     ///
@@ -152,11 +150,7 @@ impl<R: UserRepository> UserService<R> {
     /// # use lh_core::services::user_service::UserService;
     /// # use lh_core::repositories::user_repository::UserRepository;
     /// # fn example(service: &UserService<impl UserRepository>) {
-    /// match service.create_user(
-    ///     "jane_doe".to_string(),
-    ///     "jane@example.com".to_string(),
-    ///     Some("Jane Doe".to_string())
-    /// ) {
+    /// match service.create_user("jane_doe".to_string()) {
     ///     Ok(user) => println!("Created user: {:?}", user),
     ///     Err(e) => eprintln!("Failed to create user: {}", e),
     /// }
@@ -188,8 +182,6 @@ impl<R: UserRepository> UserService<R> {
     /// # Arguments
     ///
     /// * `username` - The username of the user to update
-    /// * `email` - The new email address
-    /// * `full_name` - The new full name (optional)
     ///
     /// # Returns
     ///
@@ -209,11 +201,7 @@ impl<R: UserRepository> UserService<R> {
     /// # use lh_core::services::user_service::UserService;
     /// # use lh_core::repositories::user_repository::UserRepository;
     /// # fn example(service: &UserService<impl UserRepository>) {
-    /// match service.update_user(
-    ///     "john_doe".to_string(),
-    ///     "newemail@example.com".to_string(),
-    ///     Some("John Updated".to_string())
-    /// ) {
+    /// match service.update_user("john_doe".to_string()) {
     ///     Ok(user) => println!("Updated user: {:?}", user),
     ///     Err(e) => eprintln!("Failed to update user: {}", e),
     /// }
@@ -388,24 +376,6 @@ mod tests {
         match result.unwrap_err() {
             CoreError::ValidationError { message } => {
                 assert!(message.contains("Username cannot be empty"));
-            }
-            _ => panic!("Expected ValidationError"),
-        }
-    }
-
-    #[test]
-    fn test_create_user_empty_email() {
-        let repo = MockUserRepository::new();
-        let service = UserService::new(repo);
-
-        let result = service.create_user(
-            "test_user".to_string(),
-        );
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            CoreError::ValidationError { message } => {
-                assert!(message.contains("Email cannot be empty"));
             }
             _ => panic!("Expected ValidationError"),
         }

@@ -4,5 +4,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-api = { path = "../api" }
-core = { path = "../core" }
+lh_api = { path = "../api" }
+lh_core = { path = "../core" }

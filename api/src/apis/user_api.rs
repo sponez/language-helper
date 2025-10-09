@@ -12,7 +12,7 @@ use crate::{errors::api_error::ApiError, models::user::UserDto};
 /// # Examples
 ///
 /// ```no_run
-/// use api::apis::user_api::UsersApi;
+/// use lh_api::apis::user_api::UsersApi;
 ///
 /// fn list_all_users(api: &dyn UsersApi) -> Result<(), Box<dyn std::error::Error>> {
 ///     let usernames = api.get_usernames()?;
@@ -50,7 +50,7 @@ pub trait UsersApi {
     /// # Examples
     ///
     /// ```no_run
-    /// # use api::apis::user_api::UsersApi;
+    /// # use lh_api::apis::user_api::UsersApi;
     /// fn find_user(api: &dyn UsersApi, name: &str) {
     ///     match api.get_user_by_username(name) {
     ///         Some(user) => println!("Found user: {:?}", user),

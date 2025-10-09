@@ -1,5 +1,5 @@
 [package]
-name = "api"
+name = "lh_api"
 version.workspace = true
 edition.workspace = true
 

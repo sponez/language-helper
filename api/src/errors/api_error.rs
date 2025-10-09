@@ -15,7 +15,7 @@ use thiserror::Error;
 /// # Examples
 ///
 /// ```
-/// use api::errors::api_error::ApiErrorCode;
+/// use lh_api::errors::api_error::ApiErrorCode;
 /// use serde_json;
 ///
 /// let code = ApiErrorCode::NotFound;
@@ -44,7 +44,7 @@ pub enum ApiErrorCode {
 /// # Examples
 ///
 /// ```
-/// use api::errors::api_error::{ApiErrorBody, ApiErrorCode};
+/// use lh_api::errors::api_error::{ApiErrorBody, ApiErrorCode};
 ///
 /// let error_body = ApiErrorBody {
 ///     code: ApiErrorCode::NotFound,
@@ -75,7 +75,7 @@ pub struct ApiErrorBody {
 /// # Examples
 ///
 /// ```
-/// use api::errors::api_error::ApiError;
+/// use lh_api::errors::api_error::ApiError;
 ///
 /// // Create a simple not found error
 /// let error = ApiError::not_found("User not found");
@@ -120,7 +120,7 @@ impl ApiError {
     /// # Examples
     ///
     /// ```
-    /// use api::errors::api_error::ApiError;
+    /// use lh_api::errors::api_error::ApiError;
     ///
     /// let error = ApiError::not_found("User with ID 123 not found");
     /// ```
@@ -140,7 +140,7 @@ impl ApiError {
     /// # Examples
     ///
     /// ```
-    /// use api::errors::api_error::ApiError;
+    /// use lh_api::errors::api_error::ApiError;
     /// use serde_json;
     ///
     /// let error = ApiError::not_found("Resource not found");

@@ -10,12 +10,13 @@
 /// # Examples
 ///
 /// ```
-/// use api::models::user::UserDto;
+/// use lh_api::models::user::UserDto;
 ///
 /// let user = UserDto {
 ///     // Initialize fields here
 /// };
 /// ```
+#[derive(Debug)]
 pub struct UserDto {
     // fields go here
 }
