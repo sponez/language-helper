@@ -4,4 +4,4 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-persistence = { path = "../persistence" }
+thiserror = { workspace = true }
