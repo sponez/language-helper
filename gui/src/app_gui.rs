@@ -44,6 +44,8 @@ pub enum Message {
     Account(String),
     /// Internal messages from the account list frame
     FrameMessage(account_list_frame::FrameMessage),
+    /// Sent when the application should exit
+    Exit,
 }
 
 impl State {
@@ -96,10 +98,15 @@ impl State {
 /// * `state` - Mutable reference to the application state
 /// * `message` - The message to process
 ///
+/// # Returns
+///
+/// Returns `true` if the application should exit, `false` otherwise
+///
 /// # Message Flow
 ///
 /// - `Message::Account(username)` - Confirms account selection and updates `current_account`
 /// - `Message::FrameMessage::UsernameSelected(username)` - Updates the selected username in the frame state
+/// - `Message::Exit` - Signals that the application should exit
 ///
 /// # Examples
 ///
@@ -111,19 +118,58 @@ impl State {
 ///     update(state, Message::Account(username));
 /// }
 /// ```
-pub fn update(state: &mut State, message: Message) {
+pub fn update(state: &mut State, message: Message) -> bool {
     match message {
         Message::Account(username) => {
             state.current_account = Some(username);
+            false
         }
         Message::FrameMessage(frame_msg) => match frame_msg {
-            account_list_frame::FrameMessage::UsernameSelected(username) => {
-                state.account_list_state.selected_username = Some(username);
+            account_list_frame::FrameMessage::OptionSelected(selection) => {
+                // Check if "Add new user" was selected
+                if selection == "➕ Add new user" {
+                    state.account_list_state.is_adding_new_user = true;
+                    state.account_list_state.selected_username = None;
+                    state.account_list_state.new_username_input.clear();
+                } else {
+                    state.account_list_state.is_adding_new_user = false;
+                    state.account_list_state.selected_username = Some(selection);
+                }
+                false
             }
-            account_list_frame::FrameMessage::OkPressed => {
-                // This branch is not used since we directly send Message::Account from the button
+            account_list_frame::FrameMessage::NewUsernameChanged(input) => {
+                state.account_list_state.new_username_input = input;
+                false
+            }
+            account_list_frame::FrameMessage::CreateNewUser => {
+                let username = state.account_list_state.new_username_input.trim().to_string();
+                if !username.is_empty() {
+                    // Try to create the user
+                    match state.app_api.users_api().create_user(username.clone()) {
+                        Ok(_) => {
+                            // User created successfully, select it
+                            state.current_account = Some(username);
+                            // Reset the add new user state
+                            state.account_list_state.is_adding_new_user = false;
+                            state.account_list_state.new_username_input.clear();
+                        }
+                        Err(_e) => {
+                            // TODO: Show error message to user
+                            // For now, just keep the form open
+                        }
+                    }
+                }
+                false
+            }
+            account_list_frame::FrameMessage::Exit => {
+                // This is no longer used since we send Message::Exit directly
+                false
             }
         },
+        Message::Exit => {
+            // Signal that the application should exit
+            true
+        }
     }
 }
 

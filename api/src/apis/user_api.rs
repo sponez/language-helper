@@ -59,4 +59,36 @@ pub trait UsersApi {
     /// }
     /// ```
     fn get_user_by_username(&self, username: &str) -> Option<UserDto>;
+
+    /// Creates a new user with the given username.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username for the new user
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(UserDto)` - The created user
+    /// * `Err(ApiError)` - If an error occurs (e.g., username already exists or is invalid)
+    ///
+    /// # Errors
+    ///
+    /// This function may return an error if:
+    /// - The username is empty or invalid
+    /// - A user with the same username already exists
+    /// - There's a database or internal error
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use lh_api::apis::user_api::UsersApi;
+    /// fn add_user(api: &dyn UsersApi, name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    ///     match api.create_user(name.to_string()) {
+    ///         Ok(user) => println!("Created user: {:?}", user),
+    ///         Err(e) => eprintln!("Failed to create user: {}", e),
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
+    fn create_user(&self, username: String) -> Result<UserDto, ApiError>;
 }
