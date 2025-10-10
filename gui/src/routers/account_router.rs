@@ -12,7 +12,7 @@ use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
 use lh_core::domain::user::User;
 
-use crate::router::RouterEvent;
+use crate::router::{self, RouterEvent, RouterNode};
 
 /// Messages that can be sent within the account router.
 #[derive(Debug, Clone)]
@@ -95,6 +95,22 @@ impl AccountRouter {
 
 }
 
+/// Implementation of RouterNode for AccountRouter
+impl RouterNode for AccountRouter {
+    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+        match message {
+            router::Message::Account(msg) => {
+                AccountRouter::update(self, msg.clone())
+            }
+            _ => None, // Ignore messages not meant for this router
+        }
+    }
+
+    fn view(&self) -> Element<'_, router::Message> {
+        AccountRouter::view(self).map(router::Message::Account)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,13 +127,31 @@ mod tests {
         }
 
         fn get_user_by_username(&self, username: &str) -> Option<UserDto> {
+            use lh_api::models::user_settings::UserSettingsDto;
+
             Some(UserDto {
                 username: username.to_string(),
+                settings: UserSettingsDto {
+                    username: username.to_string(),
+                    theme: "System".to_string(),
+                    language: "en".to_string(),
+                },
+                profiles: vec![],
             })
         }
 
         fn create_user(&self, username: String) -> Result<UserDto, ApiError> {
-            Ok(UserDto { username })
+            use lh_api::models::user_settings::UserSettingsDto;
+
+            Ok(UserDto {
+                username: username.clone(),
+                settings: UserSettingsDto {
+                    username,
+                    theme: "System".to_string(),
+                    language: "en".to_string(),
+                },
+                profiles: vec![],
+            })
         }
     }
 
@@ -129,6 +163,10 @@ mod tests {
     impl AppApi for MockAppApi {
         fn users_api(&self) -> &dyn UsersApi {
             &self.users_api
+        }
+
+        fn app_settings_api(&self) -> &dyn lh_api::apis::app_settings_api::AppSettingsApi {
+            unimplemented!("app_settings_api not needed for these tests")
         }
     }
 

@@ -7,10 +7,19 @@ use std::rc::Rc;
 
 use iced::{Element, Task, window};
 
-use lh_core::api_impl::{AppApiImpl, UsersApiImpl};
-use lh_core::repositories::adapters::UserRepositoryAdapter;
+use lh_core::api_impl::{AppApiImpl, AppSettingsApiImpl, UsersApiImpl};
+use lh_core::repositories::adapters::{
+    UserRepositoryAdapter, AppSettingsRepositoryAdapter,
+    UserSettingsRepositoryAdapter, ProfileRepositoryAdapter
+};
 use lh_core::services::user_service::UserService;
-use lh_persistence::SqliteUserRepository;
+use lh_core::services::user_settings_service::UserSettingsService;
+use lh_core::services::profile_service::ProfileService;
+use lh_core::services::app_settings_service::AppSettingsService;
+use lh_persistence::{
+    SqliteUserRepository, SqliteAppSettingsRepository,
+    SqliteUserSettingsRepository, SqliteProfileRepository
+};
 
 use gui::router::{RouterStack, RouterNode, Message};
 use gui::routers::account_list_router::AccountListRouter;
@@ -115,19 +124,64 @@ fn main() -> iced::Result {
     // Initialize the dependency injection chain:
     // Persistence Layer -> Adapter -> Core Layer -> API Layer -> GUI Layer
 
-    // 1. Create the persistence repository
-    let persistence_repository = SqliteUserRepository::new(&config.database_path)
-        .expect("Failed to initialize database");
+    // 1. Create a shared database connection
+    // UserRepository opens the database and ensures parent directory exists
+    let user_persistence = SqliteUserRepository::new(&config.database_path)
+        .expect("Failed to initialize user database");
 
-    // 2. Wrap the persistence repository with the adapter
-    let repository = UserRepositoryAdapter::new(persistence_repository);
+    // Get a reference to the connection for other repositories
+    use rusqlite::Connection;
+    use std::sync::{Arc, Mutex};
 
-    // 3. Create the service (core layer)
-    let user_service = UserService::new(repository);
+    // Open the same database for all other repositories
+    let conn = Connection::open(&config.database_path)
+        .expect("Failed to open database connection");
+    let shared_conn = Arc::new(Mutex::new(conn));
+
+    // Create other persistence repositories sharing the connection
+    let app_settings_persistence = SqliteAppSettingsRepository::new(shared_conn.clone())
+        .expect("Failed to initialize app settings repository");
+    let user_settings_persistence = SqliteUserSettingsRepository::new(shared_conn.clone())
+        .expect("Failed to initialize user settings repository");
+    let profile_persistence = SqliteProfileRepository::new(shared_conn.clone())
+        .expect("Failed to initialize profile repository");
+
+    // 2. Wrap the persistence repositories with adapters
+    let user_repository = UserRepositoryAdapter::new(user_persistence);
+    let app_settings_repository = AppSettingsRepositoryAdapter::new(app_settings_persistence);
+    let user_settings_repository = UserSettingsRepositoryAdapter::new(user_settings_persistence);
+    let profile_repository = ProfileRepositoryAdapter::new(profile_persistence);
+
+    // 3. Create the services (core layer)
+    let user_service = UserService::new(user_repository);
+    let app_settings_service = AppSettingsService::new(app_settings_repository);
+
+    // For UserSettingsService, we need to share the same adapted repositories
+    // Create additional repository instances
+    let app_settings_persistence2 = SqliteAppSettingsRepository::new(shared_conn.clone())
+        .expect("Failed to initialize app settings repository for user settings service");
+    let user_persistence2 = SqliteUserRepository::new(&config.database_path)
+        .expect("Failed to initialize user repository for user settings service");
+
+    let user_settings_service = UserSettingsService::new(
+        user_settings_repository,
+        AppSettingsRepositoryAdapter::new(app_settings_persistence2),
+        UserRepositoryAdapter::new(user_persistence2)
+    );
+
+    // For ProfileService
+    let user_persistence3 = SqliteUserRepository::new(&config.database_path)
+        .expect("Failed to initialize user repository for profile service");
+
+    let profile_service = ProfileService::new(
+        profile_repository,
+        UserRepositoryAdapter::new(user_persistence3)
+    );
 
     // 4. Create the API implementations (bridge between core and API)
-    let users_api = UsersApiImpl::new(user_service);
-    let app_api = AppApiImpl::new(users_api);
+    let users_api = UsersApiImpl::new(user_service, user_settings_service, profile_service);
+    let app_settings_api = AppSettingsApiImpl::new(app_settings_service);
+    let app_api = AppApiImpl::new(users_api, app_settings_api);
 
     // 5. Box the AppApi for trait object usage
     let app_api_boxed: Box<dyn lh_api::app_api::AppApi> = Box::new(app_api);

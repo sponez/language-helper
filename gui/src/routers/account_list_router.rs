@@ -12,7 +12,7 @@ use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
 use lh_core::domain::user::User;
 
-use crate::router::RouterEvent;
+use crate::router::{self, RouterEvent, RouterNode};
 
 /// Special option in the pick list for adding a new user
 const ADD_NEW_USER: &str = "+ Add new user";
@@ -231,7 +231,22 @@ impl AccountListRouter {
             .align_y(Alignment::Center)
             .into()
     }
+}
 
+/// Implementation of RouterNode for AccountListRouter
+impl RouterNode for AccountListRouter {
+    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+        match message {
+            router::Message::AccountList(msg) => {
+                AccountListRouter::update(self, msg.clone())
+            }
+            _ => None, // Ignore messages not meant for this router
+        }
+    }
+
+    fn view(&self) -> Element<'_, router::Message> {
+        AccountListRouter::view(self).map(router::Message::AccountList)
+    }
 }
 
 #[cfg(test)]
@@ -253,23 +268,38 @@ mod tests {
         }
 
         fn get_user_by_username(&self, username: &str) -> Option<UserDto> {
-            if self.usernames.contains(&username.to_string()) {
+            use lh_api::models::user_settings::UserSettingsDto;
+
+            if self.usernames.contains(&username.to_string()) || !self.should_fail_create {
                 Some(UserDto {
                     username: username.to_string(),
+                    settings: UserSettingsDto {
+                        username: username.to_string(),
+                        theme: "System".to_string(),
+                        language: "en".to_string(),
+                    },
+                    profiles: vec![],
                 })
             } else {
-                // Also return newly created users
-                Some(UserDto {
-                    username: username.to_string(),
-                })
+                None
             }
         }
 
         fn create_user(&self, username: String) -> Result<UserDto, ApiError> {
+            use lh_api::models::user_settings::UserSettingsDto;
+
             if self.should_fail_create {
                 Err(ApiError::internal_error("Failed to create user"))
             } else {
-                Ok(UserDto { username })
+                Ok(UserDto {
+                    username: username.clone(),
+                    settings: UserSettingsDto {
+                        username,
+                        theme: "System".to_string(),
+                        language: "en".to_string(),
+                    },
+                    profiles: vec![],
+                })
             }
         }
     }
@@ -282,6 +312,10 @@ mod tests {
     impl AppApi for MockAppApi {
         fn users_api(&self) -> &dyn UsersApi {
             &self.users_api
+        }
+
+        fn app_settings_api(&self) -> &dyn lh_api::apis::app_settings_api::AppSettingsApi {
+            unimplemented!("app_settings_api not needed for these tests")
         }
     }
 

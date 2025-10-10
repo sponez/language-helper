@@ -72,46 +72,6 @@ pub trait RouterNode {
     fn view(&self) -> Element<'_, Message>;
 }
 
-/// Implementation of RouterNode for AccountListRouter
-impl RouterNode for account_list_router::AccountListRouter {
-    fn update(&mut self, message: &Message) -> Option<RouterEvent> {
-        match message {
-            Message::AccountList(msg) => {
-                // Process the message and convert any child router into a RouterNode
-                match account_list_router::AccountListRouter::update(self, msg.clone())? {
-                    RouterEvent::Push(router) => {
-                        // The router is already boxed as dyn RouterNode
-                        Some(RouterEvent::Push(router))
-                    }
-                    other => Some(other),
-                }
-            }
-            _ => None, // Ignore messages not meant for this router
-        }
-    }
-
-    fn view(&self) -> Element<'_, Message> {
-        account_list_router::AccountListRouter::view(self)
-            .map(Message::AccountList)
-    }
-}
-
-/// Implementation of RouterNode for AccountRouter
-impl RouterNode for account_router::AccountRouter {
-    fn update(&mut self, message: &Message) -> Option<RouterEvent> {
-        match message {
-            Message::Account(msg) => {
-                account_router::AccountRouter::update(self, msg.clone())
-            }
-            _ => None, // Ignore messages not meant for this router
-        }
-    }
-
-    fn view(&self) -> Element<'_, Message> {
-        account_router::AccountRouter::view(self).map(Message::Account)
-    }
-}
-
 /// Manages a stack of routers for hierarchical navigation.
 ///
 /// The router stack maintains a vector of active routers and always

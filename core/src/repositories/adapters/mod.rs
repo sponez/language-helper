@@ -1,19 +1,14 @@
-//! Repository adapters for mapping between layers.
+//! Repository adapters for mapping persistence errors to core errors.
 //!
-//! This module contains adapters that wrap persistence layer repositories
-//! and map their errors to core layer errors, maintaining clean architecture.
-//!
-//! # Design
-//!
-//! Adapters implement the core's repository traits while wrapping persistence
-//! layer implementations. This maintains the Dependency Inversion Principle
-//! by ensuring the core layer doesn't depend on persistence details.
-//!
-//! # Error Mapping
-//!
-//! All adapters map `PersistenceError` to `CoreError`, providing a clean
-//! separation between layers while maintaining error semantics.
+//! This module provides adapter traits and implementations that bridge
+//! the persistence layer and core layer, handling error mapping.
 
 pub mod user_repository_adapter;
+pub mod app_settings_repository_adapter;
+pub mod user_settings_repository_adapter;
+pub mod profile_repository_adapter;
 
 pub use user_repository_adapter::{PersistenceUserRepository, UserRepositoryAdapter};
+pub use app_settings_repository_adapter::{PersistenceAppSettingsRepository, AppSettingsRepositoryAdapter};
+pub use user_settings_repository_adapter::{PersistenceUserSettingsRepository, UserSettingsRepositoryAdapter};
+pub use profile_repository_adapter::{PersistenceProfileRepository, ProfileRepositoryAdapter};
