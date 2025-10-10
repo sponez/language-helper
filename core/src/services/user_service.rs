@@ -156,10 +156,7 @@ impl<R: UserRepository> UserService<R> {
     /// }
     /// # }
     /// ```
-    pub fn create_user(
-        &self,
-        username: String,
-    ) -> Result<User, CoreError> {
+    pub fn create_user(&self, username: String) -> Result<User, CoreError> {
         // Domain validation happens in User::new()
         let user = User::new(username)?;
 
@@ -204,10 +201,7 @@ impl<R: UserRepository> UserService<R> {
     /// }
     /// # }
     /// ```
-    pub fn update_user(
-        &self,
-        username: String,
-    ) -> Result<User, CoreError> {
+    pub fn update_user(&self, username: String) -> Result<User, CoreError> {
         // Business logic: ensure user exists
         if self.repository.find_by_username(&username)?.is_none() {
             return Err(CoreError::not_found("User", &username));
@@ -350,9 +344,7 @@ mod tests {
         let repo = MockUserRepository::new();
         let service = UserService::new(repo);
 
-        let result = service.create_user(
-            "new_user".to_string(),
-        );
+        let result = service.create_user("new_user".to_string());
 
         assert!(result.is_ok());
         let user = result.unwrap();
@@ -364,9 +356,7 @@ mod tests {
         let repo = MockUserRepository::new();
         let service = UserService::new(repo);
 
-        let result = service.create_user(
-            "".to_string(),
-        );
+        let result = service.create_user("".to_string());
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -399,9 +389,7 @@ mod tests {
         let repo = MockUserRepository::new();
         let service = UserService::new(repo);
 
-        let result = service.update_user(
-            "nonexistent".to_string(),
-        );
+        let result = service.update_user("nonexistent".to_string());
 
         assert!(result.is_err());
         match result.unwrap_err() {

@@ -165,21 +165,30 @@ mod tests {
     fn test_invalid_theme() {
         let result = AppSettings::new("InvalidTheme".to_string(), "en".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::ValidationError { .. }
+        ));
     }
 
     #[test]
     fn test_empty_language_code() {
         let result = AppSettings::new("Dark".to_string(), "".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::ValidationError { .. }
+        ));
     }
 
     #[test]
     fn test_language_code_too_long() {
         let result = AppSettings::new("Dark".to_string(), "a".repeat(11));
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::ValidationError { .. }
+        ));
     }
 
     #[test]

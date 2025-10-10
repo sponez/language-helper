@@ -169,21 +169,30 @@ mod tests {
     fn test_empty_username() {
         let result = Profile::new("".to_string(), "spanish".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::ValidationError { .. }
+        ));
     }
 
     #[test]
     fn test_empty_target_language() {
         let result = Profile::new("test_user".to_string(), "".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::ValidationError { .. }
+        ));
     }
 
     #[test]
     fn test_target_language_too_long() {
         let result = Profile::new("test_user".to_string(), "a".repeat(51));
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::ValidationError { .. }
+        ));
     }
 
     #[test]

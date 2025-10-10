@@ -91,7 +91,10 @@ impl SqliteProfileRepository {
     /// * `Ok(Some(ProfileEntity))` - If the profile exists
     /// * `Ok(None)` - If the profile doesn't exist
     /// * `Err(PersistenceError)` - If the query fails
-    pub fn find_entity_by_id(&self, profile_id: &str) -> Result<Option<ProfileEntity>, PersistenceError> {
+    pub fn find_entity_by_id(
+        &self,
+        profile_id: &str,
+    ) -> Result<Option<ProfileEntity>, PersistenceError> {
         let conn = self.connection.lock().map_err(|e| {
             PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
         })?;
@@ -131,7 +134,10 @@ impl SqliteProfileRepository {
     ///
     /// * `Ok(Vec<ProfileEntity>)` - A vector of profile entities
     /// * `Err(PersistenceError)` - If the query fails
-    pub fn find_entities_by_username(&self, username: &str) -> Result<Vec<ProfileEntity>, PersistenceError> {
+    pub fn find_entities_by_username(
+        &self,
+        username: &str,
+    ) -> Result<Vec<ProfileEntity>, PersistenceError> {
         let conn = self.connection.lock().map_err(|e| {
             PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
         })?;
@@ -141,7 +147,9 @@ impl SqliteProfileRepository {
                 "SELECT profile_id, username, target_language, created_at, last_activity_at
                  FROM profiles WHERE username = ?1 ORDER BY last_activity_at DESC",
             )
-            .map_err(|e| PersistenceError::database_error(format!("Failed to prepare query: {}", e)))?;
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to prepare query: {}", e))
+            })?;
 
         let entities = stmt
             .query_map(params![username], |row| {
@@ -153,9 +161,13 @@ impl SqliteProfileRepository {
                     last_activity_at: row.get(4)?,
                 })
             })
-            .map_err(|e| PersistenceError::database_error(format!("Failed to execute query: {}", e)))?
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to execute query: {}", e))
+            })?
             .collect::<rusqlite::Result<Vec<ProfileEntity>>>()
-            .map_err(|e| PersistenceError::database_error(format!("Failed to collect results: {}", e)))?;
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to collect results: {}", e))
+            })?;
 
         Ok(entities)
     }
@@ -176,7 +188,9 @@ impl SqliteProfileRepository {
                 "SELECT profile_id, username, target_language, created_at, last_activity_at
                  FROM profiles ORDER BY last_activity_at DESC",
             )
-            .map_err(|e| PersistenceError::database_error(format!("Failed to prepare query: {}", e)))?;
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to prepare query: {}", e))
+            })?;
 
         let entities = stmt
             .query_map([], |row| {
@@ -188,9 +202,13 @@ impl SqliteProfileRepository {
                     last_activity_at: row.get(4)?,
                 })
             })
-            .map_err(|e| PersistenceError::database_error(format!("Failed to execute query: {}", e)))?
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to execute query: {}", e))
+            })?
             .collect::<rusqlite::Result<Vec<ProfileEntity>>>()
-            .map_err(|e| PersistenceError::database_error(format!("Failed to collect results: {}", e)))?;
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to collect results: {}", e))
+            })?;
 
         Ok(entities)
     }
@@ -291,8 +309,13 @@ impl SqliteProfileRepository {
         })?;
 
         let rows_affected = conn
-            .execute("DELETE FROM profiles WHERE profile_id = ?1", params![profile_id])
-            .map_err(|e| PersistenceError::database_error(format!("Failed to delete profile: {}", e)))?;
+            .execute(
+                "DELETE FROM profiles WHERE profile_id = ?1",
+                params![profile_id],
+            )
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to delete profile: {}", e))
+            })?;
 
         Ok(rows_affected > 0)
     }

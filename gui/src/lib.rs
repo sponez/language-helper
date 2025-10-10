@@ -67,5 +67,5 @@
 //! ```
 
 pub mod models;
-pub mod routers;
 pub mod router;
+pub mod routers;

@@ -393,7 +393,8 @@ mod tests {
             1000,
         );
         let profile_repo = MockProfileRepository::with_profiles(vec![profile1, profile2]);
-        let user_repo = MockUserRepository::with_users(vec![User::new_unchecked("user1".to_string())]);
+        let user_repo =
+            MockUserRepository::with_users(vec![User::new_unchecked("user1".to_string())]);
         let service = ProfileService::new(profile_repo, user_repo);
 
         let result = service.get_profiles_for_user("user1").unwrap();
@@ -432,7 +433,8 @@ mod tests {
     #[test]
     fn test_create_profile_success() {
         let profile_repo = MockProfileRepository::new();
-        let user_repo = MockUserRepository::with_users(vec![User::new_unchecked("test_user".to_string())]);
+        let user_repo =
+            MockUserRepository::with_users(vec![User::new_unchecked("test_user".to_string())]);
         let service = ProfileService::new(profile_repo, user_repo);
 
         let result = service.create_profile("test_user".to_string(), "italian".to_string());
@@ -457,12 +459,16 @@ mod tests {
     #[test]
     fn test_create_profile_invalid_language() {
         let profile_repo = MockProfileRepository::new();
-        let user_repo = MockUserRepository::with_users(vec![User::new_unchecked("test_user".to_string())]);
+        let user_repo =
+            MockUserRepository::with_users(vec![User::new_unchecked("test_user".to_string())]);
         let service = ProfileService::new(profile_repo, user_repo);
 
         let result = service.create_profile("test_user".to_string(), "".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::ValidationError { .. }
+        ));
     }
 
     #[test]

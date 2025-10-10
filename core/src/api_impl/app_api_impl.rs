@@ -3,9 +3,9 @@
 //! This module provides the concrete implementation of the AppApi trait,
 //! aggregating all API implementations.
 
-use lh_api::app_api::AppApi;
 use lh_api::apis::app_settings_api::AppSettingsApi;
 use lh_api::apis::user_api::UsersApi;
+use lh_api::app_api::AppApi;
 
 use crate::api_impl::app_settings_api_impl::AppSettingsApiImpl;
 use crate::api_impl::users_api_impl::UsersApiImpl;
@@ -182,7 +182,11 @@ mod tests {
 
         let users_api = UsersApiImpl::new(
             UserService::new(user_repo),
-            UserSettingsService::new(user_settings_repo, MockAppSettingsRepository, MockUserRepository),
+            UserSettingsService::new(
+                user_settings_repo,
+                MockAppSettingsRepository,
+                MockUserRepository,
+            ),
             ProfileService::new(profile_repo, MockUserRepository),
         );
         let app_settings_api = AppSettingsApiImpl::new(AppSettingsService::new(app_settings_repo));
@@ -206,7 +210,11 @@ mod tests {
 
         let users_api = UsersApiImpl::new(
             UserService::new(user_repo),
-            UserSettingsService::new(user_settings_repo, MockAppSettingsRepository, MockUserRepository),
+            UserSettingsService::new(
+                user_settings_repo,
+                MockAppSettingsRepository,
+                MockUserRepository,
+            ),
             ProfileService::new(profile_repo, MockUserRepository),
         );
         let app_settings_api = AppSettingsApiImpl::new(AppSettingsService::new(app_settings_repo));
@@ -231,7 +239,11 @@ mod tests {
 
         let users_api = UsersApiImpl::new(
             UserService::new(user_repo),
-            UserSettingsService::new(user_settings_repo, MockAppSettingsRepository, MockUserRepository),
+            UserSettingsService::new(
+                user_settings_repo,
+                MockAppSettingsRepository,
+                MockUserRepository,
+            ),
             ProfileService::new(profile_repo, MockUserRepository),
         );
         let app_settings_api = AppSettingsApiImpl::new(AppSettingsService::new(app_settings_repo));

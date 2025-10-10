@@ -125,7 +125,7 @@ impl User {
 
         if !username.chars().all(|c| c.is_alphanumeric() || c == '_') {
             return Err(CoreError::validation_error(
-                "Username must contain only alphanumeric characters and underscores"
+                "Username must contain only alphanumeric characters and underscores",
             ));
         }
 
@@ -156,7 +156,10 @@ mod tests {
     fn test_user_creation_empty_username() {
         let result = User::new("".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::ValidationError { .. }
+        ));
     }
 
     #[test]
@@ -164,7 +167,10 @@ mod tests {
         let long_username = "a".repeat(51);
         let result = User::new(long_username);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::ValidationError { .. }
+        ));
     }
 
     #[test]
@@ -189,7 +195,10 @@ mod tests {
         for username in invalid_usernames {
             let result = User::new(username.to_string());
             assert!(result.is_err(), "Username '{}' should be invalid", username);
-            assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+            assert!(matches!(
+                result.unwrap_err(),
+                CoreError::ValidationError { .. }
+            ));
         }
     }
 

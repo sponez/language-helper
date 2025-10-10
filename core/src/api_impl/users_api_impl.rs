@@ -5,19 +5,19 @@
 
 use lh_api::apis::user_api::UsersApi;
 use lh_api::errors::api_error::ApiError;
+use lh_api::models::profile::ProfileDto;
 use lh_api::models::user::UserDto;
 use lh_api::models::user_settings::UserSettingsDto;
-use lh_api::models::profile::ProfileDto;
 
-use crate::domain::user_settings::UserSettings;
 use crate::domain::profile::Profile;
+use crate::domain::user_settings::UserSettings;
 use crate::errors::CoreError;
-use crate::services::user_service::UserService;
-use crate::services::user_settings_service::UserSettingsService;
-use crate::services::profile_service::ProfileService;
+use crate::repositories::profile_repository::ProfileRepository;
 use crate::repositories::user_repository::UserRepository;
 use crate::repositories::user_settings_repository::UserSettingsRepository;
-use crate::repositories::profile_repository::ProfileRepository;
+use crate::services::profile_service::ProfileService;
+use crate::services::user_service::UserService;
+use crate::services::user_settings_service::UserSettingsService;
 
 /// Helper function to map CoreError to ApiError
 fn map_core_error_to_api_error(error: CoreError) -> ApiError {
@@ -25,9 +25,7 @@ fn map_core_error_to_api_error(error: CoreError) -> ApiError {
         CoreError::NotFound { entity, id } => {
             ApiError::not_found(format!("{} '{}' not found", entity, id))
         }
-        CoreError::ValidationError { message } => {
-            ApiError::validation_error(message)
-        }
+        CoreError::ValidationError { message } => ApiError::validation_error(message),
         CoreError::RepositoryError { message } => {
             ApiError::internal_error(format!("Internal error: {}", message))
         }
@@ -250,7 +248,10 @@ mod tests {
 
         match api_error {
             ApiError::Simple(code, _) => {
-                assert!(matches!(code, lh_api::errors::api_error::ApiErrorCode::NotFound));
+                assert!(matches!(
+                    code,
+                    lh_api::errors::api_error::ApiErrorCode::NotFound
+                ));
             }
             _ => panic!("Expected Simple variant"),
         }
@@ -265,7 +266,10 @@ mod tests {
 
         match api_error {
             ApiError::Simple(code, _) => {
-                assert!(matches!(code, lh_api::errors::api_error::ApiErrorCode::ValidationError));
+                assert!(matches!(
+                    code,
+                    lh_api::errors::api_error::ApiErrorCode::ValidationError
+                ));
             }
             _ => panic!("Expected Simple variant"),
         }
@@ -280,21 +284,24 @@ mod tests {
 
         match api_error {
             ApiError::Simple(code, _) => {
-                assert!(matches!(code, lh_api::errors::api_error::ApiErrorCode::InternalError));
+                assert!(matches!(
+                    code,
+                    lh_api::errors::api_error::ApiErrorCode::InternalError
+                ));
             }
             _ => panic!("Expected Simple variant"),
         }
     }
 
     // Create mock implementations for testing
-    use crate::domain::user_settings::UserSettings;
-    use crate::domain::profile::Profile;
     use crate::domain::app_settings::AppSettings;
-    use crate::repositories::user_settings_repository::UserSettingsRepository;
-    use crate::repositories::profile_repository::ProfileRepository;
+    use crate::domain::profile::Profile;
+    use crate::domain::user_settings::UserSettings;
     use crate::repositories::app_settings_repository::AppSettingsRepository;
-    use crate::services::user_settings_service::UserSettingsService;
+    use crate::repositories::profile_repository::ProfileRepository;
+    use crate::repositories::user_settings_repository::UserSettingsRepository;
     use crate::services::profile_service::ProfileService;
+    use crate::services::user_settings_service::UserSettingsService;
 
     struct MockUserSettingsRepository;
     impl UserSettingsRepository for MockUserSettingsRepository {
@@ -339,17 +346,28 @@ mod tests {
     }
 
     fn create_test_api(
-        user_repo: MockUserRepository
-    ) -> UsersApiImpl<MockUserRepository, MockUserSettingsRepository, MockAppSettingsRepository, MockProfileRepository> {
+        user_repo: MockUserRepository,
+    ) -> UsersApiImpl<
+        MockUserRepository,
+        MockUserSettingsRepository,
+        MockAppSettingsRepository,
+        MockProfileRepository,
+    > {
         let user_service = UserService::new(user_repo);
         let user_settings_service = UserSettingsService::new(
             MockUserSettingsRepository,
             MockAppSettingsRepository,
-            MockUserRepository { users: vec![], should_fail: false }
+            MockUserRepository {
+                users: vec![],
+                should_fail: false,
+            },
         );
         let profile_service = ProfileService::new(
             MockProfileRepository,
-            MockUserRepository { users: vec![], should_fail: false }
+            MockUserRepository {
+                users: vec![],
+                should_fail: false,
+            },
         );
         UsersApiImpl::new(user_service, user_settings_service, profile_service)
     }
@@ -384,7 +402,10 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             ApiError::Simple(code, _) => {
-                assert!(matches!(code, lh_api::errors::api_error::ApiErrorCode::InternalError));
+                assert!(matches!(
+                    code,
+                    lh_api::errors::api_error::ApiErrorCode::InternalError
+                ));
             }
             _ => panic!("Expected Simple variant"),
         }
@@ -435,7 +456,9 @@ mod tests {
             Ok(dto) => {
                 assert_eq!(dto.username, "newuser");
             }
-            Err(ApiError::Simple(code, msg)) if matches!(code, lh_api::errors::api_error::ApiErrorCode::NotFound) => {
+            Err(ApiError::Simple(code, msg))
+                if matches!(code, lh_api::errors::api_error::ApiErrorCode::NotFound) =>
+            {
                 // This is expected in tests due to mock repository limitations
                 println!("Expected error in mock environment: {}", msg);
             }
@@ -458,7 +481,10 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             ApiError::Simple(code, _) => {
-                assert!(matches!(code, lh_api::errors::api_error::ApiErrorCode::ValidationError));
+                assert!(matches!(
+                    code,
+                    lh_api::errors::api_error::ApiErrorCode::ValidationError
+                ));
             }
             _ => panic!("Expected Simple variant"),
         }
@@ -477,7 +503,10 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             ApiError::Simple(code, _) => {
-                assert!(matches!(code, lh_api::errors::api_error::ApiErrorCode::ValidationError));
+                assert!(matches!(
+                    code,
+                    lh_api::errors::api_error::ApiErrorCode::ValidationError
+                ));
             }
             _ => panic!("Expected Simple variant"),
         }

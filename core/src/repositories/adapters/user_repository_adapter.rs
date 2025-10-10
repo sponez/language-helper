@@ -152,7 +152,10 @@ mod tests {
             if self.should_fail {
                 return Err(MockError("Database error".to_string()));
             }
-            self.users.lock().unwrap().insert(user.username.clone(), user.clone());
+            self.users
+                .lock()
+                .unwrap()
+                .insert(user.username.clone(), user.clone());
             Ok(user)
         }
 
@@ -229,18 +232,30 @@ mod tests {
         // All operations should fail and map to CoreError
         let result = adapter.find_all();
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::RepositoryError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::RepositoryError { .. }
+        ));
 
         let result = adapter.find_by_username("test");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::RepositoryError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::RepositoryError { .. }
+        ));
 
         let result = adapter.save(User::new_unchecked("test".to_string()));
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::RepositoryError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::RepositoryError { .. }
+        ));
 
         let result = adapter.delete("test");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::RepositoryError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::RepositoryError { .. }
+        ));
     }
 }

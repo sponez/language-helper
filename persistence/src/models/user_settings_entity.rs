@@ -163,11 +163,8 @@ mod tests {
 
     #[test]
     fn test_clone() {
-        let entity = UserSettingsEntity::new(
-            "test".to_string(),
-            "Dark".to_string(),
-            "en".to_string(),
-        );
+        let entity =
+            UserSettingsEntity::new("test".to_string(), "Dark".to_string(), "en".to_string());
         let cloned = entity.clone();
 
         assert_eq!(entity, cloned);

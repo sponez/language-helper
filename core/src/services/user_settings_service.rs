@@ -41,7 +41,11 @@ use crate::repositories::user_settings_repository::UserSettingsRepository;
 ///     }
 /// }
 /// ```
-pub struct UserSettingsService<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository> {
+pub struct UserSettingsService<
+    SR: UserSettingsRepository,
+    AR: AppSettingsRepository,
+    UR: UserRepository,
+> {
     settings_repository: SR,
     app_settings_repository: AR,
     user_repository: UR,
@@ -61,11 +65,7 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// # Returns
     ///
     /// A new `UserSettingsService` instance.
-    pub fn new(
-        settings_repository: SR,
-        app_settings_repository: AR,
-        user_repository: UR,
-    ) -> Self {
+    pub fn new(settings_repository: SR, app_settings_repository: AR, user_repository: UR) -> Self {
         Self {
             settings_repository,
             app_settings_repository,
@@ -152,7 +152,11 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
         }
 
         // Business logic: check if settings already exist
-        if self.settings_repository.find_by_username(&username)?.is_some() {
+        if self
+            .settings_repository
+            .find_by_username(&username)?
+            .is_some()
+        {
             return Err(CoreError::validation_error(format!(
                 "User settings for '{}' already exist",
                 username
@@ -217,7 +221,11 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
         ui_language: String,
     ) -> Result<UserSettings, CoreError> {
         // Business logic: ensure settings exist
-        if self.settings_repository.find_by_username(&username)?.is_none() {
+        if self
+            .settings_repository
+            .find_by_username(&username)?
+            .is_none()
+        {
             return Err(CoreError::not_found("UserSettings", &username));
         }
 
@@ -399,7 +407,8 @@ mod tests {
         );
         let settings_repo = MockUserSettingsRepository::with_settings(vec![settings]);
         let app_repo = MockAppSettingsRepository::with_settings(AppSettings::default());
-        let user_repo = MockUserRepository::with_users(vec![User::new_unchecked("test_user".to_string())]);
+        let user_repo =
+            MockUserRepository::with_users(vec![User::new_unchecked("test_user".to_string())]);
         let service = UserSettingsService::new(settings_repo, app_repo, user_repo);
 
         let result = service.get_user_settings("test_user").unwrap();
@@ -424,10 +433,13 @@ mod tests {
         let settings_repo = MockUserSettingsRepository::new();
         let app_settings = AppSettings::new_unchecked("Light".to_string(), "fr".to_string());
         let app_repo = MockAppSettingsRepository::with_settings(app_settings);
-        let user_repo = MockUserRepository::with_users(vec![User::new_unchecked("new_user".to_string())]);
+        let user_repo =
+            MockUserRepository::with_users(vec![User::new_unchecked("new_user".to_string())]);
         let service = UserSettingsService::new(settings_repo, app_repo, user_repo);
 
-        let result = service.create_user_settings("new_user".to_string()).unwrap();
+        let result = service
+            .create_user_settings("new_user".to_string())
+            .unwrap();
         assert_eq!(result.username, "new_user");
         assert_eq!(result.ui_theme, "Light");
         assert_eq!(result.ui_language, "fr");
@@ -454,12 +466,16 @@ mod tests {
         );
         let settings_repo = MockUserSettingsRepository::with_settings(vec![existing]);
         let app_repo = MockAppSettingsRepository::with_settings(AppSettings::default());
-        let user_repo = MockUserRepository::with_users(vec![User::new_unchecked("existing".to_string())]);
+        let user_repo =
+            MockUserRepository::with_users(vec![User::new_unchecked("existing".to_string())]);
         let service = UserSettingsService::new(settings_repo, app_repo, user_repo);
 
         let result = service.create_user_settings("existing".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::ValidationError { .. }
+        ));
     }
 
     #[test]
@@ -471,7 +487,8 @@ mod tests {
         );
         let settings_repo = MockUserSettingsRepository::with_settings(vec![existing]);
         let app_repo = MockAppSettingsRepository::with_settings(AppSettings::default());
-        let user_repo = MockUserRepository::with_users(vec![User::new_unchecked("test_user".to_string())]);
+        let user_repo =
+            MockUserRepository::with_users(vec![User::new_unchecked("test_user".to_string())]);
         let service = UserSettingsService::new(settings_repo, app_repo, user_repo);
 
         let result = service.update_user_settings(

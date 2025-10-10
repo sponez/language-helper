@@ -262,7 +262,10 @@ mod tests {
 
         let result = service.get_settings();
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::RepositoryError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::RepositoryError { .. }
+        ));
     }
 
     #[test]
@@ -284,7 +287,10 @@ mod tests {
 
         let result = service.update_settings("InvalidTheme".to_string(), "en".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::ValidationError { .. }
+        ));
     }
 
     #[test]
@@ -294,7 +300,10 @@ mod tests {
 
         let result = service.update_settings("Dark".to_string(), "".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::ValidationError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::ValidationError { .. }
+        ));
     }
 
     #[test]
@@ -325,6 +334,9 @@ mod tests {
 
         let result = service.initialize_defaults();
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::RepositoryError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            CoreError::RepositoryError { .. }
+        ));
     }
 }

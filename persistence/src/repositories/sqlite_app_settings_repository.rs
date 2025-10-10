@@ -77,9 +77,15 @@ impl SqliteAppSettingsRepository {
             let default_settings = AppSettingsEntity::default();
             conn.execute(
                 "INSERT INTO app_settings (id, ui_theme, default_ui_language) VALUES (?1, ?2, ?3)",
-                params![default_settings.id, default_settings.ui_theme, default_settings.default_ui_language],
+                params![
+                    default_settings.id,
+                    default_settings.ui_theme,
+                    default_settings.default_ui_language
+                ],
             )
-            .map_err(|e| PersistenceError::database_error(format!("Failed to insert defaults: {}", e)))?;
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to insert defaults: {}", e))
+            })?;
         }
 
         Ok(())
@@ -146,7 +152,9 @@ impl SqliteAppSettingsRepository {
             "UPDATE app_settings SET ui_theme = ?1, default_ui_language = ?2 WHERE id = 1",
             params![entity.ui_theme, entity.default_ui_language],
         )
-        .map_err(|e| PersistenceError::database_error(format!("Failed to update settings: {}", e)))?;
+        .map_err(|e| {
+            PersistenceError::database_error(format!("Failed to update settings: {}", e))
+        })?;
 
         Ok(settings)
     }

@@ -121,7 +121,10 @@ impl SqliteUserSettingsRepository {
     /// * `Ok(Some(UserSettings))` - If settings exist
     /// * `Ok(None)` - If no settings exist
     /// * `Err(PersistenceError)` - If the query fails
-    pub fn find_by_username(&self, username: &str) -> Result<Option<UserSettings>, PersistenceError> {
+    pub fn find_by_username(
+        &self,
+        username: &str,
+    ) -> Result<Option<UserSettings>, PersistenceError> {
         self.find_entity_by_username(username)
             .map(|opt| opt.map(|entity| entity.to_domain()))
     }
@@ -150,7 +153,9 @@ impl SqliteUserSettingsRepository {
              ON CONFLICT(username) DO UPDATE SET ui_theme = ?2, ui_language = ?3",
             params![entity.username, entity.ui_theme, entity.ui_language],
         )
-        .map_err(|e| PersistenceError::database_error(format!("Failed to save user settings: {}", e)))?;
+        .map_err(|e| {
+            PersistenceError::database_error(format!("Failed to save user settings: {}", e))
+        })?;
 
         Ok(settings)
     }
@@ -172,8 +177,13 @@ impl SqliteUserSettingsRepository {
         })?;
 
         let rows_affected = conn
-            .execute("DELETE FROM user_settings WHERE username = ?1", params![username])
-            .map_err(|e| PersistenceError::database_error(format!("Failed to delete user settings: {}", e)))?;
+            .execute(
+                "DELETE FROM user_settings WHERE username = ?1",
+                params![username],
+            )
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to delete user settings: {}", e))
+            })?;
 
         Ok(rows_affected > 0)
     }

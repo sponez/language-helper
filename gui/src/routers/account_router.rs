@@ -92,16 +92,13 @@ impl AccountRouter {
             .align_y(Alignment::Center)
             .into()
     }
-
 }
 
 /// Implementation of RouterNode for AccountRouter
 impl RouterNode for AccountRouter {
     fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
         match message {
-            router::Message::Account(msg) => {
-                AccountRouter::update(self, msg.clone())
-            }
+            router::Message::Account(msg) => AccountRouter::update(self, msg.clone()),
             _ => None, // Ignore messages not meant for this router
         }
     }

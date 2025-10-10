@@ -5,23 +5,23 @@
 
 use std::rc::Rc;
 
-use iced::{Element, Task, window};
+use iced::{window, Element, Task};
 
 use lh_core::api_impl::{AppApiImpl, AppSettingsApiImpl, UsersApiImpl};
 use lh_core::repositories::adapters::{
-    UserRepositoryAdapter, AppSettingsRepositoryAdapter,
-    UserSettingsRepositoryAdapter, ProfileRepositoryAdapter
+    AppSettingsRepositoryAdapter, ProfileRepositoryAdapter, UserRepositoryAdapter,
+    UserSettingsRepositoryAdapter,
 };
+use lh_core::services::app_settings_service::AppSettingsService;
+use lh_core::services::profile_service::ProfileService;
 use lh_core::services::user_service::UserService;
 use lh_core::services::user_settings_service::UserSettingsService;
-use lh_core::services::profile_service::ProfileService;
-use lh_core::services::app_settings_service::AppSettingsService;
 use lh_persistence::{
-    SqliteUserRepository, SqliteAppSettingsRepository,
-    SqliteUserSettingsRepository, SqliteProfileRepository
+    SqliteAppSettingsRepository, SqliteProfileRepository, SqliteUserRepository,
+    SqliteUserSettingsRepository,
 };
 
-use gui::router::{RouterStack, RouterNode, Message};
+use gui::router::{Message, RouterNode, RouterStack};
 use gui::routers::account_list_router::AccountListRouter;
 
 mod config;
@@ -74,8 +74,7 @@ impl LanguageHelperApp {
 
         if should_exit {
             // Close the window to exit the application
-            window::get_latest()
-                .and_then(|id| window::close(id))
+            window::get_latest().and_then(|id| window::close(id))
         } else {
             Task::none()
         }
@@ -134,8 +133,7 @@ fn main() -> iced::Result {
     use std::sync::{Arc, Mutex};
 
     // Open the same database for all other repositories
-    let conn = Connection::open(&config.database_path)
-        .expect("Failed to open database connection");
+    let conn = Connection::open(&config.database_path).expect("Failed to open database connection");
     let shared_conn = Arc::new(Mutex::new(conn));
 
     // Create other persistence repositories sharing the connection
@@ -166,7 +164,7 @@ fn main() -> iced::Result {
     let user_settings_service = UserSettingsService::new(
         user_settings_repository,
         AppSettingsRepositoryAdapter::new(app_settings_persistence2),
-        UserRepositoryAdapter::new(user_persistence2)
+        UserRepositoryAdapter::new(user_persistence2),
     );
 
     // For ProfileService
@@ -175,7 +173,7 @@ fn main() -> iced::Result {
 
     let profile_service = ProfileService::new(
         profile_repository,
-        UserRepositoryAdapter::new(user_persistence3)
+        UserRepositoryAdapter::new(user_persistence3),
     );
 
     // 4. Create the API implementations (bridge between core and API)

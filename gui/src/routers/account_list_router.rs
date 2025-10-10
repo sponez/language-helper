@@ -99,16 +99,15 @@ impl AccountListRouter {
                     match self.app_api.users_api().create_user(username.clone()) {
                         Ok(_) => {
                             // User created successfully, load user and navigate to account router
-                            if let Some(user_dto) = self
-                                .app_api
-                                .users_api()
-                                .get_user_by_username(&username)
+                            if let Some(user_dto) =
+                                self.app_api.users_api().get_user_by_username(&username)
                             {
                                 let user = User::new_unchecked(user_dto.username);
-                                let account_router: Box<dyn crate::router::RouterNode> = Box::new(super::account_router::AccountRouter::new(
-                                    user,
-                                    Rc::clone(&self.app_api),
-                                ));
+                                let account_router: Box<dyn crate::router::RouterNode> =
+                                    Box::new(super::account_router::AccountRouter::new(
+                                        user,
+                                        Rc::clone(&self.app_api),
+                                    ));
 
                                 // Reset state before navigating
                                 self.is_adding_new_user = false;
@@ -129,16 +128,15 @@ impl AccountListRouter {
                 } else {
                     // Confirm existing selection - load user and navigate
                     if let Some(username) = &self.selected_username {
-                        if let Some(user_dto) = self
-                            .app_api
-                            .users_api()
-                            .get_user_by_username(username)
+                        if let Some(user_dto) =
+                            self.app_api.users_api().get_user_by_username(username)
                         {
                             let user = User::new_unchecked(user_dto.username);
-                            let account_router: Box<dyn crate::router::RouterNode> = Box::new(super::account_router::AccountRouter::new(
-                                user,
-                                Rc::clone(&self.app_api),
-                            ));
+                            let account_router: Box<dyn crate::router::RouterNode> =
+                                Box::new(super::account_router::AccountRouter::new(
+                                    user,
+                                    Rc::clone(&self.app_api),
+                                ));
                             Some(RouterEvent::Push(account_router))
                         } else {
                             self.error_message = Some("User not found".into());
@@ -193,11 +191,9 @@ impl AccountListRouter {
 
             // Show error message if present
             if let Some(error) = &self.error_message {
-                content = content.push(
-                    text(error).style(|_theme| iced::widget::text::Style {
-                        color: Some(iced::Color::from_rgb(0.8, 0.0, 0.0)),
-                    }),
-                );
+                content = content.push(text(error).style(|_theme| iced::widget::text::Style {
+                    color: Some(iced::Color::from_rgb(0.8, 0.0, 0.0)),
+                }));
             }
         }
 
@@ -237,9 +233,7 @@ impl AccountListRouter {
 impl RouterNode for AccountListRouter {
     fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
         match message {
-            router::Message::AccountList(msg) => {
-                AccountListRouter::update(self, msg.clone())
-            }
+            router::Message::AccountList(msg) => AccountListRouter::update(self, msg.clone()),
             _ => None, // Ignore messages not meant for this router
         }
     }
