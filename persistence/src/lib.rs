@@ -21,7 +21,7 @@
 //! # Error Handling
 //!
 //! The persistence layer uses `PersistenceError` for all operations.
-//! When implementing the `UserRepository` trait (which requires `CoreError`),
+//! When implementing repository traits (which require `CoreError`),
 //! a mapping layer in the core converts `PersistenceError` to `CoreError`.
 
 pub mod errors;
@@ -29,5 +29,8 @@ pub mod models;
 pub mod repositories;
 
 pub use errors::PersistenceError;
-pub use models::UserEntity;
-pub use repositories::sqlite_user_repository::SqliteUserRepository;
+pub use models::{AppSettingsEntity, ProfileEntity, UserEntity, UserSettingsEntity};
+pub use repositories::{
+    SqliteAppSettingsRepository, SqliteProfileRepository, SqliteUserRepository,
+    SqliteUserSettingsRepository,
+};

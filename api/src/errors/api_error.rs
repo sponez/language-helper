@@ -115,7 +115,7 @@ pub enum ApiError {
     ///
     /// * `body` - The complete error body with code, message, and optional details
     #[error("{body:?}")]
-    WithBody{ body: ApiErrorBody },
+    WithBody { body: ApiErrorBody },
 }
 
 impl ApiError {
@@ -346,7 +346,9 @@ mod tests {
             message: "Original message".to_string(),
             details: Some("Extra details".to_string()),
         };
-        let error = ApiError::WithBody { body: original_body.clone() };
+        let error = ApiError::WithBody {
+            body: original_body.clone(),
+        };
         let body = error.to_body();
 
         matches!(body.code, ApiErrorCode::NotFound);

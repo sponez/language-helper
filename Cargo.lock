@@ -114,6 +114,7 @@ dependencies = [
  "lh_api",
  "lh_core",
  "lh_persistence",
+ "rusqlite",
 ]
 
 [[package]]
@@ -1363,6 +1364,7 @@ version = "0.1.0"
 dependencies = [
  "iced",
  "lh_api",
+ "lh_core",
  "thiserror",
 ]
 
@@ -1784,8 +1786,10 @@ dependencies = [
 name = "lh_core"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "lh_api",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -1797,6 +1801,7 @@ dependencies = [
  "rusqlite",
  "tempfile",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -3456,6 +3461,17 @@ name = "unicode-xid"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
+
+[[package]]
+name = "uuid"
+version = "1.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f87b8aa10b915a06587d0dec516c282ff295b475d94abf425d62b57710070a2"
+dependencies = [
+ "getrandom 0.3.3",
+ "js-sys",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "vcpkg"

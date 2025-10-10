@@ -107,8 +107,7 @@ mod tests {
 
     #[test]
     fn test_with_database_path() {
-        let config = AppConfig::new()
-            .with_database_path("test/db.sqlite");
+        let config = AppConfig::new().with_database_path("test/db.sqlite");
         assert_eq!(config.database_path, PathBuf::from("test/db.sqlite"));
     }
 

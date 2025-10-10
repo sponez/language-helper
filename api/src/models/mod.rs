@@ -7,5 +7,11 @@
 //! # Available Models
 //!
 //! - **user**: User-related data transfer objects
+//! - **app_settings**: Application settings data transfer objects
+//! - **user_settings**: User-specific settings data transfer objects
+//! - **profile**: Learning profile data transfer objects
 
+pub mod app_settings;
+pub mod profile;
 pub mod user;
+pub mod user_settings;

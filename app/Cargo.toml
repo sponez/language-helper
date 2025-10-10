@@ -9,3 +9,4 @@ lh_core = { path = "../core" }
 lh_persistence = { path = "../persistence" }
 gui = { path = "../gui" }
 iced = { version = "0.13", features = ["tokio"] }
+rusqlite = { version = "0.37.0", features = ["bundled"] }

@@ -133,7 +133,10 @@ impl SqliteUserRepository {
     ///     println!("User created at: {}", entity.created_at);
     /// }
     /// ```
-    pub fn find_entity_by_username(&self, username: &str) -> Result<Option<UserEntity>, PersistenceError> {
+    pub fn find_entity_by_username(
+        &self,
+        username: &str,
+    ) -> Result<Option<UserEntity>, PersistenceError> {
         let conn = self.connection.lock().map_err(|e| {
             PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
         })?;
@@ -184,8 +187,12 @@ impl SqliteUserRepository {
         })?;
 
         let mut stmt = conn
-            .prepare("SELECT username, created_at, last_used_at FROM users ORDER BY last_used_at DESC")
-            .map_err(|e| PersistenceError::database_error(format!("Failed to prepare query: {}", e)))?;
+            .prepare(
+                "SELECT username, created_at, last_used_at FROM users ORDER BY last_used_at DESC",
+            )
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to prepare query: {}", e))
+            })?;
 
         let entities = stmt
             .query_map([], |row| {
@@ -195,9 +202,13 @@ impl SqliteUserRepository {
                     last_used_at: row.get(2)?,
                 })
             })
-            .map_err(|e| PersistenceError::database_error(format!("Failed to execute query: {}", e)))?
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to execute query: {}", e))
+            })?
             .collect::<SqliteResult<Vec<UserEntity>>>()
-            .map_err(|e| PersistenceError::database_error(format!("Failed to collect results: {}", e)))?;
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to collect results: {}", e))
+            })?;
 
         Ok(entities)
     }
@@ -225,8 +236,12 @@ impl SqliteUserRepository {
     /// * `Ok(Vec<User>)` - A vector of all users
     /// * `Err(PersistenceError)` - If the query fails
     pub fn find_all(&self) -> Result<Vec<User>, PersistenceError> {
-        self.find_all_entities()
-            .map(|entities| entities.into_iter().map(|entity| entity.to_domain()).collect())
+        self.find_all_entities().map(|entities| {
+            entities
+                .into_iter()
+                .map(|entity| entity.to_domain())
+                .collect()
+        })
     }
 
     /// Saves a user to the database.
@@ -277,7 +292,9 @@ impl SqliteUserRepository {
 
         let rows_affected = conn
             .execute("DELETE FROM users WHERE username = ?1", params![username])
-            .map_err(|e| PersistenceError::database_error(format!("Failed to delete user: {}", e)))?;
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to delete user: {}", e))
+            })?;
 
         Ok(rows_affected > 0)
     }
@@ -409,13 +426,19 @@ mod tests {
         let user = User::new_unchecked("last_used_test".to_string());
         repo.save(user.clone()).unwrap();
 
-        let entity_before = repo.find_entity_by_username("last_used_test").unwrap().unwrap();
+        let entity_before = repo
+            .find_entity_by_username("last_used_test")
+            .unwrap()
+            .unwrap();
 
         // Sleep for at least 1 second since Unix timestamps are in seconds
         std::thread::sleep(std::time::Duration::from_secs(1));
         repo.save(user).unwrap();
 
-        let entity_after = repo.find_entity_by_username("last_used_test").unwrap().unwrap();
+        let entity_after = repo
+            .find_entity_by_username("last_used_test")
+            .unwrap()
+            .unwrap();
 
         assert_eq!(entity_before.created_at, entity_after.created_at);
         assert!(entity_after.last_used_at > entity_before.last_used_at);
@@ -424,7 +447,11 @@ mod tests {
     #[test]
     fn test_database_directory_creation() {
         let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("nested").join("directory").join("users.db");
+        let db_path = temp_dir
+            .path()
+            .join("nested")
+            .join("directory")
+            .join("users.db");
 
         let repo = SqliteUserRepository::new(&db_path).unwrap();
         assert!(db_path.exists());
@@ -468,7 +495,10 @@ mod tests {
         repo.save(user).unwrap();
 
         // Verify timestamps are integers by querying directly
-        let entity = repo.find_entity_by_username("timestamp_storage_test").unwrap().unwrap();
+        let entity = repo
+            .find_entity_by_username("timestamp_storage_test")
+            .unwrap()
+            .unwrap();
 
         // Unix timestamps should be positive integers
         assert!(entity.created_at > 1_600_000_000); // After 2020
