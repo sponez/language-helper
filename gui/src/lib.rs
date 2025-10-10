@@ -6,49 +6,65 @@
 //!
 //! # Architecture
 //!
-//! The GUI follows a clean orchestrator pattern:
-//! - **gui_orchestrator**: Main orchestration layer for routing messages and managing screen transitions
-//! - **frames**: Individual screen components (self-contained with their own logic)
+//! The GUI follows a router stack pattern for hierarchical navigation:
+//! - **router**: Core router infrastructure (RouterStack, RouterNode trait)
+//! - **routers**: Individual screen routers (self-contained with their own logic)
 //!
-//! ## Orchestrator Pattern
+//! ## Router Stack Pattern
 //!
-//! The orchestrator pattern separates concerns cleanly:
+//! The router stack pattern enables scalable, decoupled navigation:
 //!
-//! ### Orchestrator (gui_orchestrator)
-//! - Manages which screen is displayed
-//! - Routes messages to appropriate frames
-//! - Handles screen transitions based on frame events
+//! ### RouterStack (router.rs)
+//! - Manages a stack of active routers
+//! - Routes messages to the topmost (current) router
+//! - Handles Push (navigate deeper), Pop (go back), Exit events
 //! - Contains NO business logic
 //!
-//! ### Frames (frames/*)
-//! - Self-contained UI components
+//! ### Routers (routers/*)
+//! - Self-contained screen components
 //! - Own their state and business logic
 //! - Handle API calls internally
-//! - Emit events to orchestrator for screen transitions
+//! - Know ONLY about their immediate child routers
+//! - Emit RouterEvents (Push child, Pop, Exit)
 //! - Define their own Messages for internal communication
 //!
-//! ## Adding a New Screen
+//! ## Navigation Flow
 //!
-//! To add a new screen:
-//! 1. Create a new frame module in `frames/` with:
-//!    - `State` struct (private fields)
+//! ```text
+//! [AccountListRouter]
+//!     ↓ user selects account
+//! [AccountListRouter] → [AccountRouter]
+//!     ↓ user clicks settings
+//! [AccountListRouter] → [AccountRouter] → [SettingsRouter]
+//!     ↓ back button (Pop event)
+//! [AccountListRouter] → [AccountRouter]
+//! ```
+//!
+//! ## Adding a New Router
+//!
+//! To add a new router:
+//! 1. Create a new router module in `routers/` with:
+//!    - Router struct (private fields)
 //!    - `Message` enum (internal messages)
-//!    - `FrameEvent` enum (events for orchestrator)
 //!    - `new()`, `update()`, `view()` methods
-//! 2. Add variant to `Screen` enum in orchestrator
-//! 3. Add variant to orchestrator's `Message` enum
-//! 4. Add routing logic in orchestrator's `update()` and `view()`
+//! 2. Implement RouterNode trait for the router in `router.rs`
+//! 3. Add variant to global `Message` enum in `router.rs`
+//! 4. Parent router pushes child router: `Some(RouterEvent::Push(Box::new(ChildRouter::new(...))))`
 //!
 //! # Example
 //!
 //! ```no_run
-//! use gui::gui_orchestrator::State;
+//! use gui::router::{RouterStack, RouterNode};
+//! use gui::routers::account_list_router::AccountListRouter;
 //! use lh_api::app_api::AppApi;
+//! use std::rc::Rc;
 //!
-//! fn initialize_gui(api: Box<dyn AppApi>) -> State {
-//!     State::new(api)
+//! fn initialize_gui(api: Box<dyn AppApi>) -> RouterStack {
+//!     let api_rc = Rc::from(api);
+//!     let root_router: Box<dyn RouterNode> = Box::new(AccountListRouter::new(api_rc));
+//!     RouterStack::new(root_router)
 //! }
 //! ```
 
-pub mod frames;
-pub mod gui_orchestrator;
+pub mod router;
+pub mod routers;

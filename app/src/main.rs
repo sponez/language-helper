@@ -3,6 +3,8 @@
 //! This is the main entry point for the Language Helper application.
 //! It sets up the dependency injection, initializes all layers, and runs the GUI.
 
+use std::rc::Rc;
+
 use iced::{Element, Task, window};
 
 use lh_core::api_impl::{AppApiImpl, UsersApiImpl};
@@ -10,18 +12,19 @@ use lh_core::repositories::adapters::UserRepositoryAdapter;
 use lh_core::services::user_service::UserService;
 use lh_persistence::SqliteUserRepository;
 
-use gui::gui_orchestrator;
+use gui::router::{RouterStack, RouterNode, Message};
+use gui::routers::account_list_router::AccountListRouter;
 
 mod config;
 use config::AppConfig;
 
 /// Main iced Application struct.
 ///
-/// This struct wraps the GUI state and implements the Iced application lifecycle.
-/// It serves as the bridge between the Iced framework and the application's GUI logic.
+/// This struct wraps the router stack and implements the Iced application lifecycle.
+/// It serves as the bridge between the Iced framework and the application's router-based navigation.
 struct LanguageHelperApp {
-    /// The application GUI state
-    state: gui_orchestrator::State,
+    /// The router stack managing navigation
+    router_stack: RouterStack,
 }
 
 impl LanguageHelperApp {
@@ -36,15 +39,18 @@ impl LanguageHelperApp {
     /// A tuple containing:
     /// - The new `LanguageHelperApp` instance
     /// - An initial task (currently none)
-    fn new(app_api: Box<dyn lh_api::app_api::AppApi>) -> (Self, Task<gui_orchestrator::Message>) {
-        let state = gui_orchestrator::State::new(app_api);
-        (Self { state }, Task::none())
+    fn new(app_api: Box<dyn lh_api::app_api::AppApi>) -> (Self, Task<Message>) {
+        let app_api_rc = Rc::from(app_api);
+        let root_router: Box<dyn RouterNode> = Box::new(AccountListRouter::new(app_api_rc));
+        let router_stack = RouterStack::new(root_router);
+
+        (Self { router_stack }, Task::none())
     }
 
     /// Handles application messages and updates state.
     ///
     /// This method processes user interactions and system events, delegating
-    /// to the GUI orchestrator's update function.
+    /// to the router stack's update function.
     ///
     /// # Arguments
     ///
@@ -54,8 +60,8 @@ impl LanguageHelperApp {
     ///
     /// A task to be executed by the Iced runtime. If the application should exit,
     /// returns a task to close the window.
-    fn update(&mut self, message: gui_orchestrator::Message) -> Task<gui_orchestrator::Message> {
-        let should_exit = gui_orchestrator::update(&mut self.state, message);
+    fn update(&mut self, message: Message) -> Task<Message> {
+        let should_exit = self.router_stack.update(message).unwrap_or(false);
 
         if should_exit {
             // Close the window to exit the application
@@ -68,14 +74,14 @@ impl LanguageHelperApp {
 
     /// Renders the application's current view.
     ///
-    /// This method delegates to the GUI orchestrator to generate the visual representation
-    /// of the current application state.
+    /// This method delegates to the router stack to generate the visual representation
+    /// of the current screen.
     ///
     /// # Returns
     ///
     /// An `Element` containing the rendered UI
-    fn view(&self) -> Element<'_, gui_orchestrator::Message> {
-        gui_orchestrator::view(&self.state)
+    fn view(&self) -> Element<'_, Message> {
+        self.router_stack.view()
     }
 }
 
