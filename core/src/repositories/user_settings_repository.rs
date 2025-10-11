@@ -32,7 +32,7 @@ pub trait UserSettingsRepository: Send + Sync {
     ///
     /// * `Ok(UserSettings)` - The saved settings
     /// * `Err(CoreError)` - If an error occurs during the operation
-    fn save(&self, username: String, settings: UserSettings) -> Result<UserSettings, CoreError>;
+    fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, CoreError>;
 
     /// Deletes user settings by username.
     ///

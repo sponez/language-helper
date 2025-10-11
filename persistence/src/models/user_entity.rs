@@ -58,10 +58,13 @@ impl UserEntity {
     /// assert!(entity.created_at > 0);
     /// assert_eq!(entity.created_at, entity.last_used_at);
     /// ```
-    pub fn new(username: String) -> Self {
+    pub fn new<U>(username: U) -> Self
+    where
+        U: AsRef<str> + Into<String>,
+    {
         let now = chrono::Utc::now().timestamp();
         Self {
-            username,
+            username: username.into(),
             created_at: now,
             last_used_at: now,
         }

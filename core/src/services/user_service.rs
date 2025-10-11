@@ -150,13 +150,13 @@ impl<R: UserRepository> UserService<R> {
     /// # use lh_core::services::user_service::UserService;
     /// # use lh_core::repositories::user_repository::UserRepository;
     /// # fn example(service: &UserService<impl UserRepository>) {
-    /// match service.create_user("jane_doe".to_string()) {
+    /// match service.create_user("jane_doe") {
     ///     Ok(user) => println!("Created user: {:?}", user),
     ///     Err(e) => eprintln!("Failed to create user: {}", e),
     /// }
     /// # }
     /// ```
-    pub fn create_user(&self, username: String) -> Result<User, CoreError> {
+    pub fn create_user(&self, username: &str) -> Result<User, CoreError> {
         // Domain validation happens in User::new()
         let user = User::new(username)?;
 
@@ -195,16 +195,16 @@ impl<R: UserRepository> UserService<R> {
     /// # use lh_core::services::user_service::UserService;
     /// # use lh_core::repositories::user_repository::UserRepository;
     /// # fn example(service: &UserService<impl UserRepository>) {
-    /// match service.update_user("john_doe".to_string()) {
+    /// match service.update_user("john_doe") {
     ///     Ok(user) => println!("Updated user: {:?}", user),
     ///     Err(e) => eprintln!("Failed to update user: {}", e),
     /// }
     /// # }
     /// ```
-    pub fn update_user(&self, username: String) -> Result<User, CoreError> {
+    pub fn update_user(&self, username: &str) -> Result<User, CoreError> {
         // Business logic: ensure user exists
-        if self.repository.find_by_username(&username)?.is_none() {
-            return Err(CoreError::not_found("User", &username));
+        if self.repository.find_by_username(username)?.is_none() {
+            return Err(CoreError::not_found("User", username));
         }
 
         // Domain validation happens in User::new()
@@ -344,7 +344,7 @@ mod tests {
         let repo = MockUserRepository::new();
         let service = UserService::new(repo);
 
-        let result = service.create_user("new_user".to_string());
+        let result = service.create_user("new_user");
 
         assert!(result.is_ok());
         let user = result.unwrap();
@@ -356,7 +356,7 @@ mod tests {
         let repo = MockUserRepository::new();
         let service = UserService::new(repo);
 
-        let result = service.create_user("".to_string());
+        let result = service.create_user("");
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -373,7 +373,7 @@ mod tests {
         let repo = MockUserRepository::with_users(vec![existing_user]);
         let service = UserService::new(repo);
 
-        let result = service.create_user("existing".to_string());
+        let result = service.create_user("existing");
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -389,7 +389,7 @@ mod tests {
         let repo = MockUserRepository::new();
         let service = UserService::new(repo);
 
-        let result = service.update_user("nonexistent".to_string());
+        let result = service.update_user("nonexistent");
 
         assert!(result.is_err());
         match result.unwrap_err() {

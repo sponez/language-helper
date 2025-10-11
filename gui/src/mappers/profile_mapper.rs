@@ -20,8 +20,6 @@ pub fn model_to_view(profile: &Profile) -> ProfileView {
     let last_activity_display = format_timestamp(profile.last_activity_at);
 
     ProfileView::new(
-        profile.profile_id.clone(),
-        profile.username.clone(),
         profile.target_language.clone(),
         created_at_display,
         last_activity_display,
@@ -44,11 +42,9 @@ mod tests {
 
     #[test]
     fn test_model_to_view() {
-        let profile = Profile::new("test_user".to_string(), "spanish".to_string()).unwrap();
+        let profile = Profile::new("spanish").unwrap();
         let view = model_to_view(&profile);
 
-        assert_eq!(view.profile_id, profile.profile_id);
-        assert_eq!(view.username, profile.username);
         assert_eq!(view.target_language, profile.target_language);
         assert!(!view.created_at_display.is_empty());
         assert!(!view.last_activity_display.is_empty());

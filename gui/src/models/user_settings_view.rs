@@ -11,10 +11,14 @@ pub struct UserSettingsView {
 
 impl UserSettingsView {
     /// Creates a new UserSettingsView.
-    pub fn new(theme: String, language: String) -> Self {
+    pub fn new<T, L>(theme: T, language: L) -> Self
+    where
+        T: AsRef<str> + Into<String>,
+        L: AsRef<str> + Into<String>,
+    {
         Self {
-            theme,
-            language,
+            theme: theme.into(),
+            language: language.into(),
         }
     }
 }

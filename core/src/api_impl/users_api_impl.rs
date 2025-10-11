@@ -9,13 +9,13 @@ use lh_api::models::profile::ProfileDto;
 use lh_api::models::user::UserDto;
 use lh_api::models::user_settings::UserSettingsDto;
 
+use crate::errors::CoreError;
 use crate::models::profile::Profile;
 use crate::models::user_settings::UserSettings;
-use crate::errors::CoreError;
-use crate::repositories::profile_repository::ProfileRepository;
+use crate::repositories::user_profiles_repository::UserProfilesRepository;
 use crate::repositories::user_repository::UserRepository;
 use crate::repositories::user_settings_repository::UserSettingsRepository;
-use crate::services::profile_service::ProfileService;
+use crate::services::user_profiles_service::UserProfilesService;
 use crate::services::user_service::UserService;
 use crate::services::user_settings_service::UserSettingsService;
 
@@ -43,8 +43,6 @@ fn map_user_settings_to_dto(settings: UserSettings) -> UserSettingsDto {
 /// Helper function to map domain Profile to ProfileDto
 fn map_profile_to_dto(profile: Profile) -> ProfileDto {
     ProfileDto {
-        id: profile.profile_id,
-        username: profile.username,
         target_language: profile.target_language,
         created_at: profile.created_at,
         last_activity: profile.last_activity_at,
@@ -59,18 +57,18 @@ pub struct UsersApiImpl<
     R: UserRepository,
     S: UserSettingsRepository,
     A: crate::repositories::app_settings_repository::AppSettingsRepository,
-    P: ProfileRepository,
+    P: UserProfilesRepository,
 > {
     user_service: UserService<R>,
     user_settings_service: UserSettingsService<S, A, R>,
-    profile_service: ProfileService<P, R>,
+    profile_service: UserProfilesService<P, R>,
 }
 
 impl<
         R: UserRepository,
         S: UserSettingsRepository,
         A: crate::repositories::app_settings_repository::AppSettingsRepository,
-        P: ProfileRepository,
+        P: UserProfilesRepository,
     > UsersApiImpl<R, S, A, P>
 {
     /// Creates a new UsersApiImpl instance.
@@ -87,7 +85,7 @@ impl<
     pub fn new(
         user_service: UserService<R>,
         user_settings_service: UserSettingsService<S, A, R>,
-        profile_service: ProfileService<P, R>,
+        profile_service: UserProfilesService<P, R>,
     ) -> Self {
         Self {
             user_service,
@@ -101,7 +99,7 @@ impl<
         R: UserRepository,
         S: UserSettingsRepository,
         A: crate::repositories::app_settings_repository::AppSettingsRepository,
-        P: ProfileRepository,
+        P: UserProfilesRepository,
     > UsersApi for UsersApiImpl<R, S, A, P>
 {
     fn get_usernames(&self) -> Result<Vec<String>, ApiError> {
@@ -146,17 +144,17 @@ impl<
         })
     }
 
-    fn create_user(&self, username: String) -> Result<UserDto, ApiError> {
+    fn create_user(&self, username: &str) -> Result<UserDto, ApiError> {
         // Create user
         let user = self
             .user_service
-            .create_user(username.clone())
+            .create_user(username)
             .map_err(map_core_error_to_api_error)?;
 
         // Create settings for the new user
         let settings = self
             .user_settings_service
-            .create_user_settings(username.clone())
+            .create_user_settings(username)
             .map(map_user_settings_to_dto)
             .map_err(map_core_error_to_api_error)?;
 
@@ -168,6 +166,55 @@ impl<
             settings,
             profiles,
         })
+    }
+
+    fn update_user_theme(&self, username: &str, theme: &str) -> Result<(), ApiError> {
+        // Get current settings
+        let current_settings = self
+            .user_settings_service
+            .get_user_settings(username)
+            .map_err(map_core_error_to_api_error)?;
+
+        // Update with new theme
+        self.user_settings_service
+            .update_user_settings(username, theme, current_settings.ui_language.as_str())
+            .map(|_| ())
+            .map_err(map_core_error_to_api_error)
+    }
+
+    fn update_user_language(&self, username: &str, language: &str) -> Result<(), ApiError> {
+        // Get current settings
+        let current_settings = self
+            .user_settings_service
+            .get_user_settings(username)
+            .map_err(map_core_error_to_api_error)?;
+
+        // Update with new language
+        self.user_settings_service
+            .update_user_settings(username, current_settings.ui_theme.as_str(), language)
+            .map(|_| ())
+            .map_err(map_core_error_to_api_error)
+    }
+
+    fn delete_user(&self, username: &str) -> Result<bool, ApiError> {
+        // Delete user settings
+        let _ = self.user_settings_service.delete_user_settings(username);
+
+        // Delete all profiles for the user
+        if let Ok(profiles) = self.profile_service.get_profiles_for_user(username) {
+            for profile in profiles {
+                let _ = self
+                    .profile_service
+                    .delete_profile(username, profile.target_language.as_str());
+            }
+        }
+
+        // Delete the user
+        match self.user_service.delete_user(username) {
+            Ok(_) => Ok(true),
+            Err(CoreError::NotFound { .. }) => Ok(false),
+            Err(e) => Err(map_core_error_to_api_error(e)),
+        }
     }
 }
 
@@ -296,9 +343,9 @@ mod tests {
     use crate::models::profile::Profile;
     use crate::models::user_settings::UserSettings;
     use crate::repositories::app_settings_repository::AppSettingsRepository;
-    use crate::repositories::profile_repository::ProfileRepository;
+    use crate::repositories::user_profiles_repository::UserProfilesRepository;
     use crate::repositories::user_settings_repository::UserSettingsRepository;
-    use crate::services::profile_service::ProfileService;
+    use crate::services::user_profiles_service::UserProfilesService;
     use crate::services::user_settings_service::UserSettingsService;
 
     struct MockUserSettingsRepository;
@@ -306,7 +353,7 @@ mod tests {
         fn find_by_username(&self, _username: &str) -> Result<Option<UserSettings>, CoreError> {
             Ok(None)
         }
-        fn save(&self, _username: String, settings: UserSettings) -> Result<UserSettings, CoreError> {
+        fn save(&self, _username: &str, settings: UserSettings) -> Result<UserSettings, CoreError> {
             Ok(settings)
         }
         fn delete(&self, _username: &str) -> Result<bool, CoreError> {
@@ -315,8 +362,12 @@ mod tests {
     }
 
     struct MockProfileRepository;
-    impl ProfileRepository for MockProfileRepository {
-        fn find_by_id(&self, _profile_id: &str) -> Result<Option<Profile>, CoreError> {
+    impl UserProfilesRepository for MockProfileRepository {
+        fn find_by_username_and_target_language(
+            &self,
+            _username: &str,
+            _target_language: &str,
+        ) -> Result<Option<Profile>, CoreError> {
             Ok(None)
         }
         fn find_by_username(&self, _username: &str) -> Result<Vec<Profile>, CoreError> {
@@ -325,10 +376,10 @@ mod tests {
         fn find_all(&self) -> Result<Vec<Profile>, CoreError> {
             Ok(vec![])
         }
-        fn save(&self, profile: Profile) -> Result<Profile, CoreError> {
+        fn save(&self, _username: &str, profile: Profile) -> Result<Profile, CoreError> {
             Ok(profile)
         }
-        fn delete(&self, _profile_id: &str) -> Result<bool, CoreError> {
+        fn delete(&self, _username: &str, _target_language: &str) -> Result<bool, CoreError> {
             Ok(true)
         }
     }
@@ -360,7 +411,7 @@ mod tests {
                 should_fail: false,
             },
         );
-        let profile_service = ProfileService::new(
+        let profile_service = UserProfilesService::new(
             MockProfileRepository,
             MockUserRepository {
                 users: vec![],
@@ -444,7 +495,7 @@ mod tests {
         };
         let api = create_test_api(repo);
 
-        let result = api.create_user("newuser".to_string());
+        let result = api.create_user("newuser");
 
         // Note: This test will fail because our mock repositories don't share state.
         // In production, the same repository instance is used, so when a user is created,
@@ -474,7 +525,7 @@ mod tests {
         };
         let api = create_test_api(repo);
 
-        let result = api.create_user("alice".to_string());
+        let result = api.create_user("alice");
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -496,7 +547,7 @@ mod tests {
         };
         let api = create_test_api(repo);
 
-        let result = api.create_user("".to_string());
+        let result = api.create_user("");
 
         assert!(result.is_err());
         match result.unwrap_err() {

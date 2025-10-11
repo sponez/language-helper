@@ -129,7 +129,7 @@ impl<R: AppSettingsRepository> AppSettingsService<R> {
     /// # use lh_core::services::app_settings_service::AppSettingsService;
     /// # use lh_core::repositories::app_settings_repository::AppSettingsRepository;
     /// # fn example(service: &AppSettingsService<impl AppSettingsRepository>) {
-    /// match service.update_settings("Dark".to_string(), "es".to_string()) {
+    /// match service.update_settings("Dark", "es") {
     ///     Ok(settings) => println!("Settings updated: {:?}", settings),
     ///     Err(e) => eprintln!("Failed to update settings: {}", e),
     /// }
@@ -137,8 +137,8 @@ impl<R: AppSettingsRepository> AppSettingsService<R> {
     /// ```
     pub fn update_settings(
         &self,
-        ui_theme: String,
-        default_ui_language: String,
+        ui_theme: &str,
+        default_ui_language: &str,
     ) -> Result<AppSettings, CoreError> {
         // Domain validation happens in AppSettings::new()
         let settings = AppSettings::new(ui_theme, default_ui_language)?;
@@ -273,7 +273,7 @@ mod tests {
         let repo = MockAppSettingsRepository::new();
         let service = AppSettingsService::new(repo);
 
-        let result = service.update_settings("Light".to_string(), "fr".to_string());
+        let result = service.update_settings("Light", "fr");
         assert!(result.is_ok());
         let settings = result.unwrap();
         assert_eq!(settings.ui_theme, "Light");
@@ -285,7 +285,7 @@ mod tests {
         let repo = MockAppSettingsRepository::new();
         let service = AppSettingsService::new(repo);
 
-        let result = service.update_settings("InvalidTheme".to_string(), "en".to_string());
+        let result = service.update_settings("InvalidTheme", "en");
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
@@ -298,7 +298,7 @@ mod tests {
         let repo = MockAppSettingsRepository::new();
         let service = AppSettingsService::new(repo);
 
-        let result = service.update_settings("Dark".to_string(), "".to_string());
+        let result = service.update_settings("Dark", "");
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),

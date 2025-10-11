@@ -34,6 +34,7 @@ fn map_settings_to_dto(settings: AppSettings) -> AppSettingsDto {
 }
 
 /// Helper function to map AppSettingsDto to domain fields
+#[warn(dead_code)]
 fn dto_to_domain_fields(dto: AppSettingsDto) -> (String, String) {
     (dto.theme, dto.language)
 }
@@ -76,7 +77,7 @@ impl<R: AppSettingsRepository> AppSettingsApi for AppSettingsApiImpl<R> {
 
         // Update with new theme and existing language
         self.service
-            .update_settings(theme.to_string(), current_settings.default_ui_language)
+            .update_settings(theme, current_settings.default_ui_language.as_str())
             .map(|_| ())
             .map_err(map_core_error_to_api_error)
     }
@@ -88,7 +89,7 @@ impl<R: AppSettingsRepository> AppSettingsApi for AppSettingsApiImpl<R> {
 
         // Update with existing theme and new language
         self.service
-            .update_settings(current_settings.ui_theme, language.to_string())
+            .update_settings(current_settings.ui_theme.as_str(), language)
             .map(|_| ())
             .map_err(map_core_error_to_api_error)
     }

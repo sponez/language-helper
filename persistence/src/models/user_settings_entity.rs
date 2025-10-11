@@ -60,11 +60,16 @@ impl UserSettingsEntity {
     /// );
     /// assert_eq!(entity.username, "jane_smith");
     /// ```
-    pub fn new(username: String, ui_theme: String, ui_language: String) -> Self {
+    pub fn new<U, UT, UL>(username: U, ui_theme: UT, ui_language: UL) -> Self
+    where
+        U: AsRef<str> + Into<String>,
+        UT: AsRef<str> + Into<String>,
+        UL: AsRef<str> + Into<String>,
+    {
         Self {
-            username,
-            ui_theme,
-            ui_language,
+            username: username.into(),
+            ui_theme: ui_theme.into(),
+            ui_language: ui_language.into(),
         }
     }
 

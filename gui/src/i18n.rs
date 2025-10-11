@@ -36,32 +36,26 @@ impl I18n {
     /// # Panics
     ///
     /// Panics if the locale resources cannot be loaded.
-    pub fn new(locale: &str) -> Self {
+    pub fn new<L>(locale: L) -> Self
+    where
+        L: AsRef<str> + Into<String>
+    {
         let mut i18n = Self {
             bundles: HashMap::new(),
-            current_locale: locale.to_string(),
+            current_locale: locale.into(),
             fallback_locale: "en-US".to_string(),
         };
 
         // Load the requested locale
-        i18n.load_locale(locale);
-
-        // Load fallback locale if different
-        if locale != "en-US" {
-            i18n.load_locale("en-US");
-        }
+        i18n.load_locale();
 
         i18n
     }
 
     /// Loads Fluent resources for a specific locale.
-    ///
-    /// # Arguments
-    ///
-    /// * `locale` - The locale to load (e.g., "en-US")
-    fn load_locale(&mut self, locale: &str) {
+    fn load_locale(&mut self) {
         // Parse the locale into a LanguageIdentifier
-        let lang_id: LanguageIdentifier = locale.parse().expect("Failed to parse locale");
+        let lang_id: LanguageIdentifier = self.current_locale.parse().expect("Failed to parse locale");
 
         // Create a new FluentBundle for this locale
         let mut bundle = FluentBundle::new(vec![lang_id.clone()]);
@@ -70,20 +64,20 @@ impl I18n {
         // In development: gui/locales/{locale}/
         // In production: locales/{locale}/ (relative to executable)
         let locale_paths = vec![
-            PathBuf::from(format!("gui/locales/{}/main.ftl", locale)),
-            PathBuf::from(format!("locales/{}/main.ftl", locale)),
-            PathBuf::from(format!("../gui/locales/{}/main.ftl", locale)),
+            PathBuf::from(format!("gui/locales/{}/main.ftl", self.current_locale)),
+            PathBuf::from(format!("locales/{}/main.ftl", self.current_locale)),
+            PathBuf::from(format!("../gui/locales/{}/main.ftl", self.current_locale)),
         ];
 
         let mut loaded = false;
         for path in locale_paths {
             if let Ok(ftl_string) = fs::read_to_string(&path) {
                 let resource = FluentResource::try_new(ftl_string)
-                    .expect(&format!("Failed to parse FTL resource for locale: {}", locale));
+                    .expect(&format!("Failed to parse FTL resource for locale: {}", self.current_locale));
 
                 bundle
                     .add_resource(resource)
-                    .expect(&format!("Failed to add resource to bundle: {}", locale));
+                    .expect(&format!("Failed to add resource to bundle: {}", self.current_locale));
 
                 loaded = true;
                 break;
@@ -91,10 +85,10 @@ impl I18n {
         }
 
         if !loaded {
-            eprintln!("Warning: Could not load locale resources for: {}", locale);
+            eprintln!("Warning: Could not load locale resources for: {}", self.current_locale);
         }
 
-        self.bundles.insert(locale.to_string(), bundle);
+        self.bundles.insert(self.current_locale.to_string(), bundle);
     }
 
     /// Changes the current locale.
@@ -107,7 +101,7 @@ impl I18n {
 
         // Load the locale if not already loaded
         if !self.bundles.contains_key(locale) {
-            self.load_locale(locale);
+            self.load_locale();
         }
     }
 

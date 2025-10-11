@@ -78,12 +78,16 @@ impl UserSettings {
     /// assert_eq!(settings.ui_theme, "Dark");
     /// assert_eq!(settings.ui_language, "en");
     /// ```
-    pub fn new(ui_theme: String, ui_language: String) -> Result<Self, CoreError> {
-        Self::validate_theme(&ui_theme)?;
-        Self::validate_language_code(&ui_language)?;
+    pub fn new<UT, UL>(ui_theme: UT, ui_language: UL) -> Result<Self, CoreError>
+    where
+        UT: AsRef<str> + Into<String>,
+        UL: AsRef<str> + Into<String>,
+    {
+        Self::validate_theme(ui_theme.as_ref())?;
+        Self::validate_language_code(ui_language.as_ref())?;
         Ok(Self {
-            ui_theme,
-            ui_language,
+            ui_theme: ui_theme.into(),
+            ui_language: ui_language.into(),
         })
     }
 

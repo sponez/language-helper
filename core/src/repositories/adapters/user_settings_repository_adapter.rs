@@ -13,7 +13,7 @@ pub trait PersistenceUserSettingsRepository {
     fn find_by_username(&self, username: &str) -> Result<Option<UserSettings>, Self::Error>;
 
     /// Saves user settings.
-    fn save(&self, username: String, settings: UserSettings) -> Result<UserSettings, Self::Error>;
+    fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, Self::Error>;
 
     /// Deletes user settings by username.
     fn delete(&self, username: &str) -> Result<bool, Self::Error>;
@@ -40,7 +40,7 @@ impl<R: PersistenceUserSettingsRepository + Send + Sync> UserSettingsRepository
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    fn save(&self, username: String, settings: UserSettings) -> Result<UserSettings, CoreError> {
+    fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, CoreError> {
         self.repository
             .save(username, settings)
             .map_err(|e| CoreError::repository_error(e.to_string()))

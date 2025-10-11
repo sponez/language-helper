@@ -13,7 +13,7 @@ use lh_core::repositories::adapters::{
     UserSettingsRepositoryAdapter,
 };
 use lh_core::services::app_settings_service::AppSettingsService;
-use lh_core::services::profile_service::ProfileService;
+use lh_core::services::user_profiles_service::UserProfilesService;
 use lh_core::services::user_service::UserService;
 use lh_core::services::user_settings_service::UserSettingsService;
 use lh_persistence::{
@@ -175,7 +175,7 @@ fn main() -> iced::Result {
     let user_persistence3 = SqliteUserRepository::new(&config.database_path)
         .expect("Failed to initialize user repository for profile service");
 
-    let profile_service = ProfileService::new(
+    let profile_service = UserProfilesService::new(
         profile_repository,
         UserRepositoryAdapter::new(user_persistence3),
     );

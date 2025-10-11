@@ -69,8 +69,6 @@ fn dto_profile_to_view(profile_dto: &ProfileDto) -> ProfileView {
     };
 
     ProfileView::new(
-        profile_dto.id.clone(),
-        profile_dto.username.clone(),
         profile_dto.target_language.clone(),
         created_at_display,
         last_activity_display,

@@ -90,5 +90,77 @@ pub trait UsersApi {
     ///     Ok(())
     /// }
     /// ```
-    fn create_user(&self, username: String) -> Result<UserDto, ApiError>;
+    fn create_user(&self, username: &str) -> Result<UserDto, ApiError>;
+
+    /// Updates a user's theme preference.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username of the user to update
+    /// * `theme` - The new theme value
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the update was successful
+    /// * `Err(ApiError)` - If an error occurs during the update
+    ///
+    /// # Errors
+    ///
+    /// This function may return an error if:
+    /// - The user doesn't exist
+    /// - There's a database or internal error
+    fn update_user_theme(&self, username: &str, theme: &str) -> Result<(), ApiError>;
+
+    /// Updates a user's language preference.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username of the user to update
+    /// * `language` - The new language value
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the update was successful
+    /// * `Err(ApiError)` - If an error occurs during the update
+    ///
+    /// # Errors
+    ///
+    /// This function may return an error if:
+    /// - The user doesn't exist
+    /// - There's a database or internal error
+    fn update_user_language(&self, username: &str, language: &str) -> Result<(), ApiError>;
+
+    /// Deletes a user and all associated data.
+    ///
+    /// This will delete the user's settings, profiles, and all profile databases.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username of the user to delete
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(true)` - If the user was successfully deleted
+    /// * `Ok(false)` - If no user with the given username exists
+    /// * `Err(ApiError)` - If an error occurs during deletion
+    ///
+    /// # Errors
+    ///
+    /// Returns `ApiError` if there's a problem accessing the data store
+    /// or deleting associated files.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use lh_api::apis::user_api::UsersApi;
+    /// fn remove_user(api: &dyn UsersApi, name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    ///     match api.delete_user(name) {
+    ///         Ok(true) => println!("User deleted successfully"),
+    ///         Ok(false) => println!("User not found"),
+    ///         Err(e) => eprintln!("Failed to delete user: {}", e),
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
+    fn delete_user(&self, username: &str) -> Result<bool, ApiError>;
 }

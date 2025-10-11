@@ -29,8 +29,6 @@
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProfileEntity {
-    /// Unique profile identifier.
-    pub profile_id: String,
     /// Username (foreign key to users table).
     pub username: String,
     /// Target language code.
@@ -64,14 +62,16 @@ impl ProfileEntity {
     /// );
     /// assert!(entity.created_at > 0);
     /// ```
-    pub fn new(username: String, target_language: String) -> Self {
+    pub fn new<U, TL>(username: U, target_language: TL) -> Self
+    where
+        U: AsRef<str> + Into<String>,
+        TL: AsRef<str> + Into<String>,
+    {
         let now = chrono::Utc::now().timestamp();
-        let profile_id = format!("{}_{}", username, uuid::Uuid::new_v4());
 
         Self {
-            profile_id,
-            username,
-            target_language,
+            username: username.into(),
+            target_language: target_language.into(),
             created_at: now,
             last_activity_at: now,
         }
@@ -92,17 +92,19 @@ impl ProfileEntity {
     /// # Returns
     ///
     /// A new `ProfileEntity` instance.
-    pub fn with_fields(
-        profile_id: String,
-        username: String,
-        target_language: String,
+    pub fn with_fields<U, TL>(
+        username: U,
+        target_language: TL,
         created_at: i64,
         last_activity_at: i64,
-    ) -> Self {
+    ) -> Self
+    where
+        U: AsRef<str> + Into<String>,
+        TL: AsRef<str> + Into<String>,
+    {
         Self {
-            profile_id,
-            username,
-            target_language,
+            username: username.into(),
+            target_language: target_language.into(),
             created_at,
             last_activity_at,
         }
@@ -145,20 +147,17 @@ mod tests {
         assert!(entity.created_at > 0);
         assert!(entity.last_activity_at > 0);
         assert_eq!(entity.created_at, entity.last_activity_at);
-        assert!(entity.profile_id.contains("test_user"));
     }
 
     #[test]
     fn test_profile_entity_with_fields() {
         let entity = ProfileEntity::with_fields(
-            "profile_123".to_string(),
             "user1".to_string(),
             "french".to_string(),
             1000,
             2000,
         );
 
-        assert_eq!(entity.profile_id, "profile_123");
         assert_eq!(entity.username, "user1");
         assert_eq!(entity.target_language, "french");
         assert_eq!(entity.created_at, 1000);
@@ -184,13 +183,5 @@ mod tests {
         let cloned = entity.clone();
 
         assert_eq!(entity, cloned);
-    }
-
-    #[test]
-    fn test_unique_profile_ids() {
-        let entity1 = ProfileEntity::new("user1".to_string(), "spanish".to_string());
-        let entity2 = ProfileEntity::new("user1".to_string(), "spanish".to_string());
-
-        assert_ne!(entity1.profile_id, entity2.profile_id);
     }
 }

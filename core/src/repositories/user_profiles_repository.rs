@@ -2,13 +2,13 @@
 //!
 //! This module defines the repository trait for profile persistence operations.
 
-use crate::models::profile::Profile;
 use crate::errors::CoreError;
+use crate::models::profile::Profile;
 
 /// Repository trait for profile persistence operations.
 ///
 /// This trait defines the interface for persisting and retrieving learning profiles.
-pub trait ProfileRepository: Send + Sync {
+pub trait UserProfilesRepository: Send + Sync {
     /// Finds a profile by its ID.
     ///
     /// # Arguments
@@ -20,7 +20,11 @@ pub trait ProfileRepository: Send + Sync {
     /// * `Ok(Some(Profile))` - The profile if found
     /// * `Ok(None)` - If the profile doesn't exist
     /// * `Err(CoreError)` - If an error occurs during the operation
-    fn find_by_id(&self, profile_id: &str) -> Result<Option<Profile>, CoreError>;
+    fn find_by_username_and_target_language(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<Option<Profile>, CoreError>;
 
     /// Finds all profiles for a specific user.
     ///
@@ -52,7 +56,7 @@ pub trait ProfileRepository: Send + Sync {
     ///
     /// * `Ok(Profile)` - The saved profile
     /// * `Err(CoreError)` - If an error occurs during the operation
-    fn save(&self, profile: Profile) -> Result<Profile, CoreError>;
+    fn save(&self, username: &str, profile: Profile) -> Result<Profile, CoreError>;
 
     /// Deletes a profile by ID.
     ///
@@ -65,5 +69,5 @@ pub trait ProfileRepository: Send + Sync {
     /// * `Ok(true)` - If the profile was deleted
     /// * `Ok(false)` - If the profile didn't exist
     /// * `Err(CoreError)` - If an error occurs during the operation
-    fn delete(&self, profile_id: &str) -> Result<bool, CoreError>;
+    fn delete(&self, username: &str, target_language: &str) -> Result<bool, CoreError>;
 }

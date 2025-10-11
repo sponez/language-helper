@@ -3,10 +3,6 @@
 /// View model for displaying learning profile information in the GUI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProfileView {
-    /// Unique profile identifier
-    pub profile_id: String,
-    /// The username this profile belongs to
-    pub username: String,
     /// Target language being learned
     pub target_language: String,
     /// Human-readable creation date/time
@@ -17,19 +13,20 @@ pub struct ProfileView {
 
 impl ProfileView {
     /// Creates a new ProfileView.
-    pub fn new(
-        profile_id: String,
-        username: String,
-        target_language: String,
-        created_at_display: String,
-        last_activity_display: String,
-    ) -> Self {
+    pub fn new<TL, C, LA>(
+        target_language: TL,
+        created_at_display: C,
+        last_activity_display: LA,
+    ) -> Self
+    where
+        TL: AsRef<str> + Into<String>,
+        C: AsRef<str> + Into<String>,
+        LA: AsRef<str> + Into<String>,
+    {
         Self {
-            profile_id,
-            username,
-            target_language,
-            created_at_display,
-            last_activity_display,
+            target_language: target_language.into(),
+            created_at_display: created_at_display.into(),
+            last_activity_display: last_activity_display.into(),
         }
     }
 }
