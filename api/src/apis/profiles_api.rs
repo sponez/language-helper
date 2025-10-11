@@ -56,6 +56,22 @@ pub trait ProfilesApi: Send + Sync {
     /// * `Err(ApiError)` - If an error occurs
     fn delete_profile_database(&self, username: &str, target_language: &str) -> Result<bool, ApiError>;
 
+    /// Deletes the entire user data folder.
+    ///
+    /// This removes the folder `data/{username}/` and all its contents,
+    /// including all profile databases.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username whose folder should be deleted
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(true)` - If the folder was deleted
+    /// * `Ok(false)` - If the folder didn't exist
+    /// * `Err(ApiError)` - If an error occurs
+    fn delete_user_folder(&self, username: &str) -> Result<bool, ApiError>;
+
     // Future methods will be added here for:
     // - Adding vocabulary cards
     // - Tracking learning progress

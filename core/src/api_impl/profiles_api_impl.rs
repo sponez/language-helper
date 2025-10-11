@@ -57,4 +57,10 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
             .delete_profile_database(username, target_language)
             .map_err(map_core_error_to_api_error)
     }
+
+    fn delete_user_folder(&self, username: &str) -> Result<bool, ApiError> {
+        self.profile_service
+            .delete_user_folder(username)
+            .map_err(map_core_error_to_api_error)
+    }
 }

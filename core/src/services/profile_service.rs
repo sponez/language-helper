@@ -156,4 +156,34 @@ impl<R: ProfileRepository> ProfileService<R> {
 
         self.repository.delete_database(db_path)
     }
+
+    /// Deletes the entire user data folder.
+    ///
+    /// This removes the folder `data/{username}/` and all its contents.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username whose folder should be deleted
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(bool)` - true if the folder was deleted, false if it didn't exist
+    /// * `Err(CoreError)` - If an error occurs during deletion
+    pub fn delete_user_folder(&self, username: &str) -> Result<bool, CoreError> {
+        let user_dir = PathBuf::from(&self.data_dir).join(username);
+
+        if !user_dir.exists() {
+            return Ok(false);
+        }
+
+        std::fs::remove_dir_all(&user_dir).map_err(|e| {
+            CoreError::repository_error(format!(
+                "Failed to delete user folder {}: {}",
+                user_dir.display(),
+                e
+            ))
+        })?;
+
+        Ok(true)
+    }
 }

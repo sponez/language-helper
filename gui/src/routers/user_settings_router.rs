@@ -88,7 +88,12 @@ impl UserSettingsRouter {
                 None
             }
             Message::ConfirmDelete => {
-                // Delete user via API
+                // Step 1: Delete the entire user folder (includes all profile databases)
+                if let Err(e) = self.app_api.profile_api().delete_user_folder(&self.user_view.username) {
+                    eprintln!("Failed to delete user folder: {:?}", e);
+                }
+
+                // Step 2: Delete user (which deletes profile metadata, settings, and user record)
                 match self.app_api.users_api().delete_user(&self.user_view.username) {
                     Ok(deleted) => {
                         if deleted {
