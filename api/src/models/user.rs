@@ -20,7 +20,6 @@ use crate::models::{profile::ProfileDto, user_settings::UserSettingsDto};
 /// let user = UserDto {
 ///     username: "john_doe".to_string(),
 ///     settings: UserSettingsDto {
-///         username: "john_doe".to_string(),
 ///         theme: "System".to_string(),
 ///         language: "en".to_string(),
 ///     },

@@ -4,8 +4,6 @@
 //! application settings stored in the database. This is designed as a singleton
 //! (only one row should exist).
 
-use lh_core::domain::app_settings::AppSettings;
-
 /// Persistence entity for global application settings.
 ///
 /// This struct represents the global application settings as stored in the database.
@@ -44,8 +42,8 @@ impl Default for AppSettingsEntity {
     fn default() -> Self {
         Self {
             id: 1,
-            ui_theme: "System".to_string(),
-            default_ui_language: "en".to_string(),
+            ui_theme: "Dark".to_string(),
+            default_ui_language: "en-US".to_string(),
         }
     }
 }
@@ -69,31 +67,6 @@ impl AppSettingsEntity {
         }
     }
 
-    /// Converts this persistence entity to a domain AppSettings.
-    ///
-    /// # Returns
-    ///
-    /// An `AppSettings` domain model.
-    pub fn to_domain(&self) -> AppSettings {
-        AppSettings::new_unchecked(self.ui_theme.clone(), self.default_ui_language.clone())
-    }
-
-    /// Creates an AppSettingsEntity from a domain AppSettings.
-    ///
-    /// # Arguments
-    ///
-    /// * `settings` - The domain AppSettings to convert
-    ///
-    /// # Returns
-    ///
-    /// A new `AppSettingsEntity`.
-    pub fn from_domain(settings: AppSettings) -> Self {
-        Self {
-            id: 1,
-            ui_theme: settings.ui_theme,
-            default_ui_language: settings.default_ui_language,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -105,8 +78,8 @@ mod tests {
         let entity = AppSettingsEntity::default();
 
         assert_eq!(entity.id, 1);
-        assert_eq!(entity.ui_theme, "System");
-        assert_eq!(entity.default_ui_language, "en");
+        assert_eq!(entity.ui_theme, "Dark");
+        assert_eq!(entity.default_ui_language, "en-US");
     }
 
     #[test]

@@ -22,7 +22,7 @@ use lh_persistence::{
 };
 
 use gui::router::{Message, RouterNode, RouterStack};
-use gui::routers::account_list_router::AccountListRouter;
+use gui::routers::user_list_router::UserListRouter;
 
 mod config;
 use config::AppConfig;
@@ -50,7 +50,7 @@ impl LanguageHelperApp {
     /// - An initial task (currently none)
     fn new(app_api: Box<dyn lh_api::app_api::AppApi>) -> (Self, Task<Message>) {
         let app_api_rc = Rc::from(app_api);
-        let root_router: Box<dyn RouterNode> = Box::new(AccountListRouter::new(app_api_rc));
+        let root_router: Box<dyn RouterNode> = Box::new(UserListRouter::new(app_api_rc));
         let router_stack = RouterStack::new(root_router);
 
         (Self { router_stack }, Task::none())
@@ -90,6 +90,10 @@ impl LanguageHelperApp {
     /// An `Element` containing the rendered UI
     fn view(&self) -> Element<'_, Message> {
         self.router_stack.view()
+    }
+
+    fn theme(&self) -> iced::Theme {
+        self.router_stack.theme()
     }
 }
 
@@ -184,12 +188,40 @@ fn main() -> iced::Result {
     // 5. Box the AppApi for trait object usage
     let app_api_boxed: Box<dyn lh_api::app_api::AppApi> = Box::new(app_api);
 
-    // 6. Run the iced application with the injected dependencies
+    // 6. Load embedded fonts
+    let fonts = vec![
+        // Noto Sans for Latin/Cyrillic
+        include_bytes!("../../gui/assets/fonts/NotoSans-Regular.ttf").as_slice(),
+        // Noto Sans Arabic
+        include_bytes!("../../gui/assets/fonts/NotoSansArabic-Regular.ttf").as_slice(),
+        // Noto Sans Devanagari (Hindi)
+        include_bytes!("../../gui/assets/fonts/NotoSansDevanagari-Regular.ttf").as_slice(),
+        // Noto Sans Bengali
+        include_bytes!("../../gui/assets/fonts/NotoSansBengali-Regular.ttf").as_slice(),
+        // Noto Sans SC (Chinese Simplified)
+        include_bytes!("../../gui/assets/fonts/NotoSansSC-Regular.otf").as_slice(),
+        // Noto Sans JP (Japanese)
+        include_bytes!("../../gui/assets/fonts/NotoSansJP-Regular.otf").as_slice(),
+        // Noto Sans KR (Korean)
+        include_bytes!("../../gui/assets/fonts/NotoSansKR-Regular.otf").as_slice(),
+        // Noto Sans Thai
+        include_bytes!("../../gui/assets/fonts/NotoSansThai-Regular.ttf").as_slice(),
+    ];
+
+    // 7. Run the iced application with the injected dependencies and fonts
     iced::application(
         "Language Helper",
         LanguageHelperApp::update,
         LanguageHelperApp::view,
     )
-    .theme(|_| iced::Theme::default())
+    .theme(LanguageHelperApp::theme)
+    .font(fonts[0]) // Noto Sans (default)
+    .font(fonts[1]) // Arabic
+    .font(fonts[2]) // Devanagari
+    .font(fonts[3]) // Bengali
+    .font(fonts[4]) // Chinese Simplified (SC)
+    .font(fonts[5]) // Japanese (JP)
+    .font(fonts[6]) // Korean (KR)
+    .font(fonts[7]) // Thai
     .run_with(|| LanguageHelperApp::new(app_api_boxed))
 }

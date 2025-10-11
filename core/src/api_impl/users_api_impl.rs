@@ -9,8 +9,8 @@ use lh_api::models::profile::ProfileDto;
 use lh_api::models::user::UserDto;
 use lh_api::models::user_settings::UserSettingsDto;
 
-use crate::domain::profile::Profile;
-use crate::domain::user_settings::UserSettings;
+use crate::models::profile::Profile;
+use crate::models::user_settings::UserSettings;
 use crate::errors::CoreError;
 use crate::repositories::profile_repository::ProfileRepository;
 use crate::repositories::user_repository::UserRepository;
@@ -35,7 +35,6 @@ fn map_core_error_to_api_error(error: CoreError) -> ApiError {
 /// Helper function to map domain UserSettings to UserSettingsDto
 fn map_user_settings_to_dto(settings: UserSettings) -> UserSettingsDto {
     UserSettingsDto {
-        username: settings.username,
         theme: settings.ui_theme,
         language: settings.ui_language,
     }
@@ -126,7 +125,6 @@ impl<
             .ok()
             .map(map_user_settings_to_dto)
             .unwrap_or_else(|| UserSettingsDto {
-                username: username.to_string(),
                 theme: "System".to_string(),
                 language: "en".to_string(),
             });
@@ -176,7 +174,7 @@ impl<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::user::User;
+    use crate::models::user::User;
     use crate::repositories::user_repository::UserRepository;
 
     /// Mock repository for testing
@@ -294,9 +292,9 @@ mod tests {
     }
 
     // Create mock implementations for testing
-    use crate::domain::app_settings::AppSettings;
-    use crate::domain::profile::Profile;
-    use crate::domain::user_settings::UserSettings;
+    use crate::models::app_settings::AppSettings;
+    use crate::models::profile::Profile;
+    use crate::models::user_settings::UserSettings;
     use crate::repositories::app_settings_repository::AppSettingsRepository;
     use crate::repositories::profile_repository::ProfileRepository;
     use crate::repositories::user_settings_repository::UserSettingsRepository;
@@ -308,7 +306,7 @@ mod tests {
         fn find_by_username(&self, _username: &str) -> Result<Option<UserSettings>, CoreError> {
             Ok(None)
         }
-        fn save(&self, settings: UserSettings) -> Result<UserSettings, CoreError> {
+        fn save(&self, _username: String, settings: UserSettings) -> Result<UserSettings, CoreError> {
             Ok(settings)
         }
         fn delete(&self, _username: &str) -> Result<bool, CoreError> {

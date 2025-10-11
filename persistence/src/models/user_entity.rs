@@ -3,8 +3,6 @@
 //! This module defines the UserEntity struct which represents how user data
 //! is stored in the database, including all persistence-specific fields like timestamps.
 
-use lh_core::domain::user::User;
-
 /// Persistence entity for user data.
 ///
 /// This struct represents the complete user data as stored in the database,
@@ -69,59 +67,6 @@ impl UserEntity {
         }
     }
 
-    /// Converts this persistence entity to a domain User.
-    ///
-    /// This method maps from the persistence layer representation to the
-    /// domain layer representation, stripping away persistence-specific
-    /// details like timestamps.
-    ///
-    /// # Returns
-    ///
-    /// A `User` domain model.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use lh_persistence::models::UserEntity;
-    ///
-    /// let entity = UserEntity::new("test_user".to_string());
-    /// let user = entity.to_domain();
-    /// assert_eq!(user.username, "test_user");
-    /// ```
-    pub fn to_domain(&self) -> User {
-        // Use new_unchecked since data from DB is already validated
-        User::new_unchecked(self.username.clone())
-    }
-
-    /// Creates a UserEntity from a domain User with current timestamps.
-    ///
-    /// This method maps from the domain layer representation to the
-    /// persistence layer representation, adding persistence-specific
-    /// metadata like timestamps.
-    ///
-    /// # Arguments
-    ///
-    /// * `user` - The domain User to convert
-    ///
-    /// # Returns
-    ///
-    /// A new `UserEntity` with timestamps set to the current time.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use lh_core::domain::user::User;
-    /// use lh_persistence::models::UserEntity;
-    ///
-    /// let user = User::new("test_user".to_string()).unwrap();
-    /// let entity = UserEntity::from_domain(user);
-    /// assert_eq!(entity.username, "test_user");
-    /// assert!(entity.created_at > 0);
-    /// ```
-    pub fn from_domain(user: User) -> Self {
-        Self::new(user.username)
-    }
-
     /// Updates the last_used_at timestamp to the current time.
     ///
     /// This method modifies the entity in place, setting last_used_at
@@ -160,24 +105,6 @@ mod tests {
         assert!(entity.created_at > 0);
         assert!(entity.last_used_at > 0);
         assert_eq!(entity.created_at, entity.last_used_at);
-    }
-
-    #[test]
-    fn test_to_domain() {
-        let entity = UserEntity::new("test_user".to_string());
-        let user = entity.to_domain();
-
-        assert_eq!(user.username, entity.username);
-    }
-
-    #[test]
-    fn test_from_domain() {
-        let user = User::new_unchecked("test_user".to_string());
-        let entity = UserEntity::from_domain(user.clone());
-
-        assert_eq!(entity.username, user.username);
-        assert!(entity.created_at > 0);
-        assert!(entity.last_used_at > 0);
     }
 
     #[test]

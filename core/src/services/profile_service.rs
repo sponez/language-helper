@@ -3,7 +3,7 @@
 //! This module provides the business logic for learning profile operations.
 //! It uses the ProfileRepository trait for persistence operations.
 
-use crate::domain::profile::Profile;
+use crate::models::profile::Profile;
 use crate::errors::CoreError;
 use crate::repositories::profile_repository::ProfileRepository;
 use crate::repositories::user_repository::UserRepository;
@@ -266,7 +266,7 @@ impl<PR: ProfileRepository, UR: UserRepository> ProfileService<PR, UR> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::user::User;
+    use crate::models::user::User;
 
     // Mock repositories for testing
     struct MockProfileRepository {

@@ -3,7 +3,7 @@
 //! This module defines the repository trait for user persistence operations.
 //! The actual implementation will be provided by the persistence layer.
 
-use crate::domain::user::User;
+use crate::models::user::User;
 use crate::errors::CoreError;
 
 /// Repository trait for user persistence operations.
@@ -22,7 +22,7 @@ use crate::errors::CoreError;
 ///
 /// ```no_run
 /// use lh_core::repositories::user_repository::UserRepository;
-/// use lh_core::domain::user::User;
+/// use lh_core::models::user::User;
 ///
 /// fn example(repo: &dyn UserRepository) {
 ///     match repo.find_by_username("john_doe") {

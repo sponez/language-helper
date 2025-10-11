@@ -3,7 +3,7 @@
 //! This module provides the business logic for user operations.
 //! It uses the UserRepository trait for persistence operations.
 
-use crate::domain::user::User;
+use crate::models::user::User;
 use crate::errors::CoreError;
 use crate::repositories::user_repository::UserRepository;
 

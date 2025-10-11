@@ -4,8 +4,9 @@
 //! with a one-to-many relationship to users.
 
 use crate::errors::PersistenceError;
+use crate::mappers::profile_mapper;
 use crate::models::ProfileEntity;
-use lh_core::domain::profile::Profile;
+use lh_core::models::profile::Profile;
 use lh_core::repositories::adapters::PersistenceProfileRepository;
 use rusqlite::{params, Connection};
 use std::sync::{Arc, Mutex};
@@ -226,7 +227,7 @@ impl SqliteProfileRepository {
     /// * `Err(PersistenceError)` - If the query fails
     pub fn find_by_id(&self, profile_id: &str) -> Result<Option<Profile>, PersistenceError> {
         self.find_entity_by_id(profile_id)
-            .map(|opt| opt.map(|entity| entity.to_domain()))
+            .map(|opt| opt.map(|entity| profile_mapper::entity_to_model(&entity)))
     }
 
     /// Retrieves all profiles for a user as domain models.
@@ -241,7 +242,7 @@ impl SqliteProfileRepository {
     /// * `Err(PersistenceError)` - If the query fails
     pub fn find_by_username(&self, username: &str) -> Result<Vec<Profile>, PersistenceError> {
         self.find_entities_by_username(username)
-            .map(|entities| entities.into_iter().map(|e| e.to_domain()).collect())
+            .map(|entities| entities.into_iter().map(|e| profile_mapper::entity_to_model(&e)).collect())
     }
 
     /// Retrieves all profiles as domain models.
@@ -252,7 +253,7 @@ impl SqliteProfileRepository {
     /// * `Err(PersistenceError)` - If the query fails
     pub fn find_all(&self) -> Result<Vec<Profile>, PersistenceError> {
         self.find_all_entities()
-            .map(|entities| entities.into_iter().map(|e| e.to_domain()).collect())
+            .map(|entities| entities.into_iter().map(|e| profile_mapper::entity_to_model(&e)).collect())
     }
 
     /// Saves a profile to the database.
@@ -272,7 +273,7 @@ impl SqliteProfileRepository {
             PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
         })?;
 
-        let entity = ProfileEntity::from_domain(profile.clone());
+        let entity = profile_mapper::model_to_entity(&profile);
 
         conn.execute(
             "INSERT INTO profiles (profile_id, username, target_language, created_at, last_activity_at)

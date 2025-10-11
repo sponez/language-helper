@@ -3,7 +3,7 @@
 //! This module provides the business logic for global application settings operations.
 //! It uses the AppSettingsRepository trait for persistence operations.
 
-use crate::domain::app_settings::AppSettings;
+use crate::models::app_settings::AppSettings;
 use crate::errors::CoreError;
 use crate::repositories::app_settings_repository::AppSettingsRepository;
 
@@ -251,8 +251,8 @@ mod tests {
         let service = AppSettingsService::new(repo);
 
         let result = service.get_settings().unwrap();
-        assert_eq!(result.ui_theme, "System");
-        assert_eq!(result.default_ui_language, "en");
+        assert_eq!(result.ui_theme, "Dark");
+        assert_eq!(result.default_ui_language, "en-US");
     }
 
     #[test]
@@ -312,8 +312,8 @@ mod tests {
         let service = AppSettingsService::new(repo);
 
         let result = service.initialize_defaults().unwrap();
-        assert_eq!(result.ui_theme, "System");
-        assert_eq!(result.default_ui_language, "en");
+        assert_eq!(result.ui_theme, "Dark");
+        assert_eq!(result.default_ui_language, "en-US");
     }
 
     #[test]

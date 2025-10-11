@@ -2,7 +2,7 @@
 //!
 //! This module defines the repository trait for user settings persistence operations.
 
-use crate::domain::user_settings::UserSettings;
+use crate::models::user_settings::UserSettings;
 use crate::errors::CoreError;
 
 /// Repository trait for user settings persistence operations.
@@ -32,7 +32,7 @@ pub trait UserSettingsRepository: Send + Sync {
     ///
     /// * `Ok(UserSettings)` - The saved settings
     /// * `Err(CoreError)` - If an error occurs during the operation
-    fn save(&self, settings: UserSettings) -> Result<UserSettings, CoreError>;
+    fn save(&self, username: String, settings: UserSettings) -> Result<UserSettings, CoreError>;
 
     /// Deletes user settings by username.
     ///

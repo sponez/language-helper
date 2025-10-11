@@ -1,6 +1,6 @@
 //! AppSettings repository adapter for mapping persistence errors to core errors.
 
-use crate::domain::app_settings::AppSettings;
+use crate::models::app_settings::AppSettings;
 use crate::errors::CoreError;
 use crate::repositories::app_settings_repository::AppSettingsRepository;
 

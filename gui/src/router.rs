@@ -29,7 +29,7 @@
 
 use iced::Element;
 
-use crate::routers::{account_list_router, account_router};
+use crate::routers::{user_list_router, user_router};
 
 /// Events that routers can emit to control navigation.
 pub enum RouterEvent {
@@ -55,9 +55,9 @@ impl std::fmt::Debug for RouterEvent {
 #[derive(Debug, Clone)]
 pub enum Message {
     /// Message for the account list router
-    AccountList(account_list_router::Message),
+    UserList(user_list_router::Message),
     /// Message for the account router
-    Account(account_router::Message),
+    User(user_router::Message),
 }
 
 /// Type-erased router node that can be stored in the stack.
@@ -70,6 +70,9 @@ pub trait RouterNode {
 
     /// Render view with global message type
     fn view(&self) -> Element<'_, Message>;
+
+    /// Get the current theme from the router
+    fn theme(&self) -> iced::Theme;
 }
 
 /// Manages a stack of routers for hierarchical navigation.
@@ -139,6 +142,14 @@ impl RouterStack {
             router.view()
         } else {
             iced::widget::text("Error: Router stack is empty").into()
+        }
+    }
+
+    pub fn theme(&self) -> iced::Theme {
+        if let Some(router) = self.stack.last() {
+            router.theme()
+        } else {
+            iced::Theme::Dark
         }
     }
 }

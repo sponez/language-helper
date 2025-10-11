@@ -4,8 +4,9 @@
 //! settings. The table is designed as a singleton (only one row).
 
 use crate::errors::PersistenceError;
+use crate::mappers::app_settings_mapper;
 use crate::models::AppSettingsEntity;
-use lh_core::domain::app_settings::AppSettings;
+use lh_core::models::app_settings::AppSettings;
 use lh_core::repositories::adapters::PersistenceAppSettingsRepository;
 use rusqlite::{params, Connection};
 use std::sync::{Arc, Mutex};
@@ -128,7 +129,7 @@ impl SqliteAppSettingsRepository {
     /// * `Ok(AppSettings)` - The settings
     /// * `Err(PersistenceError)` - If the query fails
     pub fn get(&self) -> Result<AppSettings, PersistenceError> {
-        self.get_entity().map(|entity| entity.to_domain())
+        self.get_entity().map(|entity| app_settings_mapper::entity_to_model(&entity))
     }
 
     /// Updates the global app settings.
@@ -146,7 +147,7 @@ impl SqliteAppSettingsRepository {
             PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
         })?;
 
-        let entity = AppSettingsEntity::from_domain(settings.clone());
+        let entity = app_settings_mapper::model_to_entity(&settings);
 
         conn.execute(
             "UPDATE app_settings SET ui_theme = ?1, default_ui_language = ?2 WHERE id = 1",
@@ -190,8 +191,8 @@ mod tests {
         let (repo, _temp_dir) = create_test_repo();
 
         let settings = repo.get().unwrap();
-        assert_eq!(settings.ui_theme, "System");
-        assert_eq!(settings.default_ui_language, "en");
+        assert_eq!(settings.ui_theme, "Dark");
+        assert_eq!(settings.default_ui_language, "en-US");
     }
 
     #[test]

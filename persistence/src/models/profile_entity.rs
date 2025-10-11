@@ -3,8 +3,6 @@
 //! This module defines the ProfileEntity struct which represents a learning profile
 //! stored in the database with a one-to-many relationship to users.
 
-use lh_core::domain::profile::Profile;
-
 /// Persistence entity for learning profiles.
 ///
 /// This struct represents a learning profile as stored in the database.
@@ -110,67 +108,6 @@ impl ProfileEntity {
         }
     }
 
-    /// Converts this persistence entity to a domain Profile.
-    ///
-    /// # Returns
-    ///
-    /// A `Profile` domain model.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use lh_persistence::models::ProfileEntity;
-    ///
-    /// let entity = ProfileEntity::new(
-    ///     "test_user".to_string(),
-    ///     "german".to_string()
-    /// );
-    /// let profile = entity.to_domain();
-    /// assert_eq!(profile.username, "test_user");
-    /// ```
-    pub fn to_domain(&self) -> Profile {
-        Profile::new_unchecked(
-            self.profile_id.clone(),
-            self.username.clone(),
-            self.target_language.clone(),
-            self.created_at,
-            self.last_activity_at,
-        )
-    }
-
-    /// Creates a ProfileEntity from a domain Profile.
-    ///
-    /// # Arguments
-    ///
-    /// * `profile` - The domain Profile to convert
-    ///
-    /// # Returns
-    ///
-    /// A new `ProfileEntity`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use lh_core::domain::profile::Profile;
-    /// use lh_persistence::models::ProfileEntity;
-    ///
-    /// let profile = Profile::new(
-    ///     "test".to_string(),
-    ///     "italian".to_string()
-    /// ).unwrap();
-    /// let entity = ProfileEntity::from_domain(profile);
-    /// assert_eq!(entity.username, "test");
-    /// ```
-    pub fn from_domain(profile: Profile) -> Self {
-        Self {
-            profile_id: profile.profile_id,
-            username: profile.username,
-            target_language: profile.target_language,
-            created_at: profile.created_at,
-            last_activity_at: profile.last_activity_at,
-        }
-    }
-
     /// Updates the last_activity_at timestamp to the current time.
     ///
     /// This method modifies the entity in place.
@@ -226,16 +163,6 @@ mod tests {
         assert_eq!(entity.target_language, "french");
         assert_eq!(entity.created_at, 1000);
         assert_eq!(entity.last_activity_at, 2000);
-    }
-
-    #[test]
-    fn test_to_domain() {
-        let entity = ProfileEntity::new("test_user".to_string(), "german".to_string());
-        let profile = entity.to_domain();
-
-        assert_eq!(profile.profile_id, entity.profile_id);
-        assert_eq!(profile.username, entity.username);
-        assert_eq!(profile.target_language, entity.target_language);
     }
 
     #[test]

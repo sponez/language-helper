@@ -8,6 +8,7 @@
 //! The persistence layer follows a clean architecture approach:
 //!
 //! - **models**: Persistence-specific models with database-friendly types
+//! - **mappers**: Conversion functions between persistence entities and core models
 //! - **repositories**: SQLite implementations of repository traits
 //! - **errors**: Persistence-specific error types (independent of core)
 //!
@@ -25,6 +26,7 @@
 //! a mapping layer in the core converts `PersistenceError` to `CoreError`.
 
 pub mod errors;
+pub mod mappers;
 pub mod models;
 pub mod repositories;
 
