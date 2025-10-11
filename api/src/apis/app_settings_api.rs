@@ -50,37 +50,7 @@ pub trait AppSettingsApi {
     /// ```
     fn get_app_settings(&self) -> Result<AppSettingsDto, ApiError>;
 
-    /// Updates the global application settings.
-    ///
-    /// # Arguments
-    ///
-    /// * `settings` - The new settings to apply
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - If the settings were successfully updated
-    /// * `Err(ApiError)` - If an error occurs (e.g., validation failure or database error)
-    ///
-    /// # Errors
-    ///
-    /// This function may return an error if:
-    /// - The settings data is invalid (e.g., invalid theme or language)
-    /// - There's a database or internal error
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use lh_api::apis::app_settings_api::AppSettingsApi;
-    /// # use lh_api::models::app_settings::AppSettingsDto;
-    /// fn update_theme(api: &dyn AppSettingsApi) -> Result<(), Box<dyn std::error::Error>> {
-    ///     let settings = AppSettingsDto {
-    ///         theme: "Dark".to_string(),
-    ///         language: "en".to_string(),
-    ///     };
-    ///     api.update_app_settings(settings)?;
-    ///     println!("Settings updated successfully");
-    ///     Ok(())
-    /// }
-    /// ```
-    fn update_app_settings(&self, settings: AppSettingsDto) -> Result<(), ApiError>;
+    fn update_app_theme(&self, theme: &str) -> Result<(), ApiError>;
+
+    fn update_app_language(&self, language: &str) -> Result<(), ApiError>;
 }

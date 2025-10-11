@@ -4,7 +4,7 @@
 //! `UserRepository` trait. It's generic over the concrete persistence
 //! implementation to avoid circular dependencies.
 
-use crate::domain::user::User;
+use crate::models::user::User;
 use crate::errors::CoreError;
 use crate::repositories::user_repository::UserRepository;
 

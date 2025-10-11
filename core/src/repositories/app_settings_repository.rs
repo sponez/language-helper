@@ -2,7 +2,7 @@
 //!
 //! This module defines the repository trait for app settings persistence operations.
 
-use crate::domain::app_settings::AppSettings;
+use crate::models::app_settings::AppSettings;
 use crate::errors::CoreError;
 
 /// Repository trait for app settings persistence operations.

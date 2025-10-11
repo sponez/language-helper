@@ -1,19 +1,48 @@
-use lh_api::models::user::UserDto;
+//! User view model for GUI presentation.
+//!
+//! This module defines the UserView struct which represents complete user data
+//! in the GUI layer, including settings and profiles.
 
-use crate::models::{user_profile_view::UserPropileView, user_settings_view::UserSettingsView};
+use super::{ProfileView, UserSettingsView};
 
+/// View model for displaying complete user information in the GUI.
+///
+/// This struct aggregates all user-related data needed for display,
+/// independent of core business models.
+#[derive(Debug, Clone, PartialEq)]
 pub struct UserView {
+    /// The username to display
     pub username: String,
-    pub settings: UserSettingsView,
-    pub profiles: Vec<UserPropileView>,
+    /// User's settings (if loaded)
+    pub settings: Option<UserSettingsView>,
+    /// User's learning profiles (if loaded)
+    pub profiles: Vec<ProfileView>,
 }
 
 impl UserView {
-    pub fn new(user: &UserDto) -> Self {
+    /// Creates a new UserView with just the username.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username to display
+    pub fn new(username: String) -> Self {
         Self {
-            username: user.username.clone(),
-            settings: UserSettingsView {},
+            username,
+            settings: None,
             profiles: Vec::new(),
+        }
+    }
+
+    /// Creates a UserView with settings and profiles.
+    pub fn with_details(
+        username: String,
+        settings: UserSettingsView,
+        profiles: Vec<ProfileView>,
+    ) -> Self {
+        Self {
+            username,
+            settings: Some(settings),
+            profiles,
         }
     }
 }

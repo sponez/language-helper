@@ -82,10 +82,10 @@ impl<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::app_settings::AppSettings;
-    use crate::domain::profile::Profile;
-    use crate::domain::user::User;
-    use crate::domain::user_settings::UserSettings;
+    use crate::models::app_settings::AppSettings;
+    use crate::models::profile::Profile;
+    use crate::models::user::User;
+    use crate::models::user_settings::UserSettings;
     use crate::errors::CoreError;
     use crate::repositories::app_settings_repository::AppSettingsRepository;
     use crate::repositories::profile_repository::ProfileRepository;
@@ -140,7 +140,7 @@ mod tests {
             Ok(None)
         }
 
-        fn save(&self, settings: UserSettings) -> Result<UserSettings, CoreError> {
+        fn save(&self, _username: String, settings: UserSettings) -> Result<UserSettings, CoreError> {
             Ok(settings)
         }
 
@@ -226,7 +226,6 @@ mod tests {
         assert!(result.is_some());
         let user_dto = result.unwrap();
         assert_eq!(user_dto.username, "test");
-        assert_eq!(user_dto.settings.username, "test");
         assert!(user_dto.profiles.is_empty());
     }
 

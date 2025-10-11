@@ -1,6 +1,6 @@
 //! UserSettings repository adapter for mapping persistence errors to core errors.
 
-use crate::domain::user_settings::UserSettings;
+use crate::models::user_settings::UserSettings;
 use crate::errors::CoreError;
 use crate::repositories::user_settings_repository::UserSettingsRepository;
 
@@ -13,7 +13,7 @@ pub trait PersistenceUserSettingsRepository {
     fn find_by_username(&self, username: &str) -> Result<Option<UserSettings>, Self::Error>;
 
     /// Saves user settings.
-    fn save(&self, settings: UserSettings) -> Result<UserSettings, Self::Error>;
+    fn save(&self, username: String, settings: UserSettings) -> Result<UserSettings, Self::Error>;
 
     /// Deletes user settings by username.
     fn delete(&self, username: &str) -> Result<bool, Self::Error>;
@@ -40,9 +40,9 @@ impl<R: PersistenceUserSettingsRepository + Send + Sync> UserSettingsRepository
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    fn save(&self, settings: UserSettings) -> Result<UserSettings, CoreError> {
+    fn save(&self, username: String, settings: UserSettings) -> Result<UserSettings, CoreError> {
         self.repository
-            .save(settings)
+            .save(username, settings)
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 

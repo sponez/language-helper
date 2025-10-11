@@ -3,8 +3,6 @@
 //! This module defines the UserSettingsEntity struct which represents user-specific
 //! settings stored in the database with a one-to-one relationship to users.
 
-use lh_core::domain::user_settings::UserSettings;
-
 /// Persistence entity for user settings.
 ///
 /// This struct represents user-specific settings as stored in the database.
@@ -70,64 +68,6 @@ impl UserSettingsEntity {
         }
     }
 
-    /// Converts this persistence entity to a domain UserSettings.
-    ///
-    /// # Returns
-    ///
-    /// A `UserSettings` domain model.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use lh_persistence::models::UserSettingsEntity;
-    ///
-    /// let entity = UserSettingsEntity::new(
-    ///     "test_user".to_string(),
-    ///     "Dark".to_string(),
-    ///     "en".to_string()
-    /// );
-    /// let settings = entity.to_domain();
-    /// assert_eq!(settings.username, "test_user");
-    /// ```
-    pub fn to_domain(&self) -> UserSettings {
-        UserSettings::new_unchecked(
-            self.username.clone(),
-            self.ui_theme.clone(),
-            self.ui_language.clone(),
-        )
-    }
-
-    /// Creates a UserSettingsEntity from a domain UserSettings.
-    ///
-    /// # Arguments
-    ///
-    /// * `settings` - The domain UserSettings to convert
-    ///
-    /// # Returns
-    ///
-    /// A new `UserSettingsEntity`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use lh_core::domain::user_settings::UserSettings;
-    /// use lh_persistence::models::UserSettingsEntity;
-    ///
-    /// let settings = UserSettings::new(
-    ///     "test".to_string(),
-    ///     "Dark".to_string(),
-    ///     "en".to_string()
-    /// ).unwrap();
-    /// let entity = UserSettingsEntity::from_domain(settings);
-    /// assert_eq!(entity.username, "test");
-    /// ```
-    pub fn from_domain(settings: UserSettings) -> Self {
-        Self {
-            username: settings.username,
-            ui_theme: settings.ui_theme,
-            ui_language: settings.ui_language,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -145,20 +85,6 @@ mod tests {
         assert_eq!(entity.username, "test_user");
         assert_eq!(entity.ui_theme, "Dark");
         assert_eq!(entity.ui_language, "en");
-    }
-
-    #[test]
-    fn test_to_domain() {
-        let entity = UserSettingsEntity::new(
-            "test_user".to_string(),
-            "Light".to_string(),
-            "es".to_string(),
-        );
-        let settings = entity.to_domain();
-
-        assert_eq!(settings.username, entity.username);
-        assert_eq!(settings.ui_theme, entity.ui_theme);
-        assert_eq!(settings.ui_language, entity.ui_language);
     }
 
     #[test]

@@ -55,17 +55,22 @@
 //!
 //! ```no_run
 //! use gui::router::{RouterStack, RouterNode};
-//! use gui::routers::account_list_router::AccountListRouter;
+//! use gui::routers::user_list_router::UserListRouter;
 //! use lh_api::app_api::AppApi;
 //! use std::rc::Rc;
 //!
 //! fn initialize_gui(api: Box<dyn AppApi>) -> RouterStack {
 //!     let api_rc = Rc::from(api);
-//!     let root_router: Box<dyn RouterNode> = Box::new(AccountListRouter::new(api_rc));
+//!     let root_router: Box<dyn RouterNode> = Box::new(UserListRouter::new(api_rc));
 //!     RouterStack::new(root_router)
 //! }
 //! ```
 
+pub mod fonts;
+pub mod i18n;
+pub mod i18n_widgets;
+pub mod iced_params;
+pub mod mappers;
 pub mod models;
 pub mod router;
 pub mod routers;

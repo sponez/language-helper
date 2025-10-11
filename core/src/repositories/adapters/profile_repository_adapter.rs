@@ -1,6 +1,6 @@
 //! Profile repository adapter for mapping persistence errors to core errors.
 
-use crate::domain::profile::Profile;
+use crate::models::profile::Profile;
 use crate::errors::CoreError;
 use crate::repositories::profile_repository::ProfileRepository;
 

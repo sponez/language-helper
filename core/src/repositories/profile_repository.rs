@@ -2,7 +2,7 @@
 //!
 //! This module defines the repository trait for profile persistence operations.
 
-use crate::domain::profile::Profile;
+use crate::models::profile::Profile;
 use crate::errors::CoreError;
 
 /// Repository trait for profile persistence operations.

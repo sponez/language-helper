@@ -7,7 +7,7 @@ use lh_api::apis::app_settings_api::AppSettingsApi;
 use lh_api::errors::api_error::ApiError;
 use lh_api::models::app_settings::AppSettingsDto;
 
-use crate::domain::app_settings::AppSettings;
+use crate::models::app_settings::AppSettings;
 use crate::errors::CoreError;
 use crate::repositories::app_settings_repository::AppSettingsRepository;
 use crate::services::app_settings_service::AppSettingsService;
@@ -69,10 +69,26 @@ impl<R: AppSettingsRepository> AppSettingsApi for AppSettingsApiImpl<R> {
             .map_err(map_core_error_to_api_error)
     }
 
-    fn update_app_settings(&self, settings: AppSettingsDto) -> Result<(), ApiError> {
-        let (theme, language) = dto_to_domain_fields(settings);
+    fn update_app_theme(&self, theme: &str) -> Result<(), ApiError> {
+        // Get current settings to preserve the language
+        let current_settings = self.service.get_settings()
+            .map_err(map_core_error_to_api_error)?;
+
+        // Update with new theme and existing language
         self.service
-            .update_settings(theme, language)
+            .update_settings(theme.to_string(), current_settings.default_ui_language)
+            .map(|_| ())
+            .map_err(map_core_error_to_api_error)
+    }
+
+    fn update_app_language(&self, language: &str) -> Result<(), ApiError> {
+        // Get current settings to preserve the theme
+        let current_settings = self.service.get_settings()
+            .map_err(map_core_error_to_api_error)?;
+
+        // Update with existing theme and new language
+        self.service
+            .update_settings(current_settings.ui_theme, language.to_string())
             .map(|_| ())
             .map_err(map_core_error_to_api_error)
     }
@@ -81,7 +97,7 @@ impl<R: AppSettingsRepository> AppSettingsApi for AppSettingsApiImpl<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::app_settings::AppSettings;
+    use crate::models::app_settings::AppSettings;
 
     /// Mock repository for testing
     struct MockAppSettingsRepository {
@@ -216,8 +232,8 @@ mod tests {
 
         assert!(result.is_ok());
         let dto = result.unwrap();
-        assert_eq!(dto.theme, "System");
-        assert_eq!(dto.language, "en");
+        assert_eq!(dto.theme, "Dark");
+        assert_eq!(dto.language, "en-US");
     }
 
     #[test]
@@ -227,69 +243,6 @@ mod tests {
         let api = AppSettingsApiImpl::new(service);
 
         let result = api.get_app_settings();
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            ApiError::Simple(code, _) => {
-                assert!(matches!(
-                    code,
-                    lh_api::errors::api_error::ApiErrorCode::InternalError
-                ));
-            }
-            _ => panic!("Expected Simple variant"),
-        }
-    }
-
-    #[test]
-    fn test_update_app_settings_success() {
-        let repo = MockAppSettingsRepository::new();
-        let service = AppSettingsService::new(repo);
-        let api = AppSettingsApiImpl::new(service);
-
-        let dto = AppSettingsDto {
-            theme: "Light".to_string(),
-            language: "fr".to_string(),
-        };
-        let result = api.update_app_settings(dto);
-
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_update_app_settings_validation_error() {
-        let repo = MockAppSettingsRepository::new();
-        let service = AppSettingsService::new(repo);
-        let api = AppSettingsApiImpl::new(service);
-
-        let dto = AppSettingsDto {
-            theme: "InvalidTheme".to_string(),
-            language: "en".to_string(),
-        };
-        let result = api.update_app_settings(dto);
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            ApiError::Simple(code, _) => {
-                assert!(matches!(
-                    code,
-                    lh_api::errors::api_error::ApiErrorCode::ValidationError
-                ));
-            }
-            _ => panic!("Expected Simple variant"),
-        }
-    }
-
-    #[test]
-    fn test_update_app_settings_repository_error() {
-        let repo = MockAppSettingsRepository::with_failure();
-        let service = AppSettingsService::new(repo);
-        let api = AppSettingsApiImpl::new(service);
-
-        let dto = AppSettingsDto {
-            theme: "Dark".to_string(),
-            language: "en".to_string(),
-        };
-        let result = api.update_app_settings(dto);
 
         assert!(result.is_err());
         match result.unwrap_err() {

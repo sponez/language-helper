@@ -5,8 +5,9 @@
 //! Unix timestamps.
 
 use crate::errors::PersistenceError;
+use crate::mappers::user_mapper;
 use crate::models::UserEntity;
-use lh_core::domain::user::User;
+use lh_core::models::user::User;
 use lh_core::repositories::adapters::PersistenceUserRepository;
 use rusqlite::{params, Connection, Result as SqliteResult};
 use std::path::Path;
@@ -226,7 +227,7 @@ impl SqliteUserRepository {
     /// * `Err(PersistenceError)` - If the query fails
     pub fn find_by_username(&self, username: &str) -> Result<Option<User>, PersistenceError> {
         self.find_entity_by_username(username)
-            .map(|opt_entity| opt_entity.map(|entity| entity.to_domain()))
+            .map(|opt_entity| opt_entity.map(|entity| user_mapper::entity_to_model(&entity)))
     }
 
     /// Retrieves all users and returns domain models.
@@ -239,7 +240,7 @@ impl SqliteUserRepository {
         self.find_all_entities().map(|entities| {
             entities
                 .into_iter()
-                .map(|entity| entity.to_domain())
+                .map(|entity| user_mapper::entity_to_model(&entity))
                 .collect()
         })
     }
@@ -261,7 +262,7 @@ impl SqliteUserRepository {
             PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
         })?;
 
-        let entity = UserEntity::from_domain(user.clone());
+        let entity = user_mapper::model_to_entity(&user);
 
         // Try to insert; if the user exists, update last_used_at
         conn.execute(

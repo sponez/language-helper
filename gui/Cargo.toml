@@ -8,4 +8,11 @@ lh_api = { path = "../api" }
 lh_core = { path = "../core" }
 
 iced = { version = "0.13", features = ["tokio", "lazy"] }
+once_cell = "1"
 thiserror = { workspace = true }
+fluent = "0.16"
+fluent-bundle = "0.15"
+fluent-syntax = "0.11"
+unic-langid = "0.9"
+intl-memoizer = "0.5"
+chrono = { workspace = true }

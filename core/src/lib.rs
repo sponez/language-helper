@@ -7,7 +7,7 @@
 //!
 //! The core layer follows clean architecture principles:
 //!
-//! - **Domain**: Contains the core business entities (e.g., User)
+//! - **Models**: Contains the core business entities (e.g., User)
 //! - **Repositories**: Defines traits for persistence operations
 //! - **Services**: Implements business logic using repository traits
 //! - **Errors**: Defines core error types
@@ -42,7 +42,7 @@
 //! ```
 
 pub mod api_impl;
-pub mod domain;
+pub mod models;
 pub mod errors;
 pub mod repositories;
 pub mod services;
