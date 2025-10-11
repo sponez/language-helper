@@ -55,7 +55,7 @@ fn dto_settings_to_view(settings_dto: &UserSettingsDto) -> UserSettingsView {
 }
 
 /// Converts a ProfileDto to a ProfileView.
-fn dto_profile_to_view(profile_dto: &ProfileDto) -> ProfileView {
+pub fn dto_profile_to_view(profile_dto: &ProfileDto) -> ProfileView {
     use chrono::{DateTime, Utc};
 
     let created_at_display = match DateTime::<Utc>::from_timestamp(profile_dto.created_at, 0) {

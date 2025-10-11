@@ -40,11 +40,20 @@ impl I18n {
     where
         L: AsRef<str> + Into<String>
     {
+        let locale_string: String = locale.into();
         let mut i18n = Self {
             bundles: HashMap::new(),
-            current_locale: locale.into(),
+            current_locale: locale_string.clone(),
             fallback_locale: "en-US".to_string(),
         };
+
+        // Load the fallback locale first (en-US)
+        if locale_string != "en-US" {
+            let original_locale = i18n.current_locale.clone();
+            i18n.current_locale = "en-US".to_string();
+            i18n.load_locale();
+            i18n.current_locale = original_locale;
+        }
 
         // Load the requested locale
         i18n.load_locale();

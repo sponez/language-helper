@@ -57,19 +57,19 @@ pub struct UsersApiImpl<
     R: UserRepository,
     S: UserSettingsRepository,
     A: crate::repositories::app_settings_repository::AppSettingsRepository,
-    P: UserProfilesRepository,
+    PR: UserProfilesRepository,
 > {
     user_service: UserService<R>,
     user_settings_service: UserSettingsService<S, A, R>,
-    profile_service: UserProfilesService<P, R>,
+    profile_metadata_service: UserProfilesService<PR, R>,
 }
 
 impl<
         R: UserRepository,
         S: UserSettingsRepository,
         A: crate::repositories::app_settings_repository::AppSettingsRepository,
-        P: UserProfilesRepository,
-    > UsersApiImpl<R, S, A, P>
+        PR: UserProfilesRepository,
+    > UsersApiImpl<R, S, A, PR>
 {
     /// Creates a new UsersApiImpl instance.
     ///
@@ -77,7 +77,7 @@ impl<
     ///
     /// * `user_service` - The user service instance
     /// * `user_settings_service` - The user settings service instance
-    /// * `profile_service` - The profile service instance
+    /// * `profile_metadata_service` - The service for profile metadata
     ///
     /// # Returns
     ///
@@ -85,12 +85,12 @@ impl<
     pub fn new(
         user_service: UserService<R>,
         user_settings_service: UserSettingsService<S, A, R>,
-        profile_service: UserProfilesService<P, R>,
+        profile_metadata_service: UserProfilesService<PR, R>,
     ) -> Self {
         Self {
             user_service,
             user_settings_service,
-            profile_service,
+            profile_metadata_service,
         }
     }
 }
@@ -99,8 +99,8 @@ impl<
         R: UserRepository,
         S: UserSettingsRepository,
         A: crate::repositories::app_settings_repository::AppSettingsRepository,
-        P: UserProfilesRepository,
-    > UsersApi for UsersApiImpl<R, S, A, P>
+        PR: UserProfilesRepository,
+    > UsersApi for UsersApiImpl<R, S, A, PR>
 {
     fn get_usernames(&self) -> Result<Vec<String>, ApiError> {
         self.user_service
@@ -127,9 +127,9 @@ impl<
                 language: "en".to_string(),
             });
 
-        // Get profiles
+        // Get profiles via profile metadata service
         let profiles = self
-            .profile_service
+            .profile_metadata_service
             .get_profiles_for_user(username)
             .ok()
             .unwrap_or_default()
@@ -200,17 +200,46 @@ impl<
         // Delete user settings
         let _ = self.user_settings_service.delete_user_settings(username);
 
-        // Delete all profiles for the user
-        if let Ok(profiles) = self.profile_service.get_profiles_for_user(username) {
+        // Delete all profile metadata for the user
+        // Note: Profile database files must be deleted separately via ProfilesApi
+        if let Ok(profiles) = self.profile_metadata_service.get_profiles_for_user(username) {
             for profile in profiles {
                 let _ = self
-                    .profile_service
-                    .delete_profile(username, profile.target_language.as_str());
+                    .profile_metadata_service
+                    .delete_profile(username, &profile.target_language);
             }
         }
 
         // Delete the user
         match self.user_service.delete_user(username) {
+            Ok(_) => Ok(true),
+            Err(CoreError::NotFound { .. }) => Ok(false),
+            Err(e) => Err(map_core_error_to_api_error(e)),
+        }
+    }
+
+    fn create_profile(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<ProfileDto, ApiError> {
+        // Create profile metadata only
+        // Note: Profile database file must be created separately via ProfilesApi
+        let profile = self
+            .profile_metadata_service
+            .create_profile(username, target_language)
+            .map_err(map_core_error_to_api_error)?;
+
+        Ok(map_profile_to_dto(profile))
+    }
+
+    fn delete_profile(&self, username: &str, target_language: &str) -> Result<bool, ApiError> {
+        // Delete profile metadata only
+        // Note: Profile database file must be deleted separately via ProfilesApi
+        match self
+            .profile_metadata_service
+            .delete_profile(username, target_language)
+        {
             Ok(_) => Ok(true),
             Err(CoreError::NotFound { .. }) => Ok(false),
             Err(e) => Err(map_core_error_to_api_error(e)),
@@ -411,14 +440,14 @@ mod tests {
                 should_fail: false,
             },
         );
-        let profile_service = UserProfilesService::new(
+        let profile_metadata_service = UserProfilesService::new(
             MockProfileRepository,
             MockUserRepository {
                 users: vec![],
                 should_fail: false,
             },
         );
-        UsersApiImpl::new(user_service, user_settings_service, profile_service)
+        UsersApiImpl::new(user_service, user_settings_service, profile_metadata_service)
     }
 
     #[test]

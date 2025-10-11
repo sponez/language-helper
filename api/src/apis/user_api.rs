@@ -2,7 +2,7 @@
 //!
 //! This module provides the trait definition for user-related operations.
 
-use crate::{errors::api_error::ApiError, models::user::UserDto};
+use crate::{errors::api_error::ApiError, models::{profile::ProfileDto, user::UserDto}};
 
 /// API for managing and retrieving user data.
 ///
@@ -83,7 +83,7 @@ pub trait UsersApi {
     /// ```no_run
     /// # use lh_api::apis::user_api::UsersApi;
     /// fn add_user(api: &dyn UsersApi, name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    ///     match api.create_user(name.to_string()) {
+    ///     match api.create_user(name) {
     ///         Ok(user) => println!("Created user: {:?}", user),
     ///         Err(e) => eprintln!("Failed to create user: {}", e),
     ///     }
@@ -163,4 +163,50 @@ pub trait UsersApi {
     /// }
     /// ```
     fn delete_user(&self, username: &str) -> Result<bool, ApiError>;
+
+    /// Creates a new learning profile for a user.
+    ///
+    /// This will create both the profile metadata and the profile database file.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username this profile belongs to
+    /// * `target_language` - The language being learned in this profile
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(ProfileDto)` - The created profile
+    /// * `Err(ApiError)` - If an error occurs
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use lh_api::apis::user_api::UsersApi;
+    /// fn add_profile(api: &dyn UsersApi, username: &str) -> Result<(), Box<dyn std::error::Error>> {
+    ///     match api.create_profile(username, "spanish") {
+    ///         Ok(profile) => println!("Created profile: {:?}", profile),
+    ///         Err(e) => eprintln!("Failed to create profile: {}", e),
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
+    fn create_profile(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<ProfileDto, ApiError>;
+
+    /// Deletes a profile and its associated database file.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `target_language` - The target language of the profile
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(true)` - If the profile was successfully deleted
+    /// * `Ok(false)` - If no profile with the given composite key exists
+    /// * `Err(ApiError)` - If an error occurs during deletion
+    fn delete_profile(&self, username: &str, target_language: &str) -> Result<bool, ApiError>;
 }

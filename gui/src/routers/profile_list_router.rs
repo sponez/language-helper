@@ -29,7 +29,6 @@ pub struct ProfileListRouter {
     /// User view with all user data
     user_view: UserView,
     /// API instance for backend communication
-    #[allow(dead_code)]
     app_api: Rc<dyn AppApi>,
     /// User's theme preference
     theme: String,
@@ -80,12 +79,30 @@ impl ProfileListRouter {
                     // Show language picker
                     self.show_language_picker = true;
                     self.selected_language = None;
+                    None
                 } else {
-                    // TODO: Navigate to profile detail view
-                    self.selected_profile = Some(profile_id);
-                    todo!("Navigate to profile detail view");
+                    // Extract the target language from the profile_id (format: "{language} profile")
+                    let target_language = profile_id.trim_end_matches(" profile");
+
+                    // Find the matching profile in user_view.profiles
+                    if let Some(profile) = self.user_view.profiles.iter()
+                        .find(|p| p.target_language == target_language)
+                        .cloned()
+                    {
+                        // Navigate to profile router
+                        let profile_router: Box<dyn crate::router::RouterNode> = Box::new(
+                            super::profile_router::ProfileRouter::new(
+                                self.user_view.clone(),
+                                profile,
+                                Rc::clone(&self.app_api),
+                            ),
+                        );
+                        Some(RouterEvent::Push(profile_router))
+                    } else {
+                        eprintln!("Profile not found: {}", target_language);
+                        None
+                    }
                 }
-                None
             }
             Message::LanguageSelected(language) => {
                 self.selected_language = Some(language);
@@ -93,10 +110,29 @@ impl ProfileListRouter {
             }
             Message::CreateProfile => {
                 if let Some(language) = &self.selected_language {
-                    // TODO: Call API to create new profile
-                    // Format: data/username/language_name_profile.db
-                    // self.app_api.profiles_api().create_profile(&self.user_view.username, language);
-                    todo!("API call to create new profile with database at data/{}/{}profile.db", self.user_view.username, language);
+                    // Create new profile via API
+                    // Step 1: Create profile metadata
+                    match self.app_api.users_api().create_profile(&self.user_view.username, language) {
+                        Ok(profile_dto) => {
+                            // Step 2: Create the profile database file
+                            match self.app_api.profile_api().create_profile_database(&self.user_view.username, language) {
+                                Ok(_) => {
+                                    // Add the new profile to the user_view
+                                    use crate::mappers::user_mapper;
+                                    let profile_view = user_mapper::dto_profile_to_view(&profile_dto);
+                                    self.user_view.profiles.push(profile_view);
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to create profile database: {:?}", e);
+                                    // Cleanup: delete the metadata if database creation failed
+                                    let _ = self.app_api.users_api().delete_profile(&self.user_view.username, language);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to create profile metadata: {:?}", e);
+                        }
+                    }
                 }
                 self.show_language_picker = false;
                 self.selected_language = None;

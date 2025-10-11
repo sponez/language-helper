@@ -27,10 +27,8 @@ pub enum Message {
 
 pub struct UserSettingsRouter {
     /// User view with all user data
-    #[allow(dead_code)]
     user_view: UserView,
     /// API instance for backend communication
-    #[allow(dead_code)]
     app_api: Rc<dyn AppApi>,
     /// User's theme preference
     theme: String,
@@ -71,9 +69,18 @@ impl UserSettingsRouter {
             Message::Back => Some(RouterEvent::Pop),
             Message::ThemeSelected(new_theme) => {
                 self.theme = new_theme.clone();
-                // TODO: Call API to update user theme
-                // self.app_api.users_api().update_user_theme(&self.user_view.username, &new_theme);
-                todo!("API call to update user theme");
+                // Update user theme via API
+                match self.app_api.users_api().update_user_theme(&self.user_view.username, &new_theme) {
+                    Ok(_) => {
+                        // Update the user_view settings to reflect the change
+                        if let Some(ref mut settings) = self.user_view.settings {
+                            settings.theme = new_theme;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to update user theme: {:?}", e);
+                    }
+                }
                 None
             }
             Message::DeleteUser => {
@@ -81,10 +88,24 @@ impl UserSettingsRouter {
                 None
             }
             Message::ConfirmDelete => {
-                // TODO: Call API to delete user
-                // self.app_api.users_api().delete_user(&self.user_view.username);
-                todo!("API call to delete user, then navigate back to user list");
-                Some(RouterEvent::Pop)
+                // Delete user via API
+                match self.app_api.users_api().delete_user(&self.user_view.username) {
+                    Ok(deleted) => {
+                        if deleted {
+                            // User deleted successfully
+                            // Pop twice: once to exit settings, once to exit user router
+                            Some(RouterEvent::PopMultiple(2))
+                        } else {
+                            eprintln!("User not found: {}", self.user_view.username);
+                            Some(RouterEvent::PopMultiple(2))
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to delete user: {:?}", e);
+                        // Still navigate back even if there's an error
+                        Some(RouterEvent::PopMultiple(2))
+                    }
+                }
             }
             Message::CancelDelete => {
                 self.show_delete_confirmation = false;

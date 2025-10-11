@@ -286,10 +286,8 @@ impl SqliteProfileRepository {
         let entity = profile_mapper::model_to_entity(username, &profile);
 
         conn.execute(
-            "INSERT INTO profiles (profile_id, username, target_language, created_at, last_activity_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)
-             ON CONFLICT(profile_id) DO UPDATE SET
-                target_language = ?3, last_activity_at = ?5",
+            "INSERT OR REPLACE INTO profiles (username, target_language, created_at, last_activity_at)
+             VALUES (?1, ?2, ?3, ?4)",
             params![
                 entity.username,
                 entity.target_language,

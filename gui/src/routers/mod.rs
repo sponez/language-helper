@@ -4,6 +4,7 @@
 //! that handles its own logic and navigation to child screens.
 
 pub mod profile_list_router;
+pub mod profile_router;
 pub mod user_list_router;
 pub mod user_router;
 pub mod user_settings_router;

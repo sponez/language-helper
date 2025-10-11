@@ -30,6 +30,16 @@ profile-list-select-language = Select target language for new profile:
 profile-list-create-button = Create
 profile-list-cancel-button = Cancel
 
+## Profile Screen
+profile-cards-button = Cards
+profile-explain-ai-button = Explain with AI
+profile-chat-ai-button = Chat with AI
+profile-settings-button = Settings
+profile-back-button = Back
+profile-back-to-profiles = To Profile Selection
+profile-back-to-user = To User Selection
+profile-exit = Exit
+
 ## Error Messages
 error-username-empty = Username cannot be empty
 error-user-not-found = User not found

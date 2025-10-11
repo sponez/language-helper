@@ -33,6 +33,6 @@ pub mod repositories;
 pub use errors::PersistenceError;
 pub use models::{AppSettingsEntity, ProfileEntity, UserEntity, UserSettingsEntity};
 pub use repositories::{
-    SqliteAppSettingsRepository, SqliteProfileRepository, SqliteUserRepository,
-    SqliteUserSettingsRepository,
+    SqliteAppSettingsRepository, SqliteProfileDbRepository, SqliteProfileRepository,
+    SqliteUserRepository, SqliteUserSettingsRepository,
 };

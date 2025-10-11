@@ -29,7 +29,7 @@
 
 use iced::Element;
 
-use crate::routers::{profile_list_router, user_list_router, user_router, user_settings_router};
+use crate::routers::{profile_list_router, profile_router, user_list_router, user_router, user_settings_router};
 
 /// Events that routers can emit to control navigation.
 pub enum RouterEvent {
@@ -37,6 +37,8 @@ pub enum RouterEvent {
     Push(Box<dyn RouterNode>),
     /// Go back by popping the current router from the stack
     Pop,
+    /// Pop multiple routers from the stack at once
+    PopMultiple(usize),
     /// Exit the application entirely
     Exit,
 }
@@ -46,6 +48,7 @@ impl std::fmt::Debug for RouterEvent {
         match self {
             RouterEvent::Push(_) => f.debug_tuple("Push").field(&"<router>").finish(),
             RouterEvent::Pop => f.debug_tuple("Pop").finish(),
+            RouterEvent::PopMultiple(count) => f.debug_tuple("PopMultiple").field(count).finish(),
             RouterEvent::Exit => f.debug_tuple("Exit").finish(),
         }
     }
@@ -62,6 +65,8 @@ pub enum Message {
     UserSettings(user_settings_router::Message),
     /// Message for the profile list router
     ProfileList(profile_list_router::Message),
+    /// Message for the profile router
+    Profile(profile_router::Message),
 }
 
 /// Type-erased router node that can be stored in the stack.
@@ -125,6 +130,16 @@ impl RouterStack {
                     } else {
                         // Can't pop the root router - exit instead
                         return Ok(true);
+                    }
+                }
+                RouterEvent::PopMultiple(count) => {
+                    for _ in 0..count {
+                        if self.stack.len() > 1 {
+                            self.stack.pop();
+                        } else {
+                            // Can't pop the root router - exit instead
+                            return Ok(true);
+                        }
                     }
                 }
                 RouterEvent::Exit => {

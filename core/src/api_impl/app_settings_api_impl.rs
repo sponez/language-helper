@@ -34,7 +34,7 @@ fn map_settings_to_dto(settings: AppSettings) -> AppSettingsDto {
 }
 
 /// Helper function to map AppSettingsDto to domain fields
-#[warn(dead_code)]
+#[allow(dead_code)]
 fn dto_to_domain_fields(dto: AppSettingsDto) -> (String, String) {
     (dto.theme, dto.language)
 }

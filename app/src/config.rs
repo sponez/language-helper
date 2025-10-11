@@ -11,12 +11,15 @@ use std::path::PathBuf;
 pub struct AppConfig {
     /// Path to the SQLite database file
     pub database_path: PathBuf,
+    /// Base data directory for profile databases
+    pub data_dir: String,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             database_path: PathBuf::from("data/users.db"),
+            data_dir: "data".to_string(),
         }
     }
 }
@@ -61,7 +64,13 @@ impl AppConfig {
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("data/users.db"));
 
-        Self { database_path }
+        let data_dir = std::env::var("LH_DATA_DIR")
+            .unwrap_or_else(|_| "data".to_string());
+
+        Self {
+            database_path,
+            data_dir,
+        }
     }
 
     /// Sets the database path.

@@ -194,6 +194,22 @@ impl UserListRouter {
     ///
     /// Returns an Element containing the UI for this router.
     pub fn view(&self) -> Element<'_, Message> {
+        // Get fresh list of usernames
+        let mut usernames = self
+            .app_api
+            .users_api()
+            .get_usernames()
+            .unwrap_or_else(|_| vec![]);
+
+        // Check if the selected username still exists
+        // If not, clear the selection (handles case where user was deleted)
+        let mut selected_username_valid = self.selected_username.clone();
+        if let Some(ref username) = selected_username_valid {
+            if !usernames.contains(username) {
+                selected_username_valid = None;
+            }
+        }
+
         // Theme pick list - sorted alphabetically
         let themes: Vec<String> = get_sorted_themes();
         let theme_selected: Option<String> = self.theme.clone();
@@ -221,12 +237,6 @@ impl UserListRouter {
             languages_pick_list = languages_pick_list.font(font);
         }
 
-        let mut usernames = self
-            .app_api
-            .users_api()
-            .get_usernames()
-            .unwrap_or_else(|_| vec![]);
-
         // Add "Add new user" option at the end
         let add_new_text = self.i18n.get("user-list-add-new", None);
         usernames.push(add_new_text.clone());
@@ -235,7 +245,7 @@ impl UserListRouter {
         let username_selected: Option<String> = if self.is_adding_new_user {
             Some(add_new_text)
         } else {
-            self.selected_username.clone()
+            selected_username_valid
         };
 
         let mut username_pick_list = pick_list(

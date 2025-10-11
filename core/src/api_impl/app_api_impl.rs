@@ -9,8 +9,10 @@ use lh_api::apis::user_api::UsersApi;
 use lh_api::app_api::AppApi;
 
 use crate::api_impl::app_settings_api_impl::AppSettingsApiImpl;
+use crate::api_impl::profiles_api_impl::ProfilesApiImpl;
 use crate::api_impl::users_api_impl::UsersApiImpl;
 use crate::repositories::app_settings_repository::AppSettingsRepository;
+use crate::repositories::profile_repository::ProfileRepository;
 use crate::repositories::user_profiles_repository::UserProfilesRepository;
 use crate::repositories::user_repository::UserRepository;
 use crate::repositories::user_settings_repository::UserSettingsRepository;
@@ -25,15 +27,18 @@ use crate::repositories::user_settings_repository::UserSettingsRepository;
 /// * `UR` - User repository implementation type
 /// * `ASR` - App settings repository implementation type
 /// * `USR` - User settings repository implementation type
-/// * `PR` - Profile repository implementation type
+/// * `PR` - Profile metadata repository implementation type
+/// * `PDR` - Profile database repository implementation type
 pub struct AppApiImpl<
     UR: UserRepository,
     ASR: AppSettingsRepository,
     USR: UserSettingsRepository,
     PR: UserProfilesRepository,
+    PDR: ProfileRepository,
 > {
     users_api: UsersApiImpl<UR, USR, ASR, PR>,
     app_settings_api: AppSettingsApiImpl<ASR>,
+    profiles_api: ProfilesApiImpl<PDR>,
 }
 
 impl<
@@ -41,7 +46,8 @@ impl<
         ASR: AppSettingsRepository,
         USR: UserSettingsRepository,
         PR: UserProfilesRepository,
-    > AppApiImpl<UR, ASR, USR, PR>
+        PDR: ProfileRepository,
+    > AppApiImpl<UR, ASR, USR, PR, PDR>
 {
     /// Creates a new AppApiImpl instance.
     ///
@@ -57,10 +63,12 @@ impl<
     pub fn new(
         users_api: UsersApiImpl<UR, USR, ASR, PR>,
         app_settings_api: AppSettingsApiImpl<ASR>,
+        profiles_api: ProfilesApiImpl<PDR>,
     ) -> Self {
         Self {
             users_api,
             app_settings_api,
+            profiles_api,
         }
     }
 }
@@ -70,7 +78,8 @@ impl<
         ASR: AppSettingsRepository + 'static,
         USR: UserSettingsRepository + 'static,
         PR: UserProfilesRepository + 'static,
-    > AppApi for AppApiImpl<UR, ASR, USR, PR>
+        PDR: ProfileRepository + 'static,
+    > AppApi for AppApiImpl<UR, ASR, USR, PR, PDR>
 {
     fn users_api(&self) -> &dyn UsersApi {
         &self.users_api
@@ -81,9 +90,6 @@ impl<
     }
 
     fn profile_api(&self) -> &dyn ProfilesApi {
-        // TODO: Implement ProfileService for managing learning content in profile databases
-        // ProfileService will handle operations on data/{username}/{language}_profile.db files
-        // For now, profile metadata is managed through UsersApi -> UserProfilesService
-        todo!("ProfileService not yet implemented - will manage vocabulary cards and learning content")
+        &self.profiles_api
     }
 }
