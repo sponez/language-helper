@@ -179,6 +179,10 @@ impl UserRouter {
 
 /// Implementation of RouterNode for AccountRouter
 impl RouterNode for UserRouter {
+    fn router_name(&self) -> &'static str {
+        "user"
+    }
+
     fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
         match message {
             router::Message::User(msg) => UserRouter::update(self, msg.clone()),

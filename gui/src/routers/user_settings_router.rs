@@ -9,7 +9,7 @@ use crate::i18n::I18n;
 use crate::i18n_widgets::localized_text;
 use crate::iced_params::{get_sorted_themes, THEMES};
 use crate::models::UserView;
-use crate::router::{self, RouterEvent, RouterNode};
+use crate::router::{self, RouterEvent, RouterNode, RouterTarget};
 use crate::runtime_util::block_on;
 
 #[derive(Debug, Clone)]
@@ -67,7 +67,7 @@ impl UserSettingsRouter {
 
     pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
         match message {
-            Message::Back => Some(RouterEvent::PopAndRefresh),
+            Message::Back => Some(RouterEvent::Pop),
             Message::ThemeSelected(new_theme) => {
                 self.theme = new_theme.clone();
                 // Update user theme via API
@@ -99,17 +99,17 @@ impl UserSettingsRouter {
                     Ok(deleted) => {
                         if deleted {
                             // User deleted successfully
-                            // Pop twice: once to exit settings, once to exit user router
-                            Some(RouterEvent::PopMultiple(2))
+                            // Pop back to user list (root)
+                            Some(RouterEvent::PopTo(Some(RouterTarget::UserList)))
                         } else {
                             eprintln!("User not found: {}", self.user_view.username);
-                            Some(RouterEvent::PopMultiple(2))
+                            Some(RouterEvent::PopTo(Some(RouterTarget::UserList)))
                         }
                     }
                     Err(e) => {
                         eprintln!("Failed to delete user: {:?}", e);
                         // Still navigate back even if there's an error
-                        Some(RouterEvent::PopMultiple(2))
+                        Some(RouterEvent::PopTo(Some(RouterTarget::UserList)))
                     }
                 }
             }
@@ -234,6 +234,10 @@ impl UserSettingsRouter {
 
 /// Implementation of RouterNode for AccountRouter
 impl RouterNode for UserSettingsRouter {
+    fn router_name(&self) -> &'static str {
+        "user_settings"
+    }
+
     fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
         match message {
             router::Message::UserSettings(msg) => UserSettingsRouter::update(self, msg.clone()),

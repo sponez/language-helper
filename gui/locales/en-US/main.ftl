@@ -36,6 +36,7 @@ profile-explain-ai-button = Explain with AI
 profile-chat-ai-button = Chat with AI
 profile-settings-button = Settings
 profile-back-button = Back
+profile-back-where = Where would you like to go?
 profile-back-to-profiles = To Profile Selection
 profile-back-to-user = To User Selection
 profile-exit = Exit

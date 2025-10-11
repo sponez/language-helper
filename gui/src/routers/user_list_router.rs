@@ -354,6 +354,10 @@ impl UserListRouter {
 
 /// Implementation of RouterNode for AccountListRouter
 impl RouterNode for UserListRouter {
+    fn router_name(&self) -> &'static str {
+        "user_list"
+    }
+
     fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
         match message {
             router::Message::UserList(msg) => UserListRouter::update(self, msg.clone()),

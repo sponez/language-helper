@@ -1,7 +1,9 @@
 use std::rc::Rc;
 
-use iced::widget::{button, column, Container};
+use iced::widget::{button, column, container, Container};
 use iced::{Alignment, Element, Length};
+use iced::Background;
+use iced::Color;
 use lh_api::app_api::AppApi;
 
 use crate::fonts::get_font_for_locale;
@@ -9,7 +11,7 @@ use crate::i18n::I18n;
 use crate::i18n_widgets::localized_text;
 use crate::iced_params::THEMES;
 use crate::models::{ProfileView, UserView};
-use crate::router::{self, RouterEvent, RouterNode};
+use crate::router::{self, RouterEvent, RouterNode, RouterTarget};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -21,10 +23,10 @@ pub enum Message {
     ChatWithAI,
     /// Settings button pressed
     Settings,
-    /// Back button pressed - shows submenu
-    BackHover,
-    /// Mouse left the back button area
-    BackUnhover,
+    /// Back button pressed - shows modal
+    ShowBackModal,
+    /// Close the modal without action
+    CloseBackModal,
     /// Navigate to profile selection
     BackToProfileSelection,
     /// Navigate to user selection
@@ -106,21 +108,21 @@ impl ProfileRouter {
                 eprintln!("Profile settings not yet implemented");
                 None
             }
-            Message::BackHover => {
+            Message::ShowBackModal => {
                 self.show_back_menu = true;
                 None
             }
-            Message::BackUnhover => {
+            Message::CloseBackModal => {
                 self.show_back_menu = false;
                 None
             }
             Message::BackToProfileSelection => {
-                // Pop once to go back to profile list
-                Some(RouterEvent::Pop)
+                // Pop back to profile list
+                Some(RouterEvent::PopTo(Some(RouterTarget::ProfileList)))
             }
             Message::BackToUserSelection => {
-                // Pop 3 to go back to user router (which shows user options)
-                Some(RouterEvent::PopMultiple(3))
+                // Pop back to user_list router
+                Some(RouterEvent::PopTo(Some(RouterTarget::UserList)))
             }
             Message::Exit => {
                 Some(RouterEvent::Exit)
@@ -181,13 +183,13 @@ impl ProfileRouter {
             16,
         );
 
-        // Back button with hover detection
+        // Back button - now just a regular button that opens modal
         let back_button = button(back_text)
-            .on_press(Message::BackHover)
+            .on_press(Message::ShowBackModal)
             .width(Length::Fixed(300.0))
             .padding(15);
 
-        let mut main_content = column![
+        let main_content = column![
             cards_button,
             explain_button,
             chat_button,
@@ -198,63 +200,118 @@ impl ProfileRouter {
         .padding(20)
         .align_x(Alignment::Center);
 
-        // If back menu is showing, add the submenu
+        let base = Container::new(main_content)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(Alignment::Center)
+            .align_y(Alignment::Center);
+
+        // If back menu is showing, overlay it with a modal
         if self.show_back_menu {
+            // Modal content - navigation options
+            let modal_title = localized_text(
+                &self.i18n,
+                "profile-back-where",
+                self.current_font,
+                18,
+            );
+
             let profile_selection_text = localized_text(
                 &self.i18n,
                 "profile-back-to-profiles",
                 self.current_font,
-                14,
+                16,
             );
             let profile_selection_button = button(profile_selection_text)
                 .on_press(Message::BackToProfileSelection)
-                .width(Length::Fixed(300.0))
-                .padding(10);
+                .width(Length::Fixed(350.0))
+                .padding(15);
 
             let user_selection_text = localized_text(
                 &self.i18n,
                 "profile-back-to-user",
                 self.current_font,
-                14,
+                16,
             );
             let user_selection_button = button(user_selection_text)
                 .on_press(Message::BackToUserSelection)
-                .width(Length::Fixed(300.0))
-                .padding(10);
+                .width(Length::Fixed(350.0))
+                .padding(15);
 
             let exit_text = localized_text(
                 &self.i18n,
                 "profile-exit",
                 self.current_font,
-                14,
+                16,
             );
             let exit_button = button(exit_text)
                 .on_press(Message::Exit)
-                .width(Length::Fixed(300.0))
-                .padding(10);
+                .width(Length::Fixed(350.0))
+                .padding(15);
 
-            main_content = main_content.push(
-                column![
-                    profile_selection_button,
-                    user_selection_button,
-                    exit_button,
-                ]
-                .spacing(10)
-                .padding(10)
+            let cancel_text = localized_text(
+                &self.i18n,
+                "cancel",
+                self.current_font,
+                16,
             );
-        }
+            let cancel_button = button(cancel_text)
+                .on_press(Message::CloseBackModal)
+                .width(Length::Fixed(350.0))
+                .padding(15);
 
-        Container::new(main_content)
+            let modal_content = column![
+                modal_title,
+                profile_selection_button,
+                user_selection_button,
+                exit_button,
+                cancel_button,
+            ]
+            .spacing(15)
+            .padding(30)
+            .align_x(Alignment::Center);
+
+            // Modal card with background
+            let modal_card = container(modal_content)
+                .style(|_theme| container::Style {
+                    background: Some(Background::Color(Color::from_rgb(0.15, 0.15, 0.15))),
+                    border: iced::Border {
+                        color: Color::from_rgb(0.3, 0.3, 0.3),
+                        width: 2.0,
+                        radius: 10.0.into(),
+                    },
+                    ..Default::default()
+                });
+
+            // Semi-transparent overlay
+            let overlay = container(
+                Container::new(modal_card)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_x(Alignment::Center)
+                    .align_y(Alignment::Center)
+            )
             .width(Length::Fill)
             .height(Length::Fill)
-            .align_x(Alignment::Center)
-            .align_y(Alignment::Center)
-            .into()
+            .style(|_theme| container::Style {
+                background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.7))),
+                ..Default::default()
+            });
+
+            // Stack overlay on top of base
+            iced::widget::stack![base, overlay].into()
+        } else {
+            base.into()
+        }
     }
 }
 
 /// Implementation of RouterNode for ProfileRouter
 impl RouterNode for ProfileRouter {
+    fn router_name(&self) -> &'static str {
+        "profile"
+    }
+
     fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
         match message {
             router::Message::Profile(msg) => ProfileRouter::update(self, msg.clone()),

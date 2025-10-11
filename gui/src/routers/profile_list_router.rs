@@ -73,7 +73,7 @@ impl ProfileListRouter {
 
     pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
         match message {
-            Message::Back => Some(RouterEvent::PopAndRefresh),
+            Message::Back => Some(RouterEvent::Pop),
             Message::ProfileSelected(profile_id) => {
                 let create_new_text = self.i18n.get("profile-list-create-new", None);
                 if profile_id == create_new_text {
@@ -278,6 +278,10 @@ impl ProfileListRouter {
 
 /// Implementation of RouterNode for ProfileListRouter
 impl RouterNode for ProfileListRouter {
+    fn router_name(&self) -> &'static str {
+        "profile_list"
+    }
+
     fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
         match message {
             router::Message::ProfileList(msg) => ProfileListRouter::update(self, msg.clone()),

@@ -31,16 +31,40 @@ use iced::Element;
 
 use crate::routers::{profile_list_router, profile_router, user_list_router, user_router, user_settings_router};
 
+/// Identifies a specific router type for navigation
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RouterTarget {
+    UserList,
+    User,
+    UserSettings,
+    ProfileList,
+    Profile,
+}
+
+impl RouterTarget {
+    /// Get the string identifier for this router target
+    fn as_str(&self) -> &'static str {
+        match self {
+            RouterTarget::UserList => "user_list",
+            RouterTarget::User => "user",
+            RouterTarget::UserSettings => "user_settings",
+            RouterTarget::ProfileList => "profile_list",
+            RouterTarget::Profile => "profile",
+        }
+    }
+}
+
 /// Events that routers can emit to control navigation.
 pub enum RouterEvent {
     /// Navigate deeper by pushing a new router onto the stack
     Push(Box<dyn RouterNode>),
     /// Go back by popping the current router from the stack
+    /// The previous router will be automatically refreshed
     Pop,
-    /// Go back and refresh the previous router's data
-    PopAndRefresh,
-    /// Pop multiple routers from the stack at once
-    PopMultiple(usize),
+    /// Pop back to a specific router, or to root if None
+    /// All intermediate routers will be removed
+    /// The target router will be automatically refreshed
+    PopTo(Option<RouterTarget>),
     /// Exit the application entirely
     Exit,
 }
@@ -50,8 +74,7 @@ impl std::fmt::Debug for RouterEvent {
         match self {
             RouterEvent::Push(_) => f.debug_tuple("Push").field(&"<router>").finish(),
             RouterEvent::Pop => f.debug_tuple("Pop").finish(),
-            RouterEvent::PopAndRefresh => f.debug_tuple("PopAndRefresh").finish(),
-            RouterEvent::PopMultiple(count) => f.debug_tuple("PopMultiple").field(count).finish(),
+            RouterEvent::PopTo(target) => f.debug_tuple("PopTo").field(target).finish(),
             RouterEvent::Exit => f.debug_tuple("Exit").finish(),
         }
     }
@@ -77,6 +100,11 @@ pub enum Message {
 /// This trait allows different router types to be stored together
 /// by erasing their specific message types.
 pub trait RouterNode {
+    /// Get the name of this router for navigation purposes
+    ///
+    /// This is used by PopTo to identify which router to navigate back to.
+    fn router_name(&self) -> &'static str;
+
     /// Update with a global message
     fn update(&mut self, message: &Message) -> Option<RouterEvent>;
 
@@ -88,7 +116,8 @@ pub trait RouterNode {
 
     /// Refresh the router's data from the API
     ///
-    /// This is called when returning from a child router that may have modified data.
+    /// This is called automatically after any Pop or PopTo operation.
+    /// Routers should reload their data from the API to ensure they display current information.
     /// Default implementation does nothing.
     fn refresh(&mut self) {}
 }
@@ -136,15 +165,7 @@ impl RouterStack {
                 RouterEvent::Pop => {
                     if self.stack.len() > 1 {
                         self.stack.pop();
-                    } else {
-                        // Can't pop the root router - exit instead
-                        return Ok(true);
-                    }
-                }
-                RouterEvent::PopAndRefresh => {
-                    if self.stack.len() > 1 {
-                        self.stack.pop();
-                        // Refresh the now-current router
+                        // Always refresh the now-current router after popping
                         if let Some(current_router) = self.stack.last_mut() {
                             current_router.refresh();
                         }
@@ -153,13 +174,39 @@ impl RouterStack {
                         return Ok(true);
                     }
                 }
-                RouterEvent::PopMultiple(count) => {
-                    for _ in 0..count {
-                        if self.stack.len() > 1 {
-                            self.stack.pop();
+                RouterEvent::PopTo(target) => {
+                    if let Some(target_router) = target {
+                        // Find the target router in the stack
+                        let target_name = target_router.as_str();
+                        let target_index = self.stack.iter()
+                            .position(|r| r.router_name() == target_name);
+
+                        if let Some(index) = target_index {
+                            // Pop all routers above the target
+                            self.stack.truncate(index + 1);
+                            // Refresh the target router
+                            if let Some(current_router) = self.stack.last_mut() {
+                                current_router.refresh();
+                            }
                         } else {
-                            // Can't pop the root router - exit instead
-                            return Ok(true);
+                            // Target not found - just do a regular pop
+                            if self.stack.len() > 1 {
+                                self.stack.pop();
+                                if let Some(current_router) = self.stack.last_mut() {
+                                    current_router.refresh();
+                                }
+                            } else {
+                                return Ok(true);
+                            }
+                        }
+                    } else {
+                        // No target specified - pop to root (keep only first router)
+                        if self.stack.len() > 1 {
+                            self.stack.truncate(1);
+                            // Refresh the root router
+                            if let Some(root_router) = self.stack.last_mut() {
+                                root_router.refresh();
+                            }
                         }
                     }
                 }
