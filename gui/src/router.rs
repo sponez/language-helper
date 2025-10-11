@@ -37,6 +37,8 @@ pub enum RouterEvent {
     Push(Box<dyn RouterNode>),
     /// Go back by popping the current router from the stack
     Pop,
+    /// Go back and refresh the previous router's data
+    PopAndRefresh,
     /// Pop multiple routers from the stack at once
     PopMultiple(usize),
     /// Exit the application entirely
@@ -48,6 +50,7 @@ impl std::fmt::Debug for RouterEvent {
         match self {
             RouterEvent::Push(_) => f.debug_tuple("Push").field(&"<router>").finish(),
             RouterEvent::Pop => f.debug_tuple("Pop").finish(),
+            RouterEvent::PopAndRefresh => f.debug_tuple("PopAndRefresh").finish(),
             RouterEvent::PopMultiple(count) => f.debug_tuple("PopMultiple").field(count).finish(),
             RouterEvent::Exit => f.debug_tuple("Exit").finish(),
         }
@@ -82,6 +85,12 @@ pub trait RouterNode {
 
     /// Get the current theme from the router
     fn theme(&self) -> iced::Theme;
+
+    /// Refresh the router's data from the API
+    ///
+    /// This is called when returning from a child router that may have modified data.
+    /// Default implementation does nothing.
+    fn refresh(&mut self) {}
 }
 
 /// Manages a stack of routers for hierarchical navigation.
@@ -127,6 +136,18 @@ impl RouterStack {
                 RouterEvent::Pop => {
                     if self.stack.len() > 1 {
                         self.stack.pop();
+                    } else {
+                        // Can't pop the root router - exit instead
+                        return Ok(true);
+                    }
+                }
+                RouterEvent::PopAndRefresh => {
+                    if self.stack.len() > 1 {
+                        self.stack.pop();
+                        // Refresh the now-current router
+                        if let Some(current_router) = self.stack.last_mut() {
+                            current_router.refresh();
+                        }
                     } else {
                         // Can't pop the root router - exit instead
                         return Ok(true);

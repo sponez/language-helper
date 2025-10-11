@@ -66,7 +66,7 @@ impl UserSettingsRouter {
 
     pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
         match message {
-            Message::Back => Some(RouterEvent::Pop),
+            Message::Back => Some(RouterEvent::PopAndRefresh),
             Message::ThemeSelected(new_theme) => {
                 self.theme = new_theme.clone();
                 // Update user theme via API

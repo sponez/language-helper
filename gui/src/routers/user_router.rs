@@ -74,6 +74,23 @@ impl UserRouter {
             current_font,
         }
     }
+
+    /// Refreshes user data from the API
+    fn refresh_data(&mut self) {
+        // Fetch fresh user data from API
+        if let Some(user_dto) = self.app_api.users_api().get_user_by_username(&self.user_view.username) {
+            use crate::mappers::user_mapper;
+            self.user_view = user_mapper::dto_to_view(&user_dto);
+
+            // Update theme and language if they changed
+            if let Some(ref settings) = self.user_view.settings {
+                self.theme = settings.theme.clone();
+                let language = settings.language.clone();
+                self.i18n = I18n::new(&language);
+                self.current_font = get_font_for_locale(&language);
+            }
+        }
+    }
 }
 
 impl UserRouter {
@@ -177,5 +194,9 @@ impl RouterNode for UserRouter {
             .get(&self.theme)
             .cloned()
             .unwrap_or(iced::Theme::Dark)
+    }
+
+    fn refresh(&mut self) {
+        self.refresh_data();
     }
 }

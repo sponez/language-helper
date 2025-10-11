@@ -72,7 +72,7 @@ impl ProfileListRouter {
 
     pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
         match message {
-            Message::Back => Some(RouterEvent::Pop),
+            Message::Back => Some(RouterEvent::PopAndRefresh),
             Message::ProfileSelected(profile_id) => {
                 let create_new_text = self.i18n.get("profile-list-create-new", None);
                 if profile_id == create_new_text {
@@ -156,10 +156,19 @@ impl ProfileListRouter {
                 18,
             );
 
-            // Filter out user's language from available languages
+            // Filter out user's UI language and languages that already have profiles
+            let existing_profile_languages: Vec<String> = self
+                .user_view
+                .profiles
+                .iter()
+                .map(|p| p.target_language.clone())
+                .collect();
+
             let available_languages: Vec<String> = LANGUAGES
                 .iter()
-                .filter(|lang| **lang != self.language)
+                .filter(|lang| {
+                    **lang != self.language && !existing_profile_languages.contains(lang)
+                })
                 .cloned()
                 .collect();
 
