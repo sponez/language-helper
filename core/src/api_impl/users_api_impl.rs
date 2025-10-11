@@ -3,6 +3,7 @@
 //! This module provides the concrete implementation of the UsersApi trait
 //! using the UserService from the core layer.
 
+use async_trait::async_trait;
 use lh_api::apis::user_api::UsersApi;
 use lh_api::errors::api_error::ApiError;
 use lh_api::models::profile::ProfileDto;
@@ -95,6 +96,7 @@ impl<
     }
 }
 
+#[async_trait]
 impl<
         R: UserRepository,
         S: UserSettingsRepository,
@@ -102,17 +104,19 @@ impl<
         PR: UserProfilesRepository,
     > UsersApi for UsersApiImpl<R, S, A, PR>
 {
-    fn get_usernames(&self) -> Result<Vec<String>, ApiError> {
+    async fn get_usernames(&self) -> Result<Vec<String>, ApiError> {
         self.user_service
             .get_all_usernames()
+            .await
             .map_err(map_core_error_to_api_error)
     }
 
-    fn get_user_by_username(&self, username: &str) -> Option<UserDto> {
+    async fn get_user_by_username(&self, username: &str) -> Option<UserDto> {
         // Get user
         let user = self
             .user_service
             .get_user_by_username(username)
+            .await
             .ok()
             .flatten()?;
 
@@ -120,6 +124,7 @@ impl<
         let settings = self
             .user_settings_service
             .get_user_settings(username)
+            .await
             .ok()
             .map(map_user_settings_to_dto)
             .unwrap_or_else(|| UserSettingsDto {
@@ -131,6 +136,7 @@ impl<
         let profiles = self
             .profile_metadata_service
             .get_profiles_for_user(username)
+            .await
             .ok()
             .unwrap_or_default()
             .into_iter()
@@ -144,17 +150,19 @@ impl<
         })
     }
 
-    fn create_user(&self, username: &str) -> Result<UserDto, ApiError> {
+    async fn create_user(&self, username: &str) -> Result<UserDto, ApiError> {
         // Create user
         let user = self
             .user_service
             .create_user(username)
+            .await
             .map_err(map_core_error_to_api_error)?;
 
         // Create settings for the new user
         let settings = self
             .user_settings_service
             .create_user_settings(username)
+            .await
             .map(map_user_settings_to_dto)
             .map_err(map_core_error_to_api_error)?;
 
@@ -168,57 +176,62 @@ impl<
         })
     }
 
-    fn update_user_theme(&self, username: &str, theme: &str) -> Result<(), ApiError> {
+    async fn update_user_theme(&self, username: &str, theme: &str) -> Result<(), ApiError> {
         // Get current settings
         let current_settings = self
             .user_settings_service
             .get_user_settings(username)
+            .await
             .map_err(map_core_error_to_api_error)?;
 
         // Update with new theme
         self.user_settings_service
             .update_user_settings(username, theme, current_settings.ui_language.as_str())
+            .await
             .map(|_| ())
             .map_err(map_core_error_to_api_error)
     }
 
-    fn update_user_language(&self, username: &str, language: &str) -> Result<(), ApiError> {
+    async fn update_user_language(&self, username: &str, language: &str) -> Result<(), ApiError> {
         // Get current settings
         let current_settings = self
             .user_settings_service
             .get_user_settings(username)
+            .await
             .map_err(map_core_error_to_api_error)?;
 
         // Update with new language
         self.user_settings_service
             .update_user_settings(username, current_settings.ui_theme.as_str(), language)
+            .await
             .map(|_| ())
             .map_err(map_core_error_to_api_error)
     }
 
-    fn delete_user(&self, username: &str) -> Result<bool, ApiError> {
+    async fn delete_user(&self, username: &str) -> Result<bool, ApiError> {
         // Delete user settings
-        let _ = self.user_settings_service.delete_user_settings(username);
+        let _ = self.user_settings_service.delete_user_settings(username).await;
 
         // Delete all profile metadata for the user
         // Note: Profile database files must be deleted separately via ProfilesApi
-        if let Ok(profiles) = self.profile_metadata_service.get_profiles_for_user(username) {
+        if let Ok(profiles) = self.profile_metadata_service.get_profiles_for_user(username).await {
             for profile in profiles {
                 let _ = self
                     .profile_metadata_service
-                    .delete_profile(username, &profile.target_language);
+                    .delete_profile(username, &profile.target_language)
+                    .await;
             }
         }
 
         // Delete the user
-        match self.user_service.delete_user(username) {
+        match self.user_service.delete_user(username).await {
             Ok(_) => Ok(true),
             Err(CoreError::NotFound { .. }) => Ok(false),
             Err(e) => Err(map_core_error_to_api_error(e)),
         }
     }
 
-    fn create_profile(
+    async fn create_profile(
         &self,
         username: &str,
         target_language: &str,
@@ -228,17 +241,19 @@ impl<
         let profile = self
             .profile_metadata_service
             .create_profile(username, target_language)
+            .await
             .map_err(map_core_error_to_api_error)?;
 
         Ok(map_profile_to_dto(profile))
     }
 
-    fn delete_profile(&self, username: &str, target_language: &str) -> Result<bool, ApiError> {
+    async fn delete_profile(&self, username: &str, target_language: &str) -> Result<bool, ApiError> {
         // Delete profile metadata only
         // Note: Profile database file must be deleted separately via ProfilesApi
         match self
             .profile_metadata_service
             .delete_profile(username, target_language)
+            .await
         {
             Ok(_) => Ok(true),
             Err(CoreError::NotFound { .. }) => Ok(false),
@@ -259,8 +274,9 @@ mod tests {
         should_fail: bool,
     }
 
+    #[async_trait]
     impl UserRepository for MockUserRepository {
-        fn find_all(&self) -> Result<Vec<User>, CoreError> {
+        async fn find_all(&self) -> Result<Vec<User>, CoreError> {
             if self.should_fail {
                 Err(CoreError::RepositoryError {
                     message: "Mock error".to_string(),
@@ -270,7 +286,7 @@ mod tests {
             }
         }
 
-        fn find_by_username(&self, username: &str) -> Result<Option<User>, CoreError> {
+        async fn find_by_username(&self, username: &str) -> Result<Option<User>, CoreError> {
             if self.should_fail {
                 Err(CoreError::RepositoryError {
                     message: "Mock error".to_string(),
@@ -280,7 +296,7 @@ mod tests {
             }
         }
 
-        fn save(&self, user: User) -> Result<User, CoreError> {
+        async fn save(&self, user: User) -> Result<User, CoreError> {
             if self.should_fail {
                 Err(CoreError::RepositoryError {
                     message: "Mock error".to_string(),
@@ -294,7 +310,7 @@ mod tests {
             }
         }
 
-        fn delete(&self, _username: &str) -> Result<bool, CoreError> {
+        async fn delete(&self, _username: &str) -> Result<bool, CoreError> {
             if self.should_fail {
                 Err(CoreError::RepositoryError {
                     message: "Mock error".to_string(),
@@ -378,47 +394,50 @@ mod tests {
     use crate::services::user_settings_service::UserSettingsService;
 
     struct MockUserSettingsRepository;
+    #[async_trait]
     impl UserSettingsRepository for MockUserSettingsRepository {
-        fn find_by_username(&self, _username: &str) -> Result<Option<UserSettings>, CoreError> {
+        async fn find_by_username(&self, _username: &str) -> Result<Option<UserSettings>, CoreError> {
             Ok(None)
         }
-        fn save(&self, _username: &str, settings: UserSettings) -> Result<UserSettings, CoreError> {
+        async fn save(&self, _username: &str, settings: UserSettings) -> Result<UserSettings, CoreError> {
             Ok(settings)
         }
-        fn delete(&self, _username: &str) -> Result<bool, CoreError> {
+        async fn delete(&self, _username: &str) -> Result<bool, CoreError> {
             Ok(true)
         }
     }
 
     struct MockProfileRepository;
+    #[async_trait]
     impl UserProfilesRepository for MockProfileRepository {
-        fn find_by_username_and_target_language(
+        async fn find_by_username_and_target_language(
             &self,
             _username: &str,
             _target_language: &str,
         ) -> Result<Option<Profile>, CoreError> {
             Ok(None)
         }
-        fn find_by_username(&self, _username: &str) -> Result<Vec<Profile>, CoreError> {
+        async fn find_by_username(&self, _username: &str) -> Result<Vec<Profile>, CoreError> {
             Ok(vec![])
         }
-        fn find_all(&self) -> Result<Vec<Profile>, CoreError> {
+        async fn find_all(&self) -> Result<Vec<Profile>, CoreError> {
             Ok(vec![])
         }
-        fn save(&self, _username: &str, profile: Profile) -> Result<Profile, CoreError> {
+        async fn save(&self, _username: &str, profile: Profile) -> Result<Profile, CoreError> {
             Ok(profile)
         }
-        fn delete(&self, _username: &str, _target_language: &str) -> Result<bool, CoreError> {
+        async fn delete(&self, _username: &str, _target_language: &str) -> Result<bool, CoreError> {
             Ok(true)
         }
     }
 
     struct MockAppSettingsRepository;
+    #[async_trait]
     impl AppSettingsRepository for MockAppSettingsRepository {
-        fn get(&self) -> Result<AppSettings, CoreError> {
+        async fn get(&self) -> Result<AppSettings, CoreError> {
             Ok(AppSettings::default())
         }
-        fn update(&self, settings: AppSettings) -> Result<AppSettings, CoreError> {
+        async fn update(&self, settings: AppSettings) -> Result<AppSettings, CoreError> {
             Ok(settings)
         }
     }
@@ -450,15 +469,15 @@ mod tests {
         UsersApiImpl::new(user_service, user_settings_service, profile_metadata_service)
     }
 
-    #[test]
-    fn test_get_usernames_success() {
+    #[tokio::test]
+    async fn test_get_usernames_success() {
         let user_repo = MockUserRepository {
             users: create_mock_users(),
             should_fail: false,
         };
         let api = create_test_api(user_repo);
 
-        let result = api.get_usernames();
+        let result = api.get_usernames().await;
 
         assert!(result.is_ok());
         let usernames = result.unwrap();
@@ -467,15 +486,15 @@ mod tests {
         assert!(usernames.contains(&"bob".to_string()));
     }
 
-    #[test]
-    fn test_get_usernames_repository_error() {
+    #[tokio::test]
+    async fn test_get_usernames_repository_error() {
         let user_repo = MockUserRepository {
             users: vec![],
             should_fail: true,
         };
         let api = create_test_api(user_repo);
 
-        let result = api.get_usernames();
+        let result = api.get_usernames().await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -489,42 +508,42 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_get_user_by_username_found() {
+    #[tokio::test]
+    async fn test_get_user_by_username_found() {
         let repo = MockUserRepository {
             users: create_mock_users(),
             should_fail: false,
         };
         let api = create_test_api(repo);
 
-        let result = api.get_user_by_username("alice");
+        let result = api.get_user_by_username("alice").await;
 
         assert!(result.is_some());
         assert_eq!(result.unwrap().username, "alice");
     }
 
-    #[test]
-    fn test_get_user_by_username_not_found() {
+    #[tokio::test]
+    async fn test_get_user_by_username_not_found() {
         let repo = MockUserRepository {
             users: create_mock_users(),
             should_fail: false,
         };
         let api = create_test_api(repo);
 
-        let result = api.get_user_by_username("charlie");
+        let result = api.get_user_by_username("charlie").await;
 
         assert!(result.is_none());
     }
 
-    #[test]
-    fn test_create_user_success() {
+    #[tokio::test]
+    async fn test_create_user_success() {
         let repo = MockUserRepository {
             users: vec![],
             should_fail: false,
         };
         let api = create_test_api(repo);
 
-        let result = api.create_user("newuser");
+        let result = api.create_user("newuser").await;
 
         // Note: This test will fail because our mock repositories don't share state.
         // In production, the same repository instance is used, so when a user is created,
@@ -546,15 +565,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_create_user_validation_error() {
+    #[tokio::test]
+    async fn test_create_user_validation_error() {
         let repo = MockUserRepository {
             users: create_mock_users(),
             should_fail: false,
         };
         let api = create_test_api(repo);
 
-        let result = api.create_user("alice");
+        let result = api.create_user("alice").await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -568,15 +587,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_create_user_empty_username() {
+    #[tokio::test]
+    async fn test_create_user_empty_username() {
         let repo = MockUserRepository {
             users: vec![],
             should_fail: false,
         };
         let api = create_test_api(repo);
 
-        let result = api.create_user("");
+        let result = api.create_user("").await;
 
         assert!(result.is_err());
         match result.unwrap_err() {

@@ -8,3 +8,5 @@ lh_api = { path = "../api" }
 chrono = "0.4"
 uuid = { version = "1.10", features = ["v4"] }
 thiserror = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }

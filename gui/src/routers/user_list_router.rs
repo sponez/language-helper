@@ -16,6 +16,7 @@ use crate::mappers::user_mapper;
 use crate::i18n::I18n;
 use crate::iced_params::{get_sorted_themes, LANGUAGES, THEMES};
 use crate::router::{self, RouterEvent, RouterNode};
+use crate::runtime_util::block_on;
 
 /// Messages that can be sent within the account list router.
 #[derive(Debug, Clone)]
@@ -63,7 +64,7 @@ impl UserListRouter {
     ///
     /// * `app_api` - The API instance for backend communication
     pub fn new(app_api: Rc<dyn AppApi>) -> Self {
-        let app_settings = app_api.app_settings_api().get_app_settings()
+        let app_settings = block_on(app_api.app_settings_api().get_app_settings())
             .expect("Failed to load app settings");
 
         let i18n = I18n::new(&app_settings.language);
@@ -91,7 +92,7 @@ impl UserListRouter {
         match message {
             Message::Theme(theme) => {
                 self.theme = Some(theme.clone());
-                if let Err(e) = self.app_api.app_settings_api().update_app_theme(&theme) {
+                if let Err(e) = block_on(self.app_api.app_settings_api().update_app_theme(&theme)) {
                     self.error_message = Some(format!("Failed to update theme: {}", e));
                 }
                 None
@@ -103,7 +104,7 @@ impl UserListRouter {
                 // Update font for the new language
                 self.current_font = get_font_for_locale(&language);
 
-                if let Err(e) = self.app_api.app_settings_api().update_app_language(&language) {
+                if let Err(e) = block_on(self.app_api.app_settings_api().update_app_language(&language)) {
                     self.error_message = Some(self.i18n.get_with_arg("error-update-language", "error", &e.to_string()));
                 }
                 None
@@ -137,11 +138,10 @@ impl UserListRouter {
                         return None;
                     }
 
-                    match self.app_api.users_api().create_user(username.as_str()) {
+                    match block_on(self.app_api.users_api().create_user(username.as_str())) {
                         Ok(_) => {
                             // User created successfully, load user and navigate to account router
-                            if let Some(user_dto) =
-                                self.app_api.users_api().get_user_by_username(&username)
+                            if let Some(user_dto) = block_on(self.app_api.users_api().get_user_by_username(&username))
                             {
                                 let user_view = user_mapper::dto_to_view(&user_dto);
                                 let account_router: Box<dyn crate::router::RouterNode> =
@@ -169,8 +169,7 @@ impl UserListRouter {
                 } else {
                     // Confirm existing selection - load user and navigate
                     if let Some(username) = &self.selected_username {
-                        if let Some(user_dto) =
-                            self.app_api.users_api().get_user_by_username(username)
+                        if let Some(user_dto) = block_on(self.app_api.users_api().get_user_by_username(username))
                         {
                             let user_view = user_mapper::dto_to_view(&user_dto);
                             let account_router: Box<dyn crate::router::RouterNode> = Box::new(
@@ -195,10 +194,7 @@ impl UserListRouter {
     /// Returns an Element containing the UI for this router.
     pub fn view(&self) -> Element<'_, Message> {
         // Get fresh list of usernames
-        let mut usernames = self
-            .app_api
-            .users_api()
-            .get_usernames()
+        let mut usernames = block_on(self.app_api.users_api().get_usernames())
             .unwrap_or_else(|_| vec![]);
 
         // Check if the selected username still exists

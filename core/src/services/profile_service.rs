@@ -87,7 +87,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     /// }
     /// # }
     /// ```
-    pub fn create_profile_database(
+    pub async fn create_profile_database(
         &self,
         username: &str,
         target_language: &str,
@@ -106,7 +106,7 @@ impl<R: ProfileRepository> ProfileService<R> {
         let db_path = user_dir.join(db_filename);
 
         // Create the database using the repository
-        self.repository.create_database(db_path.clone())?;
+        self.repository.create_database(db_path.clone()).await?;
 
         Ok(db_path)
     }
@@ -122,7 +122,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     ///
     /// * `Ok(bool)` - true if the database exists, false otherwise
     /// * `Err(CoreError)` - If an error occurs during the check
-    pub fn profile_database_exists(
+    pub async fn profile_database_exists(
         &self,
         username: &str,
         target_language: &str,
@@ -145,7 +145,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     ///
     /// * `Ok(bool)` - true if the database was deleted, false if it didn't exist
     /// * `Err(CoreError)` - If an error occurs during deletion
-    pub fn delete_profile_database(
+    pub async fn delete_profile_database(
         &self,
         username: &str,
         target_language: &str,
@@ -154,7 +154,7 @@ impl<R: ProfileRepository> ProfileService<R> {
         let db_filename = format!("{}_profile.db", target_language);
         let db_path = user_dir.join(db_filename);
 
-        self.repository.delete_database(db_path)
+        self.repository.delete_database(db_path).await
     }
 
     /// Deletes the entire user data folder.
@@ -169,7 +169,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     ///
     /// * `Ok(bool)` - true if the folder was deleted, false if it didn't exist
     /// * `Err(CoreError)` - If an error occurs during deletion
-    pub fn delete_user_folder(&self, username: &str) -> Result<bool, CoreError> {
+    pub async fn delete_user_folder(&self, username: &str) -> Result<bool, CoreError> {
         let user_dir = PathBuf::from(&self.data_dir).join(username);
 
         if !user_dir.exists() {

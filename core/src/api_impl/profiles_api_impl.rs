@@ -2,6 +2,7 @@
 //!
 //! This module provides the concrete implementation of the ProfilesApi trait.
 
+use async_trait::async_trait;
 use lh_api::apis::profiles_api::ProfilesApi;
 use lh_api::errors::api_error::ApiError;
 
@@ -44,23 +45,27 @@ impl<R: ProfileRepository> ProfilesApiImpl<R> {
     }
 }
 
+#[async_trait]
 impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
-    fn create_profile_database(&self, username: &str, target_language: &str) -> Result<(), ApiError> {
+    async fn create_profile_database(&self, username: &str, target_language: &str) -> Result<(), ApiError> {
         self.profile_service
             .create_profile_database(username, target_language)
+            .await
             .map(|_| ())
             .map_err(map_core_error_to_api_error)
     }
 
-    fn delete_profile_database(&self, username: &str, target_language: &str) -> Result<bool, ApiError> {
+    async fn delete_profile_database(&self, username: &str, target_language: &str) -> Result<bool, ApiError> {
         self.profile_service
             .delete_profile_database(username, target_language)
+            .await
             .map_err(map_core_error_to_api_error)
     }
 
-    fn delete_user_folder(&self, username: &str) -> Result<bool, ApiError> {
+    async fn delete_user_folder(&self, username: &str) -> Result<bool, ApiError> {
         self.profile_service
             .delete_user_folder(username)
+            .await
             .map_err(map_core_error_to_api_error)
     }
 }

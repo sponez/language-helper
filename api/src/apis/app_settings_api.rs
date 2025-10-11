@@ -2,55 +2,21 @@
 //!
 //! This module provides the trait definition for global application settings operations.
 
+use async_trait::async_trait;
 use crate::{errors::api_error::ApiError, models::app_settings::AppSettingsDto};
 
 /// API for managing global application settings.
 ///
 /// This trait defines the interface for operations on the global application settings.
 /// These are singleton settings that apply as defaults for new users.
-///
-/// # Examples
-///
-/// ```no_run
-/// use lh_api::apis::app_settings_api::AppSettingsApi;
-///
-/// fn get_theme(api: &dyn AppSettingsApi) -> Result<(), Box<dyn std::error::Error>> {
-///     let settings = api.get_app_settings()?;
-///     println!("Current theme: {}", settings.theme);
-///     Ok(())
-/// }
-/// ```
-pub trait AppSettingsApi {
+#[async_trait]
+pub trait AppSettingsApi: Send + Sync {
     /// Retrieves the global application settings.
-    ///
-    /// Returns the current global settings, or defaults if they don't exist yet.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(AppSettingsDto)` - The global application settings
-    /// * `Err(ApiError)` - If an error occurs while retrieving the settings
-    ///
-    /// # Errors
-    ///
-    /// This function may return an error if the underlying data source is unavailable.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use lh_api::apis::app_settings_api::AppSettingsApi;
-    /// fn show_settings(api: &dyn AppSettingsApi) {
-    ///     match api.get_app_settings() {
-    ///         Ok(settings) => {
-    ///             println!("Theme: {}", settings.theme);
-    ///             println!("Language: {}", settings.language);
-    ///         }
-    ///         Err(e) => eprintln!("Error: {}", e),
-    ///     }
-    /// }
-    /// ```
-    fn get_app_settings(&self) -> Result<AppSettingsDto, ApiError>;
+    async fn get_app_settings(&self) -> Result<AppSettingsDto, ApiError>;
 
-    fn update_app_theme(&self, theme: &str) -> Result<(), ApiError>;
+    /// Updates the global theme setting.
+    async fn update_app_theme(&self, theme: &str) -> Result<(), ApiError>;
 
-    fn update_app_language(&self, language: &str) -> Result<(), ApiError>;
+    /// Updates the global language setting.
+    async fn update_app_language(&self, language: &str) -> Result<(), ApiError>;
 }

@@ -113,14 +113,73 @@ impl Default for SqliteProfileDbRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
     type Error = PersistenceError;
 
-    fn create_database(&self, db_path: PathBuf) -> Result<(), Self::Error> {
-        self.create_database_internal(db_path)
+    async fn create_database(&self, db_path: PathBuf) -> Result<(), Self::Error> {
+        tokio::task::spawn_blocking(move || {
+            // Create parent directory if it doesn't exist
+            if let Some(parent) = db_path.parent() {
+                fs::create_dir_all(parent).map_err(|e| {
+                    PersistenceError::database_error(format!(
+                        "Failed to create directory {:?}: {}",
+                        parent, e
+                    ))
+                })?;
+            }
+
+            // Create the database file and initialize schema
+            let conn = Connection::open(&db_path).map_err(|e| {
+                PersistenceError::database_error(format!(
+                    "Failed to create database at {:?}: {}",
+                    db_path, e
+                ))
+            })?;
+
+            // Initialize schema
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS schema_version (
+                    version INTEGER PRIMARY KEY,
+                    applied_at INTEGER NOT NULL
+                )",
+                [],
+            )
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to initialize schema: {}", e))
+            })?;
+
+            // Insert initial schema version
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_version (version, applied_at) VALUES (1, ?1)",
+                [chrono::Utc::now().timestamp()],
+            )
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to set schema version: {}", e))
+            })?;
+
+            Ok(())
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    fn delete_database(&self, db_path: PathBuf) -> Result<bool, Self::Error> {
-        self.delete_database_internal(db_path)
+    async fn delete_database(&self, db_path: PathBuf) -> Result<bool, Self::Error> {
+        tokio::task::spawn_blocking(move || {
+            if !db_path.exists() {
+                return Ok(false);
+            }
+
+            fs::remove_file(&db_path).map_err(|e| {
+                PersistenceError::database_error(format!(
+                    "Failed to delete database at {:?}: {}",
+                    db_path, e
+                ))
+            })?;
+
+            Ok(true)
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 }

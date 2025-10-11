@@ -88,8 +88,8 @@ impl<R: UserRepository> UserService<R> {
     /// }
     /// # }
     /// ```
-    pub fn get_all_usernames(&self) -> Result<Vec<String>, CoreError> {
-        let users = self.repository.find_all()?;
+    pub async fn get_all_usernames(&self) -> Result<Vec<String>, CoreError> {
+        let users = self.repository.find_all().await?;
         Ok(users.into_iter().map(|user| user.username).collect())
     }
 
@@ -123,8 +123,8 @@ impl<R: UserRepository> UserService<R> {
     /// }
     /// # }
     /// ```
-    pub fn get_user_by_username(&self, username: &str) -> Result<Option<User>, CoreError> {
-        self.repository.find_by_username(username)
+    pub async fn get_user_by_username(&self, username: &str) -> Result<Option<User>, CoreError> {
+        self.repository.find_by_username(username).await
     }
 
     /// Creates a new user.
@@ -156,19 +156,19 @@ impl<R: UserRepository> UserService<R> {
     /// }
     /// # }
     /// ```
-    pub fn create_user(&self, username: &str) -> Result<User, CoreError> {
+    pub async fn create_user(&self, username: &str) -> Result<User, CoreError> {
         // Domain validation happens in User::new()
         let user = User::new(username)?;
 
         // Business logic: check if user already exists
-        if self.repository.find_by_username(&user.username)?.is_some() {
+        if self.repository.find_by_username(&user.username).await?.is_some() {
             return Err(CoreError::validation_error(format!(
                 "User with username '{}' already exists",
                 user.username
             )));
         }
 
-        self.repository.save(user)
+        self.repository.save(user).await
     }
 
     /// Updates an existing user.
@@ -201,15 +201,15 @@ impl<R: UserRepository> UserService<R> {
     /// }
     /// # }
     /// ```
-    pub fn update_user(&self, username: &str) -> Result<User, CoreError> {
+    pub async fn update_user(&self, username: &str) -> Result<User, CoreError> {
         // Business logic: ensure user exists
-        if self.repository.find_by_username(username)?.is_none() {
+        if self.repository.find_by_username(username).await?.is_none() {
             return Err(CoreError::not_found("User", username));
         }
 
         // Domain validation happens in User::new()
         let user = User::new(username)?;
-        self.repository.save(user)
+        self.repository.save(user).await
     }
 
     /// Deletes a user by username.
@@ -241,8 +241,8 @@ impl<R: UserRepository> UserService<R> {
     /// }
     /// # }
     /// ```
-    pub fn delete_user(&self, username: &str) -> Result<(), CoreError> {
-        let deleted = self.repository.delete(username)?;
+    pub async fn delete_user(&self, username: &str) -> Result<(), CoreError> {
+        let deleted = self.repository.delete(username).await?;
         if !deleted {
             return Err(CoreError::not_found("User", username));
         }
@@ -273,17 +273,18 @@ mod tests {
         }
     }
 
+    #[async_trait::async_trait]
     impl UserRepository for MockUserRepository {
-        fn find_by_username(&self, username: &str) -> Result<Option<User>, CoreError> {
+        async fn find_by_username(&self, username: &str) -> Result<Option<User>, CoreError> {
             let users = self.users.lock().unwrap();
             Ok(users.iter().find(|u| u.username == username).cloned())
         }
 
-        fn find_all(&self) -> Result<Vec<User>, CoreError> {
+        async fn find_all(&self) -> Result<Vec<User>, CoreError> {
             Ok(self.users.lock().unwrap().clone())
         }
 
-        fn save(&self, user: User) -> Result<User, CoreError> {
+        async fn save(&self, user: User) -> Result<User, CoreError> {
             let mut users = self.users.lock().unwrap();
             if let Some(pos) = users.iter().position(|u| u.username == user.username) {
                 users[pos] = user.clone();
@@ -293,7 +294,7 @@ mod tests {
             Ok(user)
         }
 
-        fn delete(&self, username: &str) -> Result<bool, CoreError> {
+        async fn delete(&self, username: &str) -> Result<bool, CoreError> {
             let mut users = self.users.lock().unwrap();
             if let Some(pos) = users.iter().position(|u| u.username == username) {
                 users.remove(pos);
@@ -304,8 +305,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_get_all_usernames() {
+    #[tokio::test]
+    async fn test_get_all_usernames() {
         let users = vec![
             User::new_unchecked("user1".to_string()),
             User::new_unchecked("user2".to_string()),
@@ -313,50 +314,50 @@ mod tests {
         let repo = MockUserRepository::with_users(users);
         let service = UserService::new(repo);
 
-        let usernames = service.get_all_usernames().unwrap();
+        let usernames = service.get_all_usernames().await.unwrap();
         assert_eq!(usernames.len(), 2);
         assert!(usernames.contains(&"user1".to_string()));
         assert!(usernames.contains(&"user2".to_string()));
     }
 
-    #[test]
-    fn test_get_user_by_username_found() {
+    #[tokio::test]
+    async fn test_get_user_by_username_found() {
         let user = User::new_unchecked("john_doe".to_string());
         let repo = MockUserRepository::with_users(vec![user.clone()]);
         let service = UserService::new(repo);
 
-        let result = service.get_user_by_username("john_doe").unwrap();
+        let result = service.get_user_by_username("john_doe").await.unwrap();
         assert!(result.is_some());
         assert_eq!(result.unwrap().username, "john_doe");
     }
 
-    #[test]
-    fn test_get_user_by_username_not_found() {
+    #[tokio::test]
+    async fn test_get_user_by_username_not_found() {
         let repo = MockUserRepository::new();
         let service = UserService::new(repo);
 
-        let result = service.get_user_by_username("nonexistent").unwrap();
+        let result = service.get_user_by_username("nonexistent").await.unwrap();
         assert!(result.is_none());
     }
 
-    #[test]
-    fn test_create_user_success() {
+    #[tokio::test]
+    async fn test_create_user_success() {
         let repo = MockUserRepository::new();
         let service = UserService::new(repo);
 
-        let result = service.create_user("new_user");
+        let result = service.create_user("new_user").await;
 
         assert!(result.is_ok());
         let user = result.unwrap();
         assert_eq!(user.username, "new_user");
     }
 
-    #[test]
-    fn test_create_user_empty_username() {
+    #[tokio::test]
+    async fn test_create_user_empty_username() {
         let repo = MockUserRepository::new();
         let service = UserService::new(repo);
 
-        let result = service.create_user("");
+        let result = service.create_user("").await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -367,13 +368,13 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_create_user_duplicate_username() {
+    #[tokio::test]
+    async fn test_create_user_duplicate_username() {
         let existing_user = User::new_unchecked("existing".to_string());
         let repo = MockUserRepository::with_users(vec![existing_user]);
         let service = UserService::new(repo);
 
-        let result = service.create_user("existing");
+        let result = service.create_user("existing").await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -384,12 +385,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_update_user_not_found() {
+    #[tokio::test]
+    async fn test_update_user_not_found() {
         let repo = MockUserRepository::new();
         let service = UserService::new(repo);
 
-        let result = service.update_user("nonexistent");
+        let result = service.update_user("nonexistent").await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -401,22 +402,22 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_delete_user_success() {
+    #[tokio::test]
+    async fn test_delete_user_success() {
         let user = User::new_unchecked("delete_me".to_string());
         let repo = MockUserRepository::with_users(vec![user]);
         let service = UserService::new(repo);
 
-        let result = service.delete_user("delete_me");
+        let result = service.delete_user("delete_me").await;
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_delete_user_not_found() {
+    #[tokio::test]
+    async fn test_delete_user_not_found() {
         let repo = MockUserRepository::new();
         let service = UserService::new(repo);
 
-        let result = service.delete_user("nonexistent");
+        let result = service.delete_user("nonexistent").await;
         assert!(result.is_err());
         match result.unwrap_err() {
             CoreError::NotFound { entity, id } => {

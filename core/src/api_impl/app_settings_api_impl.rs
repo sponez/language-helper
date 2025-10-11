@@ -3,6 +3,7 @@
 //! This module provides the concrete implementation of the AppSettingsApi trait
 //! using the AppSettingsService from the core layer.
 
+use async_trait::async_trait;
 use lh_api::apis::app_settings_api::AppSettingsApi;
 use lh_api::errors::api_error::ApiError;
 use lh_api::models::app_settings::AppSettingsDto;
@@ -62,34 +63,40 @@ impl<R: AppSettingsRepository> AppSettingsApiImpl<R> {
     }
 }
 
+#[async_trait]
 impl<R: AppSettingsRepository> AppSettingsApi for AppSettingsApiImpl<R> {
-    fn get_app_settings(&self) -> Result<AppSettingsDto, ApiError> {
+    async fn get_app_settings(&self) -> Result<AppSettingsDto, ApiError> {
         self.service
             .get_settings()
+            .await
             .map(map_settings_to_dto)
             .map_err(map_core_error_to_api_error)
     }
 
-    fn update_app_theme(&self, theme: &str) -> Result<(), ApiError> {
+    async fn update_app_theme(&self, theme: &str) -> Result<(), ApiError> {
         // Get current settings to preserve the language
         let current_settings = self.service.get_settings()
+            .await
             .map_err(map_core_error_to_api_error)?;
 
         // Update with new theme and existing language
         self.service
             .update_settings(theme, current_settings.default_ui_language.as_str())
+            .await
             .map(|_| ())
             .map_err(map_core_error_to_api_error)
     }
 
-    fn update_app_language(&self, language: &str) -> Result<(), ApiError> {
+    async fn update_app_language(&self, language: &str) -> Result<(), ApiError> {
         // Get current settings to preserve the theme
         let current_settings = self.service.get_settings()
+            .await
             .map_err(map_core_error_to_api_error)?;
 
         // Update with existing theme and new language
         self.service
             .update_settings(current_settings.ui_theme.as_str(), language)
+            .await
             .map(|_| ())
             .map_err(map_core_error_to_api_error)
     }
@@ -129,8 +136,9 @@ mod tests {
         }
     }
 
+    #[async_trait]
     impl AppSettingsRepository for MockAppSettingsRepository {
-        fn get(&self) -> Result<AppSettings, CoreError> {
+        async fn get(&self) -> Result<AppSettings, CoreError> {
             if self.should_fail {
                 return Err(CoreError::repository_error("Mock error"));
             }
@@ -140,7 +148,7 @@ mod tests {
                 .ok_or_else(|| CoreError::not_found("AppSettings", "singleton"))
         }
 
-        fn update(&self, settings: AppSettings) -> Result<AppSettings, CoreError> {
+        async fn update(&self, settings: AppSettings) -> Result<AppSettings, CoreError> {
             if self.should_fail {
                 return Err(CoreError::repository_error("Mock error"));
             }
@@ -208,14 +216,14 @@ mod tests {
         assert_eq!(language, "fr");
     }
 
-    #[test]
-    fn test_get_app_settings_existing() {
+    #[tokio::test]
+    async fn test_get_app_settings_existing() {
         let settings = AppSettings::new_unchecked("Dark".to_string(), "en".to_string());
         let repo = MockAppSettingsRepository::with_settings(settings);
         let service = AppSettingsService::new(repo);
         let api = AppSettingsApiImpl::new(service);
 
-        let result = api.get_app_settings();
+        let result = api.get_app_settings().await;
 
         assert!(result.is_ok());
         let dto = result.unwrap();
@@ -223,13 +231,13 @@ mod tests {
         assert_eq!(dto.language, "en");
     }
 
-    #[test]
-    fn test_get_app_settings_returns_defaults_when_not_found() {
+    #[tokio::test]
+    async fn test_get_app_settings_returns_defaults_when_not_found() {
         let repo = MockAppSettingsRepository::new();
         let service = AppSettingsService::new(repo);
         let api = AppSettingsApiImpl::new(service);
 
-        let result = api.get_app_settings();
+        let result = api.get_app_settings().await;
 
         assert!(result.is_ok());
         let dto = result.unwrap();
@@ -237,13 +245,13 @@ mod tests {
         assert_eq!(dto.language, "en-US");
     }
 
-    #[test]
-    fn test_get_app_settings_repository_error() {
+    #[tokio::test]
+    async fn test_get_app_settings_repository_error() {
         let repo = MockAppSettingsRepository::with_failure();
         let service = AppSettingsService::new(repo);
         let api = AppSettingsApiImpl::new(service);
 
-        let result = api.get_app_settings();
+        let result = api.get_app_settings().await;
 
         assert!(result.is_err());
         match result.unwrap_err() {

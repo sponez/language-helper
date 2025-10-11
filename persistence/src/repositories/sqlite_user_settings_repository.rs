@@ -190,18 +190,89 @@ impl SqliteUserSettingsRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl PersistenceUserSettingsRepository for SqliteUserSettingsRepository {
     type Error = PersistenceError;
 
-    fn find_by_username(&self, username: &str) -> Result<Option<UserSettings>, Self::Error> {
-        self.find_by_username(username)
+    async fn find_by_username(&self, username: &str) -> Result<Option<UserSettings>, Self::Error> {
+        let username = username.to_string();
+        let conn = self.connection.clone();
+        tokio::task::spawn_blocking(move || {
+            let connection = conn.lock().map_err(|e| {
+                PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
+            })?;
+
+            let result = connection.query_row(
+                "SELECT username, ui_theme, ui_language FROM user_settings WHERE username = ?1",
+                params![username],
+                |row| {
+                    Ok(UserSettingsEntity {
+                        username: row.get(0)?,
+                        ui_theme: row.get(1)?,
+                        ui_language: row.get(2)?,
+                    })
+                },
+            );
+
+            match result {
+                Ok(entity) => Ok(Some(user_settings_mapper::entity_to_model(&entity))),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(PersistenceError::database_error(format!(
+                    "Failed to query user settings: {}",
+                    e
+                ))),
+            }
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, Self::Error> {
-        self.save(username, settings)
+    async fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, Self::Error> {
+        let username = username.to_string();
+        let conn = self.connection.clone();
+        tokio::task::spawn_blocking(move || {
+            let connection = conn.lock().map_err(|e| {
+                PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
+            })?;
+
+            let entity = user_settings_mapper::model_to_entity(&username, &settings);
+
+            connection
+                .execute(
+                    "INSERT INTO user_settings (username, ui_theme, ui_language) VALUES (?1, ?2, ?3)
+                     ON CONFLICT(username) DO UPDATE SET ui_theme = ?2, ui_language = ?3",
+                    params![entity.username, entity.ui_theme, entity.ui_language],
+                )
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to save user settings: {}", e))
+                })?;
+
+            Ok(settings)
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    fn delete(&self, username: &str) -> Result<bool, Self::Error> {
-        self.delete(username)
+    async fn delete(&self, username: &str) -> Result<bool, Self::Error> {
+        let username = username.to_string();
+        let conn = self.connection.clone();
+        tokio::task::spawn_blocking(move || {
+            let connection = conn.lock().map_err(|e| {
+                PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
+            })?;
+
+            let rows_affected = connection
+                .execute(
+                    "DELETE FROM user_settings WHERE username = ?1",
+                    params![username],
+                )
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to delete user settings: {}", e))
+                })?;
+
+            Ok(rows_affected > 0)
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 }

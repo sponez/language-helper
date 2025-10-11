@@ -4,6 +4,7 @@
 //! Unlike UserProfilesRepository which manages profile metadata, this repository
 //! manages the actual profile database files that store learning content.
 
+use async_trait::async_trait;
 use crate::errors::CoreError;
 use std::path::PathBuf;
 
@@ -11,6 +12,7 @@ use std::path::PathBuf;
 ///
 /// This trait defines the interface for creating and managing profile-specific
 /// database files. Each profile gets its own database for storing learning content.
+#[async_trait]
 pub trait ProfileRepository: Send + Sync {
     /// Creates a new profile database file.
     ///
@@ -27,7 +29,7 @@ pub trait ProfileRepository: Send + Sync {
     ///
     /// * `Ok(())` - If the database was successfully created
     /// * `Err(CoreError)` - If an error occurs during creation
-    fn create_database(&self, db_path: PathBuf) -> Result<(), CoreError>;
+    async fn create_database(&self, db_path: PathBuf) -> Result<(), CoreError>;
 
     /// Deletes a profile database file.
     ///
@@ -40,5 +42,5 @@ pub trait ProfileRepository: Send + Sync {
     /// * `Ok(true)` - If the database was deleted
     /// * `Ok(false)` - If the database didn't exist
     /// * `Err(CoreError)` - If an error occurs during deletion
-    fn delete_database(&self, db_path: PathBuf) -> Result<bool, CoreError>;
+    async fn delete_database(&self, db_path: PathBuf) -> Result<bool, CoreError>;
 }

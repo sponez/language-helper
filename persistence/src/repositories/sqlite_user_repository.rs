@@ -301,23 +301,125 @@ impl SqliteUserRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl PersistenceUserRepository for SqliteUserRepository {
     type Error = PersistenceError;
 
-    fn find_by_username(&self, username: &str) -> Result<Option<User>, Self::Error> {
-        self.find_by_username(username)
+    async fn find_by_username(&self, username: &str) -> Result<Option<User>, Self::Error> {
+        let username = username.to_string();
+        let conn = self.connection.clone();
+        tokio::task::spawn_blocking(move || {
+            let connection = conn.lock().map_err(|e| {
+                PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
+            })?;
+
+            let result: SqliteResult<(String, i64, i64)> = connection.query_row(
+                "SELECT username, created_at, last_used_at FROM users WHERE username = ?1",
+                params![username],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            );
+
+            match result {
+                Ok((username, created_at, last_used_at)) => {
+                    let entity = UserEntity {
+                        username,
+                        created_at,
+                        last_used_at,
+                    };
+                    Ok(Some(user_mapper::entity_to_model(&entity)))
+                }
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(PersistenceError::database_error(format!(
+                    "Failed to query user: {}",
+                    e
+                ))),
+            }
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    fn find_all(&self) -> Result<Vec<User>, Self::Error> {
-        self.find_all()
+    async fn find_all(&self) -> Result<Vec<User>, Self::Error> {
+        let conn = self.connection.clone();
+        tokio::task::spawn_blocking(move || {
+            let connection = conn.lock().map_err(|e| {
+                PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
+            })?;
+
+            let mut stmt = connection
+                .prepare(
+                    "SELECT username, created_at, last_used_at FROM users ORDER BY last_used_at DESC",
+                )
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to prepare query: {}", e))
+                })?;
+
+            let entities = stmt
+                .query_map([], |row| {
+                    Ok(UserEntity {
+                        username: row.get(0)?,
+                        created_at: row.get(1)?,
+                        last_used_at: row.get(2)?,
+                    })
+                })
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to execute query: {}", e))
+                })?
+                .collect::<SqliteResult<Vec<UserEntity>>>()
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to collect results: {}", e))
+                })?;
+
+            Ok(entities
+                .into_iter()
+                .map(|entity| user_mapper::entity_to_model(&entity))
+                .collect())
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    fn save(&self, user: User) -> Result<User, Self::Error> {
-        self.save(user)
+    async fn save(&self, user: User) -> Result<User, Self::Error> {
+        let conn = self.connection.clone();
+        tokio::task::spawn_blocking(move || {
+            let connection = conn.lock().map_err(|e| {
+                PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
+            })?;
+
+            let entity = user_mapper::model_to_entity(&user);
+
+            connection
+                .execute(
+                    "INSERT INTO users (username, created_at, last_used_at) VALUES (?1, ?2, ?3)
+                     ON CONFLICT(username) DO UPDATE SET last_used_at = ?3",
+                    params![entity.username, entity.created_at, entity.last_used_at],
+                )
+                .map_err(|e| PersistenceError::database_error(format!("Failed to save user: {}", e)))?;
+
+            Ok(user)
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    fn delete(&self, username: &str) -> Result<bool, Self::Error> {
-        self.delete(username)
+    async fn delete(&self, username: &str) -> Result<bool, Self::Error> {
+        let username = username.to_string();
+        let conn = self.connection.clone();
+        tokio::task::spawn_blocking(move || {
+            let connection = conn.lock().map_err(|e| {
+                PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
+            })?;
+
+            let rows_affected = connection
+                .execute("DELETE FROM users WHERE username = ?1", params![username])
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to delete user: {}", e))
+                })?;
+
+            Ok(rows_affected > 0)
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 }
 

@@ -91,8 +91,8 @@ impl<R: AppSettingsRepository> AppSettingsService<R> {
     /// }
     /// # }
     /// ```
-    pub fn get_settings(&self) -> Result<AppSettings, CoreError> {
-        match self.repository.get() {
+    pub async fn get_settings(&self) -> Result<AppSettings, CoreError> {
+        match self.repository.get().await {
             Ok(settings) => Ok(settings),
             Err(CoreError::NotFound { .. }) => {
                 // First run - return defaults without persisting yet
@@ -135,14 +135,14 @@ impl<R: AppSettingsRepository> AppSettingsService<R> {
     /// }
     /// # }
     /// ```
-    pub fn update_settings(
+    pub async fn update_settings(
         &self,
         ui_theme: &str,
         default_ui_language: &str,
     ) -> Result<AppSettings, CoreError> {
         // Domain validation happens in AppSettings::new()
         let settings = AppSettings::new(ui_theme, default_ui_language)?;
-        self.repository.update(settings)
+        self.repository.update(settings).await
     }
 
     /// Initializes the application settings with defaults if they don't exist.
@@ -167,13 +167,13 @@ impl<R: AppSettingsRepository> AppSettingsService<R> {
     /// }
     /// # }
     /// ```
-    pub fn initialize_defaults(&self) -> Result<AppSettings, CoreError> {
-        match self.repository.get() {
+    pub async fn initialize_defaults(&self) -> Result<AppSettings, CoreError> {
+        match self.repository.get().await {
             Ok(settings) => Ok(settings),
             Err(CoreError::NotFound { .. }) => {
                 // First run - persist default settings
                 let defaults = AppSettings::default();
-                self.repository.update(defaults)
+                self.repository.update(defaults).await
             }
             Err(e) => Err(e),
         }
@@ -213,8 +213,9 @@ mod tests {
         }
     }
 
+    #[async_trait::async_trait]
     impl AppSettingsRepository for MockAppSettingsRepository {
-        fn get(&self) -> Result<AppSettings, CoreError> {
+        async fn get(&self) -> Result<AppSettings, CoreError> {
             if self.should_fail {
                 return Err(CoreError::repository_error("Mock error"));
             }
@@ -224,7 +225,7 @@ mod tests {
                 .ok_or_else(|| CoreError::not_found("AppSettings", "singleton"))
         }
 
-        fn update(&self, settings: AppSettings) -> Result<AppSettings, CoreError> {
+        async fn update(&self, settings: AppSettings) -> Result<AppSettings, CoreError> {
             if self.should_fail {
                 return Err(CoreError::repository_error("Mock error"));
             }
@@ -234,33 +235,33 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_get_settings_existing() {
+    #[tokio::test]
+    async fn test_get_settings_existing() {
         let settings = AppSettings::new_unchecked("Dark".to_string(), "es".to_string());
         let repo = MockAppSettingsRepository::with_settings(settings.clone());
         let service = AppSettingsService::new(repo);
 
-        let result = service.get_settings().unwrap();
+        let result = service.get_settings().await.unwrap();
         assert_eq!(result.ui_theme, "Dark");
         assert_eq!(result.default_ui_language, "es");
     }
 
-    #[test]
-    fn test_get_settings_not_found_returns_defaults() {
+    #[tokio::test]
+    async fn test_get_settings_not_found_returns_defaults() {
         let repo = MockAppSettingsRepository::new();
         let service = AppSettingsService::new(repo);
 
-        let result = service.get_settings().unwrap();
+        let result = service.get_settings().await.unwrap();
         assert_eq!(result.ui_theme, "Dark");
         assert_eq!(result.default_ui_language, "en-US");
     }
 
-    #[test]
-    fn test_get_settings_repository_error() {
+    #[tokio::test]
+    async fn test_get_settings_repository_error() {
         let repo = MockAppSettingsRepository::with_failure();
         let service = AppSettingsService::new(repo);
 
-        let result = service.get_settings();
+        let result = service.get_settings().await;
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
@@ -268,24 +269,24 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn test_update_settings_success() {
+    #[tokio::test]
+    async fn test_update_settings_success() {
         let repo = MockAppSettingsRepository::new();
         let service = AppSettingsService::new(repo);
 
-        let result = service.update_settings("Light", "fr");
+        let result = service.update_settings("Light", "fr").await;
         assert!(result.is_ok());
         let settings = result.unwrap();
         assert_eq!(settings.ui_theme, "Light");
         assert_eq!(settings.default_ui_language, "fr");
     }
 
-    #[test]
-    fn test_update_settings_invalid_theme() {
+    #[tokio::test]
+    async fn test_update_settings_invalid_theme() {
         let repo = MockAppSettingsRepository::new();
         let service = AppSettingsService::new(repo);
 
-        let result = service.update_settings("InvalidTheme", "en");
+        let result = service.update_settings("InvalidTheme", "en").await;
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
@@ -293,12 +294,12 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn test_update_settings_invalid_language() {
+    #[tokio::test]
+    async fn test_update_settings_invalid_language() {
         let repo = MockAppSettingsRepository::new();
         let service = AppSettingsService::new(repo);
 
-        let result = service.update_settings("Dark", "");
+        let result = service.update_settings("Dark", "").await;
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
@@ -306,33 +307,33 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn test_initialize_defaults_when_not_exists() {
+    #[tokio::test]
+    async fn test_initialize_defaults_when_not_exists() {
         let repo = MockAppSettingsRepository::new();
         let service = AppSettingsService::new(repo);
 
-        let result = service.initialize_defaults().unwrap();
+        let result = service.initialize_defaults().await.unwrap();
         assert_eq!(result.ui_theme, "Dark");
         assert_eq!(result.default_ui_language, "en-US");
     }
 
-    #[test]
-    fn test_initialize_defaults_when_exists() {
+    #[tokio::test]
+    async fn test_initialize_defaults_when_exists() {
         let existing = AppSettings::new_unchecked("Dark".to_string(), "es".to_string());
         let repo = MockAppSettingsRepository::with_settings(existing);
         let service = AppSettingsService::new(repo);
 
-        let result = service.initialize_defaults().unwrap();
+        let result = service.initialize_defaults().await.unwrap();
         assert_eq!(result.ui_theme, "Dark");
         assert_eq!(result.default_ui_language, "es");
     }
 
-    #[test]
-    fn test_initialize_defaults_repository_error() {
+    #[tokio::test]
+    async fn test_initialize_defaults_repository_error() {
         let repo = MockAppSettingsRepository::with_failure();
         let service = AppSettingsService::new(repo);
 
-        let result = service.initialize_defaults();
+        let result = service.initialize_defaults().await;
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),

@@ -104,9 +104,9 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// }
     /// # }
     /// ```
-    pub fn get_user_settings(&self, username: &str) -> Result<UserSettings, CoreError> {
+    pub async fn get_user_settings(&self, username: &str) -> Result<UserSettings, CoreError> {
         self.settings_repository
-            .find_by_username(username)?
+            .find_by_username(username).await?
             .ok_or_else(|| CoreError::not_found("UserSettings", username))
     }
 
@@ -145,16 +145,16 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// }
     /// # }
     /// ```
-    pub fn create_user_settings(&self, username: &str) -> Result<UserSettings, CoreError> {
+    pub async fn create_user_settings(&self, username: &str) -> Result<UserSettings, CoreError> {
         // Business logic: ensure user exists
-        if self.user_repository.find_by_username(username)?.is_none() {
+        if self.user_repository.find_by_username(username).await?.is_none() {
             return Err(CoreError::not_found("User", username));
         }
 
         // Business logic: check if settings already exist
         if self
             .settings_repository
-            .find_by_username(&username)?
+            .find_by_username(&username).await?
             .is_some()
         {
             return Err(CoreError::validation_error(format!(
@@ -164,7 +164,7 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
         }
 
         // Get app settings to use as defaults
-        let app_settings = self.app_settings_repository.get().unwrap_or_default();
+        let app_settings = self.app_settings_repository.get().await.unwrap_or_default();
 
         // Domain validation happens in UserSettings::new()
         let settings = UserSettings::new(
@@ -172,7 +172,7 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
             app_settings.default_ui_language,
         )?;
 
-        self.settings_repository.save(username, settings)
+        self.settings_repository.save(username, settings).await
     }
 
     /// Updates existing user settings.
@@ -209,7 +209,7 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// }
     /// # }
     /// ```
-    pub fn update_user_settings(
+    pub async fn update_user_settings(
         &self,
         username: &str,
         ui_theme: &str,
@@ -218,7 +218,7 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
         // Business logic: ensure settings exist
         if self
             .settings_repository
-            .find_by_username(username)?
+            .find_by_username(username).await?
             .is_none()
         {
             return Err(CoreError::not_found("UserSettings", username));
@@ -226,7 +226,7 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
 
         // Domain validation happens in UserSettings::new()
         let settings = UserSettings::new(ui_theme, ui_language)?;
-        self.settings_repository.save(username, settings)
+        self.settings_repository.save(username, settings).await
     }
 
     /// Deletes user settings by username.
@@ -262,8 +262,8 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// }
     /// # }
     /// ```
-    pub fn delete_user_settings(&self, username: &str) -> Result<(), CoreError> {
-        let deleted = self.settings_repository.delete(username)?;
+    pub async fn delete_user_settings(&self, username: &str) -> Result<(), CoreError> {
+        let deleted = self.settings_repository.delete(username).await?;
         if !deleted {
             return Err(CoreError::not_found("UserSettings", username));
         }

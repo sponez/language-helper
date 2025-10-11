@@ -10,6 +10,7 @@ use crate::i18n_widgets::localized_text;
 use crate::iced_params::{LANGUAGES, THEMES};
 use crate::models::UserView;
 use crate::router::{self, RouterEvent, RouterNode};
+use crate::runtime_util::block_on;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -112,10 +113,10 @@ impl ProfileListRouter {
                 if let Some(language) = &self.selected_language {
                     // Create new profile via API
                     // Step 1: Create profile metadata
-                    match self.app_api.users_api().create_profile(&self.user_view.username, language) {
+                    match block_on(self.app_api.users_api().create_profile(&self.user_view.username, language)) {
                         Ok(profile_dto) => {
                             // Step 2: Create the profile database file
-                            match self.app_api.profile_api().create_profile_database(&self.user_view.username, language) {
+                            match block_on(self.app_api.profile_api().create_profile_database(&self.user_view.username, language)) {
                                 Ok(_) => {
                                     // Add the new profile to the user_view
                                     use crate::mappers::user_mapper;
@@ -125,7 +126,7 @@ impl ProfileListRouter {
                                 Err(e) => {
                                     eprintln!("Failed to create profile database: {:?}", e);
                                     // Cleanup: delete the metadata if database creation failed
-                                    let _ = self.app_api.users_api().delete_profile(&self.user_view.username, language);
+                                    let _ = block_on(self.app_api.users_api().delete_profile(&self.user_view.username, language));
                                 }
                             }
                         }

@@ -1,19 +1,21 @@
 //! AppSettings repository adapter for mapping persistence errors to core errors.
 
+use async_trait::async_trait;
 use crate::models::app_settings::AppSettings;
 use crate::errors::CoreError;
 use crate::repositories::app_settings_repository::AppSettingsRepository;
 
 /// Trait representing a persistence-layer app settings repository.
-pub trait PersistenceAppSettingsRepository {
+#[async_trait]
+pub trait PersistenceAppSettingsRepository: Send + Sync {
     /// The error type returned by this repository.
     type Error: std::fmt::Display;
 
     /// Gets the global application settings.
-    fn get(&self) -> Result<AppSettings, Self::Error>;
+    async fn get(&self) -> Result<AppSettings, Self::Error>;
 
     /// Updates the global application settings.
-    fn update(&self, settings: AppSettings) -> Result<AppSettings, Self::Error>;
+    async fn update(&self, settings: AppSettings) -> Result<AppSettings, Self::Error>;
 }
 
 /// Adapter that wraps a persistence repository and maps errors.
@@ -28,18 +30,21 @@ impl<R> AppSettingsRepositoryAdapter<R> {
     }
 }
 
-impl<R: PersistenceAppSettingsRepository + Send + Sync> AppSettingsRepository
+#[async_trait]
+impl<R: PersistenceAppSettingsRepository> AppSettingsRepository
     for AppSettingsRepositoryAdapter<R>
 {
-    fn get(&self) -> Result<AppSettings, CoreError> {
+    async fn get(&self) -> Result<AppSettings, CoreError> {
         self.repository
             .get()
+            .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    fn update(&self, settings: AppSettings) -> Result<AppSettings, CoreError> {
+    async fn update(&self, settings: AppSettings) -> Result<AppSettings, CoreError> {
         self.repository
             .update(settings)
+            .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 }

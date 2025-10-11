@@ -17,6 +17,7 @@ use crate::i18n_widgets::{localized_text, localized_text_with_arg};
 use crate::iced_params::THEMES;
 use crate::models::UserView;
 use crate::router::{self, RouterEvent, RouterNode};
+use crate::runtime_util::block_on;
 
 /// Messages that can be sent within the account router.
 #[derive(Debug, Clone)]
@@ -78,7 +79,7 @@ impl UserRouter {
     /// Refreshes user data from the API
     fn refresh_data(&mut self) {
         // Fetch fresh user data from API
-        if let Some(user_dto) = self.app_api.users_api().get_user_by_username(&self.user_view.username) {
+        if let Some(user_dto) = block_on(self.app_api.users_api().get_user_by_username(&self.user_view.username)) {
             use crate::mappers::user_mapper;
             self.user_view = user_mapper::dto_to_view(&user_dto);
 

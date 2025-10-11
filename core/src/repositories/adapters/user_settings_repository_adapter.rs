@@ -1,22 +1,24 @@
 //! UserSettings repository adapter for mapping persistence errors to core errors.
 
+use async_trait::async_trait;
 use crate::models::user_settings::UserSettings;
 use crate::errors::CoreError;
 use crate::repositories::user_settings_repository::UserSettingsRepository;
 
 /// Trait representing a persistence-layer user settings repository.
-pub trait PersistenceUserSettingsRepository {
+#[async_trait]
+pub trait PersistenceUserSettingsRepository: Send + Sync {
     /// The error type returned by this repository.
     type Error: std::fmt::Display;
 
     /// Finds user settings by username.
-    fn find_by_username(&self, username: &str) -> Result<Option<UserSettings>, Self::Error>;
+    async fn find_by_username(&self, username: &str) -> Result<Option<UserSettings>, Self::Error>;
 
     /// Saves user settings.
-    fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, Self::Error>;
+    async fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, Self::Error>;
 
     /// Deletes user settings by username.
-    fn delete(&self, username: &str) -> Result<bool, Self::Error>;
+    async fn delete(&self, username: &str) -> Result<bool, Self::Error>;
 }
 
 /// Adapter that wraps a persistence repository and maps errors.
@@ -31,24 +33,28 @@ impl<R> UserSettingsRepositoryAdapter<R> {
     }
 }
 
-impl<R: PersistenceUserSettingsRepository + Send + Sync> UserSettingsRepository
+#[async_trait]
+impl<R: PersistenceUserSettingsRepository> UserSettingsRepository
     for UserSettingsRepositoryAdapter<R>
 {
-    fn find_by_username(&self, username: &str) -> Result<Option<UserSettings>, CoreError> {
+    async fn find_by_username(&self, username: &str) -> Result<Option<UserSettings>, CoreError> {
         self.repository
             .find_by_username(username)
+            .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, CoreError> {
+    async fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, CoreError> {
         self.repository
             .save(username, settings)
+            .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    fn delete(&self, username: &str) -> Result<bool, CoreError> {
+    async fn delete(&self, username: &str) -> Result<bool, CoreError> {
         self.repository
             .delete(username)
+            .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 }

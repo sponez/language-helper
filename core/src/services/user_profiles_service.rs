@@ -90,8 +90,8 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// }
     /// # }
     /// ```
-    pub fn get_profiles_for_user(&self, username: &str) -> Result<Vec<Profile>, CoreError> {
-        self.profile_repository.find_by_username(username)
+    pub async fn get_profiles_for_user(&self, username: &str) -> Result<Vec<Profile>, CoreError> {
+        self.profile_repository.find_by_username(username).await
     }
 
     /// Retrieves a profile by username and target language (composite key).
@@ -125,13 +125,13 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// }
     /// # }
     /// ```
-    pub fn get_profile_by_id(
+    pub async fn get_profile_by_id(
         &self,
         username: &str,
         target_language: &str,
     ) -> Result<Profile, CoreError> {
         self.profile_repository
-            .find_by_username_and_target_language(username, target_language)?
+            .find_by_username_and_target_language(username, target_language).await?
             .ok_or_else(|| CoreError::not_found("Profile", target_language))
     }
 
@@ -169,13 +169,13 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// }
     /// # }
     /// ```
-    pub fn create_profile(
+    pub async fn create_profile(
         &self,
         username: &str,
         target_language: &str,
     ) -> Result<Profile, CoreError> {
         // Business logic: ensure user exists
-        if self.user_repository.find_by_username(username)?.is_none() {
+        if self.user_repository.find_by_username(username).await?.is_none() {
             return Err(CoreError::not_found("User", username));
         }
 
@@ -184,7 +184,7 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
 
         // Note: The composite key (username, target_language) ensures uniqueness
         // The repository will handle any database-level uniqueness constraints
-        self.profile_repository.save(username, profile)
+        self.profile_repository.save(username, profile).await
     }
 
     /// Updates the last activity timestamp for a profile.
@@ -220,18 +220,18 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// }
     /// # }
     /// ```
-    pub fn update_profile_activity(
+    pub async fn update_profile_activity(
         &self,
         username: &str,
         target_language: &str,
     ) -> Result<Profile, CoreError> {
         let mut profile = self
             .profile_repository
-            .find_by_username_and_target_language(username, target_language)?
+            .find_by_username_and_target_language(username, target_language).await?
             .ok_or_else(|| CoreError::not_found("Profile", target_language))?;
 
         profile.update_last_activity();
-        self.profile_repository.save(username, profile)
+        self.profile_repository.save(username, profile).await
     }
 
     /// Deletes a profile by username and target language.
@@ -265,8 +265,8 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// }
     /// # }
     /// ```
-    pub fn delete_profile(&self, username: &str, target_language: &str) -> Result<(), CoreError> {
-        let deleted = self.profile_repository.delete(username, target_language)?;
+    pub async fn delete_profile(&self, username: &str, target_language: &str) -> Result<(), CoreError> {
+        let deleted = self.profile_repository.delete(username, target_language).await?;
         if !deleted {
             return Err(CoreError::not_found("Profile", target_language));
         }

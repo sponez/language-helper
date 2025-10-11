@@ -10,6 +10,7 @@ use crate::i18n_widgets::localized_text;
 use crate::iced_params::{get_sorted_themes, THEMES};
 use crate::models::UserView;
 use crate::router::{self, RouterEvent, RouterNode};
+use crate::runtime_util::block_on;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -70,7 +71,7 @@ impl UserSettingsRouter {
             Message::ThemeSelected(new_theme) => {
                 self.theme = new_theme.clone();
                 // Update user theme via API
-                match self.app_api.users_api().update_user_theme(&self.user_view.username, &new_theme) {
+                match block_on(self.app_api.users_api().update_user_theme(&self.user_view.username, &new_theme)) {
                     Ok(_) => {
                         // Update the user_view settings to reflect the change
                         if let Some(ref mut settings) = self.user_view.settings {
@@ -89,12 +90,12 @@ impl UserSettingsRouter {
             }
             Message::ConfirmDelete => {
                 // Step 1: Delete the entire user folder (includes all profile databases)
-                if let Err(e) = self.app_api.profile_api().delete_user_folder(&self.user_view.username) {
+                if let Err(e) = block_on(self.app_api.profile_api().delete_user_folder(&self.user_view.username)) {
                     eprintln!("Failed to delete user folder: {:?}", e);
                 }
 
                 // Step 2: Delete user (which deletes profile metadata, settings, and user record)
-                match self.app_api.users_api().delete_user(&self.user_view.username) {
+                match block_on(self.app_api.users_api().delete_user(&self.user_view.username)) {
                     Ok(deleted) => {
                         if deleted {
                             // User deleted successfully
