@@ -15,6 +15,21 @@ user-settings-button = Settings
 user-profiles-button = Profiles
 user-back-button = Back
 
+## User Settings Screen
+user-settings-language-label = User Language:
+user-settings-theme-label = Theme:
+user-settings-delete-button = Delete User
+user-settings-delete-warning = Are you sure you want to delete this user? This action cannot be undone.
+user-settings-delete-yes = Yes
+user-settings-delete-no = No
+
+## Profile List Screen
+profile-list-title = Learning Profiles
+profile-list-create-new = + Create New Profile
+profile-list-select-language = Select target language for new profile:
+profile-list-create-button = Create
+profile-list-cancel-button = Cancel
+
 ## Error Messages
 error-username-empty = Username cannot be empty
 error-user-not-found = User not found

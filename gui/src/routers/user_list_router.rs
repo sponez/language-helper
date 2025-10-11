@@ -12,7 +12,7 @@ use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
 
 use crate::fonts::get_font_for_locale;
-use crate::models::UserView;
+use crate::mappers::user_mapper;
 use crate::i18n::I18n;
 use crate::iced_params::{get_sorted_themes, LANGUAGES, THEMES};
 use crate::router::{self, RouterEvent, RouterNode};
@@ -143,7 +143,7 @@ impl UserListRouter {
                             if let Some(user_dto) =
                                 self.app_api.users_api().get_user_by_username(&username)
                             {
-                                let user_view = UserView::new(user_dto.username);
+                                let user_view = user_mapper::dto_to_view(&user_dto);
                                 let account_router: Box<dyn crate::router::RouterNode> =
                                     Box::new(super::user_router::UserRouter::new(
                                         user_view,
@@ -172,7 +172,7 @@ impl UserListRouter {
                         if let Some(user_dto) =
                             self.app_api.users_api().get_user_by_username(username)
                         {
-                            let user_view = UserView::new(user_dto.username);
+                            let user_view = user_mapper::dto_to_view(&user_dto);
                             let account_router: Box<dyn crate::router::RouterNode> = Box::new(
                                 super::user_router::UserRouter::new(user_view, Rc::clone(&self.app_api)),
                             );

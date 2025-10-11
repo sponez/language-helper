@@ -29,7 +29,7 @@
 
 use iced::Element;
 
-use crate::routers::{user_list_router, user_router};
+use crate::routers::{profile_list_router, user_list_router, user_router, user_settings_router};
 
 /// Events that routers can emit to control navigation.
 pub enum RouterEvent {
@@ -54,10 +54,14 @@ impl std::fmt::Debug for RouterEvent {
 /// Global message type that can wrap any router's messages.
 #[derive(Debug, Clone)]
 pub enum Message {
-    /// Message for the account list router
+    /// Message for the user list router
     UserList(user_list_router::Message),
-    /// Message for the account router
+    /// Message for the user router
     User(user_router::Message),
+    /// Message for the user settings router
+    UserSettings(user_settings_router::Message),
+    /// Message for the profile list router
+    ProfileList(profile_list_router::Message),
 }
 
 /// Type-erased router node that can be stored in the stack.
