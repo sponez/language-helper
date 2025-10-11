@@ -4,6 +4,7 @@
 //! `UserRepository` trait. It's generic over the concrete persistence
 //! implementation to avoid circular dependencies.
 
+use async_trait::async_trait;
 use crate::models::user::User;
 use crate::errors::CoreError;
 use crate::repositories::user_repository::UserRepository;
@@ -12,21 +13,22 @@ use crate::repositories::user_repository::UserRepository;
 ///
 /// This trait defines the interface that persistence implementations must provide.
 /// It's separate from the core's `UserRepository` to maintain clean architecture.
-pub trait PersistenceUserRepository {
+#[async_trait]
+pub trait PersistenceUserRepository: Send + Sync {
     /// The error type returned by this repository.
     type Error: std::fmt::Display;
 
     /// Finds a user by username.
-    fn find_by_username(&self, username: &str) -> Result<Option<User>, Self::Error>;
+    async fn find_by_username(&self, username: &str) -> Result<Option<User>, Self::Error>;
 
     /// Retrieves all users.
-    fn find_all(&self) -> Result<Vec<User>, Self::Error>;
+    async fn find_all(&self) -> Result<Vec<User>, Self::Error>;
 
     /// Saves a user.
-    fn save(&self, user: User) -> Result<User, Self::Error>;
+    async fn save(&self, user: User) -> Result<User, Self::Error>;
 
     /// Deletes a user by username.
-    fn delete(&self, username: &str) -> Result<bool, Self::Error>;
+    async fn delete(&self, username: &str) -> Result<bool, Self::Error>;
 }
 
 /// Adapter that wraps a persistence repository and maps errors.
@@ -68,28 +70,33 @@ impl<R> UserRepositoryAdapter<R> {
     }
 }
 
-impl<R: PersistenceUserRepository + Send + Sync> UserRepository for UserRepositoryAdapter<R> {
-    fn find_all(&self) -> Result<Vec<User>, CoreError> {
+#[async_trait]
+impl<R: PersistenceUserRepository> UserRepository for UserRepositoryAdapter<R> {
+    async fn find_all(&self) -> Result<Vec<User>, CoreError> {
         self.repository
             .find_all()
+            .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    fn find_by_username(&self, username: &str) -> Result<Option<User>, CoreError> {
+    async fn find_by_username(&self, username: &str) -> Result<Option<User>, CoreError> {
         self.repository
             .find_by_username(username)
+            .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    fn save(&self, user: User) -> Result<User, CoreError> {
+    async fn save(&self, user: User) -> Result<User, CoreError> {
         self.repository
             .save(user)
+            .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    fn delete(&self, username: &str) -> Result<bool, CoreError> {
+    async fn delete(&self, username: &str) -> Result<bool, CoreError> {
         self.repository
             .delete(username)
+            .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 }
@@ -131,24 +138,25 @@ mod tests {
         }
     }
 
+    #[async_trait]
     impl PersistenceUserRepository for MockPersistenceRepository {
         type Error = MockError;
 
-        fn find_by_username(&self, username: &str) -> Result<Option<User>, Self::Error> {
+        async fn find_by_username(&self, username: &str) -> Result<Option<User>, Self::Error> {
             if self.should_fail {
                 return Err(MockError("Database error".to_string()));
             }
             Ok(self.users.lock().unwrap().get(username).cloned())
         }
 
-        fn find_all(&self) -> Result<Vec<User>, Self::Error> {
+        async fn find_all(&self) -> Result<Vec<User>, Self::Error> {
             if self.should_fail {
                 return Err(MockError("Database error".to_string()));
             }
             Ok(self.users.lock().unwrap().values().cloned().collect())
         }
 
-        fn save(&self, user: User) -> Result<User, Self::Error> {
+        async fn save(&self, user: User) -> Result<User, Self::Error> {
             if self.should_fail {
                 return Err(MockError("Database error".to_string()));
             }
@@ -159,7 +167,7 @@ mod tests {
             Ok(user)
         }
 
-        fn delete(&self, username: &str) -> Result<bool, Self::Error> {
+        async fn delete(&self, username: &str) -> Result<bool, Self::Error> {
             if self.should_fail {
                 return Err(MockError("Database error".to_string()));
             }
@@ -167,91 +175,91 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_adapter_creation() {
+    #[tokio::test]
+    async fn test_adapter_creation() {
         let repo = MockPersistenceRepository::new();
         let adapter = UserRepositoryAdapter::new(repo);
 
         // Should be able to use as UserRepository trait
-        let result = adapter.find_all();
+        let result = adapter.find_all().await;
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_adapter_find_all() {
+    #[tokio::test]
+    async fn test_adapter_find_all() {
         let repo = MockPersistenceRepository::new();
         let adapter = UserRepositoryAdapter::new(repo);
 
-        let users = adapter.find_all().unwrap();
+        let users = adapter.find_all().await.unwrap();
         assert_eq!(users.len(), 0);
     }
 
-    #[test]
-    fn test_adapter_save_and_find() {
+    #[tokio::test]
+    async fn test_adapter_save_and_find() {
         let repo = MockPersistenceRepository::new();
         let adapter = UserRepositoryAdapter::new(repo);
 
         let user = User::new_unchecked("test_user".to_string());
-        let saved = adapter.save(user.clone()).unwrap();
+        let saved = adapter.save(user.clone()).await.unwrap();
         assert_eq!(saved.username, "test_user");
 
-        let found = adapter.find_by_username("test_user").unwrap();
+        let found = adapter.find_by_username("test_user").await.unwrap();
         assert!(found.is_some());
         assert_eq!(found.unwrap().username, "test_user");
     }
 
-    #[test]
-    fn test_adapter_delete() {
+    #[tokio::test]
+    async fn test_adapter_delete() {
         let repo = MockPersistenceRepository::new();
         let adapter = UserRepositoryAdapter::new(repo);
 
         let user = User::new_unchecked("test_user".to_string());
-        adapter.save(user).unwrap();
+        adapter.save(user).await.unwrap();
 
-        let deleted = adapter.delete("test_user").unwrap();
+        let deleted = adapter.delete("test_user").await.unwrap();
         assert!(deleted);
 
-        let found = adapter.find_by_username("test_user").unwrap();
+        let found = adapter.find_by_username("test_user").await.unwrap();
         assert!(found.is_none());
     }
 
-    #[test]
-    fn test_adapter_delete_nonexistent() {
+    #[tokio::test]
+    async fn test_adapter_delete_nonexistent() {
         let repo = MockPersistenceRepository::new();
         let adapter = UserRepositoryAdapter::new(repo);
 
-        let deleted = adapter.delete("nonexistent").unwrap();
+        let deleted = adapter.delete("nonexistent").await.unwrap();
         assert!(!deleted);
     }
 
-    #[test]
-    fn test_adapter_error_mapping() {
+    #[tokio::test]
+    async fn test_adapter_error_mapping() {
         let repo = MockPersistenceRepository::with_failure();
         let adapter = UserRepositoryAdapter::new(repo);
 
         // All operations should fail and map to CoreError
-        let result = adapter.find_all();
+        let result = adapter.find_all().await;
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
             CoreError::RepositoryError { .. }
         ));
 
-        let result = adapter.find_by_username("test");
+        let result = adapter.find_by_username("test").await;
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
             CoreError::RepositoryError { .. }
         ));
 
-        let result = adapter.save(User::new_unchecked("test".to_string()));
+        let result = adapter.save(User::new_unchecked("test".to_string())).await;
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
             CoreError::RepositoryError { .. }
         ));
 
-        let result = adapter.delete("test");
+        let result = adapter.delete("test").await;
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),

@@ -3,6 +3,7 @@
 //! This module defines the main application API trait that aggregates all API endpoints.
 
 use crate::apis::app_settings_api::AppSettingsApi;
+use crate::apis::profiles_api::ProfilesApi;
 use crate::apis::user_api::UsersApi;
 
 /// The main application API trait.
@@ -34,4 +35,11 @@ pub trait AppApi: Send + Sync {
     ///
     /// A reference to an object implementing the `AppSettingsApi` trait.
     fn app_settings_api(&self) -> &dyn AppSettingsApi;
+
+    /// Returns a reference to the Profiles API.
+    ///
+    /// # Returns
+    ///
+    /// A reference to an object implementing the `ProfilesApi` trait.
+    fn profile_api(&self) -> &dyn ProfilesApi;
 }

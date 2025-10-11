@@ -59,11 +59,15 @@ impl AppSettingsEntity {
     /// # Returns
     ///
     /// A new `AppSettingsEntity` instance.
-    pub fn new(ui_theme: String, default_ui_language: String) -> Self {
+    pub fn new<UT, UL>(ui_theme: UT, default_ui_language: UL) -> Self
+    where
+        UT: AsRef<str> + Into<String>,
+        UL: AsRef<str> + Into<String>,
+    {
         Self {
             id: 1,
-            ui_theme,
-            default_ui_language,
+            ui_theme: ui_theme.into(),
+            default_ui_language: default_ui_language.into(),
         }
     }
 

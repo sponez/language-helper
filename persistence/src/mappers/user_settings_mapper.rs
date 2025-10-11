@@ -28,9 +28,9 @@ pub fn entity_to_model(entity: &UserSettingsEntity) -> UserSettings {
 /// # Returns
 ///
 /// A UserSettingsEntity
-pub fn model_to_entity(username: String, settings: &UserSettings) -> UserSettingsEntity {
+pub fn model_to_entity(username: &str, settings: &UserSettings) -> UserSettingsEntity {
     UserSettingsEntity::new(
-        username.clone(),
+        username,
         settings.ui_theme.clone(),
         settings.ui_language.clone(),
     )
@@ -55,13 +55,13 @@ mod tests {
 
     #[test]
     fn test_model_to_entity() {
-        let username = "test_user".to_string();
+        let username = "test_user";
         let settings = UserSettings::new(
             "Light".to_string(),
             "es".to_string(),
         )
         .unwrap();
-        let entity = model_to_entity(username.clone(), &settings);
+        let entity = model_to_entity(username, &settings);
 
         assert_eq!(entity.username, username);
         assert_eq!(entity.ui_theme, settings.ui_theme);
@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let username = "Bob".to_string();
+        let username = "Bob";
         let original_settings = UserSettings::new(
             "Nord".to_string(),
             "fr".to_string(),

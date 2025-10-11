@@ -25,22 +25,28 @@ impl UserView {
     /// # Arguments
     ///
     /// * `username` - The username to display
-    pub fn new(username: String) -> Self {
+    pub fn new<U>(username: U) -> Self
+    where
+        U: AsRef<str> + Into<String>,
+    {
         Self {
-            username,
+            username: username.into(),
             settings: None,
             profiles: Vec::new(),
         }
     }
 
     /// Creates a UserView with settings and profiles.
-    pub fn with_details(
-        username: String,
+    pub fn with_details<U>(
+        username: U,
         settings: UserSettingsView,
         profiles: Vec<ProfileView>,
-    ) -> Self {
+    ) -> Self
+    where
+        U: AsRef<str> + Into<String>,
+    {
         Self {
-            username,
+            username: username.into(),
             settings: Some(settings),
             profiles,
         }

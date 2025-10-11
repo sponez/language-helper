@@ -29,7 +29,7 @@
 
 use iced::Element;
 
-use crate::routers::{user_list_router, user_router};
+use crate::routers::{profile_list_router, profile_router, user_list_router, user_router, user_settings_router};
 
 /// Events that routers can emit to control navigation.
 pub enum RouterEvent {
@@ -37,6 +37,10 @@ pub enum RouterEvent {
     Push(Box<dyn RouterNode>),
     /// Go back by popping the current router from the stack
     Pop,
+    /// Go back and refresh the previous router's data
+    PopAndRefresh,
+    /// Pop multiple routers from the stack at once
+    PopMultiple(usize),
     /// Exit the application entirely
     Exit,
 }
@@ -46,6 +50,8 @@ impl std::fmt::Debug for RouterEvent {
         match self {
             RouterEvent::Push(_) => f.debug_tuple("Push").field(&"<router>").finish(),
             RouterEvent::Pop => f.debug_tuple("Pop").finish(),
+            RouterEvent::PopAndRefresh => f.debug_tuple("PopAndRefresh").finish(),
+            RouterEvent::PopMultiple(count) => f.debug_tuple("PopMultiple").field(count).finish(),
             RouterEvent::Exit => f.debug_tuple("Exit").finish(),
         }
     }
@@ -54,10 +60,16 @@ impl std::fmt::Debug for RouterEvent {
 /// Global message type that can wrap any router's messages.
 #[derive(Debug, Clone)]
 pub enum Message {
-    /// Message for the account list router
+    /// Message for the user list router
     UserList(user_list_router::Message),
-    /// Message for the account router
+    /// Message for the user router
     User(user_router::Message),
+    /// Message for the user settings router
+    UserSettings(user_settings_router::Message),
+    /// Message for the profile list router
+    ProfileList(profile_list_router::Message),
+    /// Message for the profile router
+    Profile(profile_router::Message),
 }
 
 /// Type-erased router node that can be stored in the stack.
@@ -73,6 +85,12 @@ pub trait RouterNode {
 
     /// Get the current theme from the router
     fn theme(&self) -> iced::Theme;
+
+    /// Refresh the router's data from the API
+    ///
+    /// This is called when returning from a child router that may have modified data.
+    /// Default implementation does nothing.
+    fn refresh(&mut self) {}
 }
 
 /// Manages a stack of routers for hierarchical navigation.
@@ -121,6 +139,28 @@ impl RouterStack {
                     } else {
                         // Can't pop the root router - exit instead
                         return Ok(true);
+                    }
+                }
+                RouterEvent::PopAndRefresh => {
+                    if self.stack.len() > 1 {
+                        self.stack.pop();
+                        // Refresh the now-current router
+                        if let Some(current_router) = self.stack.last_mut() {
+                            current_router.refresh();
+                        }
+                    } else {
+                        // Can't pop the root router - exit instead
+                        return Ok(true);
+                    }
+                }
+                RouterEvent::PopMultiple(count) => {
+                    for _ in 0..count {
+                        if self.stack.len() > 1 {
+                            self.stack.pop();
+                        } else {
+                            // Can't pop the root router - exit instead
+                            return Ok(true);
+                        }
                     }
                 }
                 RouterEvent::Exit => {

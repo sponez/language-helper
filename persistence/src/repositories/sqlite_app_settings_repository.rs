@@ -161,15 +161,61 @@ impl SqliteAppSettingsRepository {
     }
 }
 
+#[async_trait::async_trait]
 impl PersistenceAppSettingsRepository for SqliteAppSettingsRepository {
     type Error = PersistenceError;
 
-    fn get(&self) -> Result<AppSettings, Self::Error> {
-        self.get()
+    async fn get(&self) -> Result<AppSettings, Self::Error> {
+        let conn = self.connection.clone();
+        tokio::task::spawn_blocking(move || {
+            let connection = conn.lock().map_err(|e| {
+                PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
+            })?;
+
+            let entity = connection
+                .query_row(
+                    "SELECT id, ui_theme, default_ui_language FROM app_settings WHERE id = 1",
+                    [],
+                    |row| {
+                        Ok(AppSettingsEntity {
+                            id: row.get(0)?,
+                            ui_theme: row.get(1)?,
+                            default_ui_language: row.get(2)?,
+                        })
+                    },
+                )
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to query settings: {}", e))
+                })?;
+
+            Ok(app_settings_mapper::entity_to_model(&entity))
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    fn update(&self, settings: AppSettings) -> Result<AppSettings, Self::Error> {
-        self.update(settings)
+    async fn update(&self, settings: AppSettings) -> Result<AppSettings, Self::Error> {
+        let conn = self.connection.clone();
+        tokio::task::spawn_blocking(move || {
+            let connection = conn.lock().map_err(|e| {
+                PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
+            })?;
+
+            let entity = app_settings_mapper::model_to_entity(&settings);
+
+            connection
+                .execute(
+                    "UPDATE app_settings SET ui_theme = ?1, default_ui_language = ?2 WHERE id = 1",
+                    params![entity.ui_theme, entity.default_ui_language],
+                )
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to update settings: {}", e))
+                })?;
+
+            Ok(settings)
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 }
 

@@ -9,6 +9,8 @@ rusqlite = { version = "0.37.0", features = ["bundled"] }
 chrono = "0.4"
 uuid = { version = "1.10", features = ["v4"] }
 thiserror = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3.8"

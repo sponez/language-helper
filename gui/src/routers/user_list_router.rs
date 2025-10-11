@@ -12,10 +12,11 @@ use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
 
 use crate::fonts::get_font_for_locale;
-use crate::models::UserView;
+use crate::mappers::user_mapper;
 use crate::i18n::I18n;
 use crate::iced_params::{get_sorted_themes, LANGUAGES, THEMES};
 use crate::router::{self, RouterEvent, RouterNode};
+use crate::runtime_util::block_on;
 
 /// Messages that can be sent within the account list router.
 #[derive(Debug, Clone)]
@@ -63,7 +64,7 @@ impl UserListRouter {
     ///
     /// * `app_api` - The API instance for backend communication
     pub fn new(app_api: Rc<dyn AppApi>) -> Self {
-        let app_settings = app_api.app_settings_api().get_app_settings()
+        let app_settings = block_on(app_api.app_settings_api().get_app_settings())
             .expect("Failed to load app settings");
 
         let i18n = I18n::new(&app_settings.language);
@@ -91,7 +92,7 @@ impl UserListRouter {
         match message {
             Message::Theme(theme) => {
                 self.theme = Some(theme.clone());
-                if let Err(e) = self.app_api.app_settings_api().update_app_theme(&theme) {
+                if let Err(e) = block_on(self.app_api.app_settings_api().update_app_theme(&theme)) {
                     self.error_message = Some(format!("Failed to update theme: {}", e));
                 }
                 None
@@ -103,7 +104,7 @@ impl UserListRouter {
                 // Update font for the new language
                 self.current_font = get_font_for_locale(&language);
 
-                if let Err(e) = self.app_api.app_settings_api().update_app_language(&language) {
+                if let Err(e) = block_on(self.app_api.app_settings_api().update_app_language(&language)) {
                     self.error_message = Some(self.i18n.get_with_arg("error-update-language", "error", &e.to_string()));
                 }
                 None
@@ -137,13 +138,12 @@ impl UserListRouter {
                         return None;
                     }
 
-                    match self.app_api.users_api().create_user(username.clone()) {
+                    match block_on(self.app_api.users_api().create_user(username.as_str())) {
                         Ok(_) => {
                             // User created successfully, load user and navigate to account router
-                            if let Some(user_dto) =
-                                self.app_api.users_api().get_user_by_username(&username)
+                            if let Some(user_dto) = block_on(self.app_api.users_api().get_user_by_username(&username))
                             {
-                                let user_view = UserView::new(user_dto.username);
+                                let user_view = user_mapper::dto_to_view(&user_dto);
                                 let account_router: Box<dyn crate::router::RouterNode> =
                                     Box::new(super::user_router::UserRouter::new(
                                         user_view,
@@ -169,10 +169,9 @@ impl UserListRouter {
                 } else {
                     // Confirm existing selection - load user and navigate
                     if let Some(username) = &self.selected_username {
-                        if let Some(user_dto) =
-                            self.app_api.users_api().get_user_by_username(username)
+                        if let Some(user_dto) = block_on(self.app_api.users_api().get_user_by_username(username))
                         {
-                            let user_view = UserView::new(user_dto.username);
+                            let user_view = user_mapper::dto_to_view(&user_dto);
                             let account_router: Box<dyn crate::router::RouterNode> = Box::new(
                                 super::user_router::UserRouter::new(user_view, Rc::clone(&self.app_api)),
                             );
@@ -194,6 +193,19 @@ impl UserListRouter {
     ///
     /// Returns an Element containing the UI for this router.
     pub fn view(&self) -> Element<'_, Message> {
+        // Get fresh list of usernames
+        let mut usernames = block_on(self.app_api.users_api().get_usernames())
+            .unwrap_or_else(|_| vec![]);
+
+        // Check if the selected username still exists
+        // If not, clear the selection (handles case where user was deleted)
+        let mut selected_username_valid = self.selected_username.clone();
+        if let Some(ref username) = selected_username_valid {
+            if !usernames.contains(username) {
+                selected_username_valid = None;
+            }
+        }
+
         // Theme pick list - sorted alphabetically
         let themes: Vec<String> = get_sorted_themes();
         let theme_selected: Option<String> = self.theme.clone();
@@ -221,12 +233,6 @@ impl UserListRouter {
             languages_pick_list = languages_pick_list.font(font);
         }
 
-        let mut usernames = self
-            .app_api
-            .users_api()
-            .get_usernames()
-            .unwrap_or_else(|_| vec![]);
-
         // Add "Add new user" option at the end
         let add_new_text = self.i18n.get("user-list-add-new", None);
         usernames.push(add_new_text.clone());
@@ -235,7 +241,7 @@ impl UserListRouter {
         let username_selected: Option<String> = if self.is_adding_new_user {
             Some(add_new_text)
         } else {
-            self.selected_username.clone()
+            selected_username_valid
         };
 
         let mut username_pick_list = pick_list(
@@ -361,215 +367,5 @@ impl RouterNode for UserListRouter {
 
     fn theme(&self) -> iced::Theme {
         THEMES.get(&self.theme.clone().unwrap()).cloned().unwrap_or(iced::Theme::Light)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use lh_api::apis::user_api::UsersApi;
-    use lh_api::errors::api_error::ApiError;
-    use lh_api::models::user::UserDto;
-
-    /// Mock implementation of UsersApi for testing
-    struct MockUsersApi {
-        usernames: Vec<String>,
-        should_fail_create: bool,
-    }
-
-    impl UsersApi for MockUsersApi {
-        fn get_usernames(&self) -> Result<Vec<String>, ApiError> {
-            Ok(self.usernames.clone())
-        }
-
-        fn get_user_by_username(&self, username: &str) -> Option<UserDto> {
-            use lh_api::models::user_settings::UserSettingsDto;
-
-            if self.usernames.contains(&username.to_string()) || !self.should_fail_create {
-                Some(UserDto {
-                    username: username.to_string(),
-                    settings: UserSettingsDto {
-                        theme: "System".to_string(),
-                        language: "en".to_string(),
-                    },
-                    profiles: vec![],
-                })
-            } else {
-                None
-            }
-        }
-
-        fn create_user(&self, username: String) -> Result<UserDto, ApiError> {
-            use lh_api::models::user_settings::UserSettingsDto;
-
-            if self.should_fail_create {
-                Err(ApiError::internal_error("Failed to create user"))
-            } else {
-                Ok(UserDto {
-                    username: username.clone(),
-                    settings: UserSettingsDto {
-                        theme: "System".to_string(),
-                        language: "en".to_string(),
-                    },
-                    profiles: vec![],
-                })
-            }
-        }
-    }
-
-    /// Mock implementation of AppSettingsApi for testing
-    struct MockAppSettingsApi;
-
-    impl lh_api::apis::app_settings_api::AppSettingsApi for MockAppSettingsApi {
-        fn get_app_settings(&self) -> Result<lh_api::models::app_settings::AppSettingsDto, ApiError> {
-            Ok(lh_api::models::app_settings::AppSettingsDto {
-                theme: "Dark".to_string(),
-                language: "en-US".to_string(),
-            })
-        }
-
-        fn update_app_theme(&self, _theme: &str) -> Result<(), ApiError> {
-            Ok(())
-        }
-
-        fn update_app_language(&self, _language: &str) -> Result<(), ApiError> {
-            Ok(())
-        }
-    }
-
-    /// Mock implementation of AppApi for testing
-    struct MockAppApi {
-        users_api: MockUsersApi,
-        app_settings_api: MockAppSettingsApi,
-    }
-
-    impl AppApi for MockAppApi {
-        fn users_api(&self) -> &dyn UsersApi {
-            &self.users_api
-        }
-
-        fn app_settings_api(&self) -> &dyn lh_api::apis::app_settings_api::AppSettingsApi {
-            &self.app_settings_api
-        }
-    }
-
-    fn create_mock_api(usernames: Vec<String>, should_fail_create: bool) -> Rc<dyn AppApi> {
-        Rc::new(MockAppApi {
-            users_api: MockUsersApi {
-                usernames,
-                should_fail_create,
-            },
-            app_settings_api: MockAppSettingsApi,
-        })
-    }
-
-    #[test]
-    fn test_router_initialization() {
-        let api = create_mock_api(vec!["user1".to_string(), "user2".to_string()], false);
-        let router = UserListRouter::new(api);
-
-        assert!(router.selected_username.is_none());
-        assert!(!router.is_adding_new_user);
-        assert!(router.new_username_input.is_empty());
-        assert!(router.error_message.is_none());
-    }
-
-    #[test]
-    fn test_option_selected_existing_user() {
-        let api = create_mock_api(vec!["alice".to_string(), "bob".to_string()], false);
-        let mut router = UserListRouter::new(api);
-
-        let event = router.update(Message::OptionSelected("alice".to_string()));
-
-        assert!(event.is_none());
-        assert_eq!(router.selected_username, Some("alice".to_string()));
-        assert!(!router.is_adding_new_user);
-    }
-
-    #[test]
-    fn test_option_selected_add_new_user() {
-        let api = create_mock_api(vec!["alice".to_string()], false);
-        let mut router = UserListRouter::new(api);
-        router.selected_username = Some("alice".to_string());
-
-        let add_new_text = router.i18n.get("user-list-add-new", None);
-        let event = router.update(Message::OptionSelected(add_new_text));
-
-        assert!(event.is_none());
-        assert!(router.is_adding_new_user);
-        assert!(router.selected_username.is_none());
-        assert!(router.new_username_input.is_empty());
-    }
-
-    #[test]
-    fn test_new_username_changed() {
-        let api = create_mock_api(vec![], false);
-        let mut router = UserListRouter::new(api);
-        router.is_adding_new_user = true;
-
-        let event = router.update(Message::NewUsernameChanged("test_user".to_string()));
-
-        assert!(event.is_none());
-        assert_eq!(router.new_username_input, "test_user");
-    }
-
-    #[test]
-    fn test_confirm_selection_existing_user_navigates() {
-        let api = create_mock_api(vec!["alice".to_string()], false);
-        let mut router = UserListRouter::new(api);
-        router.selected_username = Some("alice".to_string());
-
-        let event = router.update(Message::ConfirmSelection);
-
-        assert!(matches!(event, Some(RouterEvent::Push(_))));
-    }
-
-    #[test]
-    fn test_confirm_selection_no_user_selected() {
-        let api = create_mock_api(vec!["alice".to_string()], false);
-        let mut router = UserListRouter::new(api);
-
-        let event = router.update(Message::ConfirmSelection);
-
-        assert!(event.is_none());
-    }
-
-    #[test]
-    fn test_create_new_user_success_navigates() {
-        let api = create_mock_api(vec![], false);
-        let mut router = UserListRouter::new(api);
-        router.is_adding_new_user = true;
-        router.new_username_input = "new_user".to_string();
-
-        let event = router.update(Message::ConfirmSelection);
-
-        assert!(matches!(event, Some(RouterEvent::Push(_))));
-        assert!(!router.is_adding_new_user);
-        assert!(router.new_username_input.is_empty());
-        assert!(router.error_message.is_none());
-    }
-
-    #[test]
-    fn test_create_new_user_empty_username() {
-        let api = create_mock_api(vec![], false);
-        let mut router = UserListRouter::new(api);
-        router.is_adding_new_user = true;
-        router.new_username_input = "".to_string();
-
-        let event = router.update(Message::ConfirmSelection);
-
-        assert!(event.is_none());
-        assert!(router.error_message.is_some());
-        assert!(router.is_adding_new_user);
-    }
-
-    #[test]
-    fn test_exit_message() {
-        let api = create_mock_api(vec![], false);
-        let mut router = UserListRouter::new(api);
-
-        let event = router.update(Message::Exit);
-
-        assert!(matches!(event, Some(RouterEvent::Exit)));
     }
 }

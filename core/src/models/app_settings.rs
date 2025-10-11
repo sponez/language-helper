@@ -77,12 +77,16 @@ impl AppSettings {
     /// // Invalid theme
     /// assert!(AppSettings::new("Invalid".to_string(), "en".to_string()).is_err());
     /// ```
-    pub fn new(ui_theme: String, default_ui_language: String) -> Result<Self, CoreError> {
-        Self::validate_theme(&ui_theme)?;
-        Self::validate_language_code(&default_ui_language)?;
+    pub fn new<UT, UL>(ui_theme: UT, default_ui_language: UL) -> Result<Self, CoreError>
+    where
+        UT: AsRef<str> + Into<String>,
+        UL: AsRef<str> + Into<String>
+    {
+        Self::validate_theme(ui_theme.as_ref())?;
+        Self::validate_language_code(default_ui_language.as_ref())?;
         Ok(Self {
-            ui_theme,
-            default_ui_language,
+            ui_theme: ui_theme.into(),
+            default_ui_language: default_ui_language.into(),
         })
     }
 

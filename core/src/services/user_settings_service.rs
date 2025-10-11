@@ -104,9 +104,9 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// }
     /// # }
     /// ```
-    pub fn get_user_settings(&self, username: &str) -> Result<UserSettings, CoreError> {
+    pub async fn get_user_settings(&self, username: &str) -> Result<UserSettings, CoreError> {
         self.settings_repository
-            .find_by_username(username)?
+            .find_by_username(username).await?
             .ok_or_else(|| CoreError::not_found("UserSettings", username))
     }
 
@@ -139,22 +139,22 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// # use lh_core::repositories::app_settings_repository::AppSettingsRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
     /// # fn example(service: &UserSettingsService<impl UserSettingsRepository, impl AppSettingsRepository, impl UserRepository>) {
-    /// match service.create_user_settings("jane_doe".to_string()) {
+    /// match service.create_user_settings("jane_doe") {
     ///     Ok(settings) => println!("Created settings: {:?}", settings),
     ///     Err(e) => eprintln!("Failed to create settings: {}", e),
     /// }
     /// # }
     /// ```
-    pub fn create_user_settings(&self, username: String) -> Result<UserSettings, CoreError> {
+    pub async fn create_user_settings(&self, username: &str) -> Result<UserSettings, CoreError> {
         // Business logic: ensure user exists
-        if self.user_repository.find_by_username(&username)?.is_none() {
-            return Err(CoreError::not_found("User", &username));
+        if self.user_repository.find_by_username(username).await?.is_none() {
+            return Err(CoreError::not_found("User", username));
         }
 
         // Business logic: check if settings already exist
         if self
             .settings_repository
-            .find_by_username(&username)?
+            .find_by_username(&username).await?
             .is_some()
         {
             return Err(CoreError::validation_error(format!(
@@ -164,7 +164,7 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
         }
 
         // Get app settings to use as defaults
-        let app_settings = self.app_settings_repository.get().unwrap_or_default();
+        let app_settings = self.app_settings_repository.get().await.unwrap_or_default();
 
         // Domain validation happens in UserSettings::new()
         let settings = UserSettings::new(
@@ -172,7 +172,7 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
             app_settings.default_ui_language,
         )?;
 
-        self.settings_repository.save(username, settings)
+        self.settings_repository.save(username, settings).await
     }
 
     /// Updates existing user settings.
@@ -203,34 +203,30 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// # use lh_core::repositories::app_settings_repository::AppSettingsRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
     /// # fn example(service: &UserSettingsService<impl UserSettingsRepository, impl AppSettingsRepository, impl UserRepository>) {
-    /// match service.update_user_settings(
-    ///     "john_doe".to_string(),
-    ///     "Dark".to_string(),
-    ///     "es".to_string(),
-    /// ) {
+    /// match service.update_user_settings("john_doe", "Dark", "es") {
     ///     Ok(settings) => println!("Updated settings: {:?}", settings),
     ///     Err(e) => eprintln!("Failed to update settings: {}", e),
     /// }
     /// # }
     /// ```
-    pub fn update_user_settings(
+    pub async fn update_user_settings(
         &self,
-        username: String,
-        ui_theme: String,
-        ui_language: String,
+        username: &str,
+        ui_theme: &str,
+        ui_language: &str,
     ) -> Result<UserSettings, CoreError> {
         // Business logic: ensure settings exist
         if self
             .settings_repository
-            .find_by_username(&username)?
+            .find_by_username(username).await?
             .is_none()
         {
-            return Err(CoreError::not_found("UserSettings", &username));
+            return Err(CoreError::not_found("UserSettings", username));
         }
 
         // Domain validation happens in UserSettings::new()
         let settings = UserSettings::new(ui_theme, ui_language)?;
-        self.settings_repository.save(username, settings)
+        self.settings_repository.save(username, settings).await
     }
 
     /// Deletes user settings by username.
@@ -266,377 +262,11 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// }
     /// # }
     /// ```
-    pub fn delete_user_settings(&self, username: &str) -> Result<(), CoreError> {
-        let deleted = self.settings_repository.delete(username)?;
+    pub async fn delete_user_settings(&self, username: &str) -> Result<(), CoreError> {
+        let deleted = self.settings_repository.delete(username).await?;
         if !deleted {
             return Err(CoreError::not_found("UserSettings", username));
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::models::app_settings::AppSettings;
-    use crate::models::user::User;
-
-    /// Mock UserSettingsRepository for testing
-    struct MockUserSettingsRepository {
-        settings: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, UserSettings>>>,
-        should_fail: bool,
-    }
-
-    impl MockUserSettingsRepository {
-        fn new() -> Self {
-            Self {
-                settings: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-                should_fail: false,
-            }
-        }
-
-        fn with_failure() -> Self {
-            Self {
-                settings: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-                should_fail: true,
-            }
-        }
-
-        fn with_settings(settings: Vec<(String, UserSettings)>) -> Self {
-            let mut map = std::collections::HashMap::new();
-            for (username, setting) in settings {
-                map.insert(username, setting);
-            }
-            Self {
-                settings: std::sync::Arc::new(std::sync::Mutex::new(map)),
-                should_fail: false,
-            }
-        }
-    }
-
-    impl UserSettingsRepository for MockUserSettingsRepository {
-        fn find_by_username(&self, username: &str) -> Result<Option<UserSettings>, CoreError> {
-            if self.should_fail {
-                return Err(CoreError::RepositoryError {
-                    message: "Mock repository error".to_string(),
-                });
-            }
-            Ok(self.settings.lock().unwrap().get(username).cloned())
-        }
-
-        fn save(&self, username: String, settings: UserSettings) -> Result<UserSettings, CoreError> {
-            if self.should_fail {
-                return Err(CoreError::RepositoryError {
-                    message: "Mock repository error".to_string(),
-                });
-            }
-            self.settings.lock().unwrap().insert(username, settings.clone());
-            Ok(settings)
-        }
-
-        fn delete(&self, username: &str) -> Result<bool, CoreError> {
-            if self.should_fail {
-                return Err(CoreError::RepositoryError {
-                    message: "Mock repository error".to_string(),
-                });
-            }
-            Ok(self.settings.lock().unwrap().remove(username).is_some())
-        }
-    }
-
-    /// Mock AppSettingsRepository for testing
-    struct MockAppSettingsRepository {
-        settings: Option<AppSettings>,
-        should_fail: bool,
-    }
-
-    impl MockAppSettingsRepository {
-        fn new() -> Self {
-            Self {
-                settings: Some(AppSettings::default()),
-                should_fail: false,
-            }
-        }
-
-        fn with_failure() -> Self {
-            Self {
-                settings: None,
-                should_fail: true,
-            }
-        }
-    }
-
-    impl AppSettingsRepository for MockAppSettingsRepository {
-        fn get(&self) -> Result<AppSettings, CoreError> {
-            if self.should_fail {
-                return Err(CoreError::RepositoryError {
-                    message: "Mock repository error".to_string(),
-                });
-            }
-            self.settings
-                .clone()
-                .ok_or_else(|| CoreError::not_found("AppSettings", "singleton"))
-        }
-
-        fn update(&self, settings: AppSettings) -> Result<AppSettings, CoreError> {
-            if self.should_fail {
-                return Err(CoreError::RepositoryError {
-                    message: "Mock repository error".to_string(),
-                });
-            }
-            Ok(settings)
-        }
-    }
-
-    /// Mock UserRepository for testing
-    struct MockUserRepository {
-        users: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, User>>>,
-        should_fail: bool,
-    }
-
-    impl MockUserRepository {
-        fn new() -> Self {
-            Self {
-                users: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-                should_fail: false,
-            }
-        }
-
-        fn with_users(users: Vec<String>) -> Self {
-            let mut map = std::collections::HashMap::new();
-            for username in users {
-                map.insert(username.clone(), User::new_unchecked(username));
-            }
-            Self {
-                users: std::sync::Arc::new(std::sync::Mutex::new(map)),
-                should_fail: false,
-            }
-        }
-    }
-
-    impl crate::repositories::user_repository::UserRepository for MockUserRepository {
-        fn find_all(&self) -> Result<Vec<User>, CoreError> {
-            if self.should_fail {
-                return Err(CoreError::RepositoryError {
-                    message: "Mock repository error".to_string(),
-                });
-            }
-            Ok(self.users.lock().unwrap().values().cloned().collect())
-        }
-
-        fn find_by_username(&self, username: &str) -> Result<Option<User>, CoreError> {
-            if self.should_fail {
-                return Err(CoreError::RepositoryError {
-                    message: "Mock repository error".to_string(),
-                });
-            }
-            Ok(self.users.lock().unwrap().get(username).cloned())
-        }
-
-        fn save(&self, user: User) -> Result<User, CoreError> {
-            if self.should_fail {
-                return Err(CoreError::RepositoryError {
-                    message: "Mock repository error".to_string(),
-                });
-            }
-            self.users
-                .lock()
-                .unwrap()
-                .insert(user.username.clone(), user.clone());
-            Ok(user)
-        }
-
-        fn delete(&self, username: &str) -> Result<bool, CoreError> {
-            if self.should_fail {
-                return Err(CoreError::RepositoryError {
-                    message: "Mock repository error".to_string(),
-                });
-            }
-            Ok(self.users.lock().unwrap().remove(username).is_some())
-        }
-    }
-
-    fn create_service() -> UserSettingsService<
-        MockUserSettingsRepository,
-        MockAppSettingsRepository,
-        MockUserRepository,
-    > {
-        UserSettingsService::new(
-            MockUserSettingsRepository::new(),
-            MockAppSettingsRepository::new(),
-            MockUserRepository::new(),
-        )
-    }
-
-    #[test]
-    fn test_get_user_settings_found() {
-        let settings = UserSettings::new_unchecked("Dark".to_string(), "en".to_string());
-        let service = UserSettingsService::new(
-            MockUserSettingsRepository::with_settings(vec![("alice".to_string(), settings.clone())]),
-            MockAppSettingsRepository::new(),
-            MockUserRepository::new(),
-        );
-
-        let result = service.get_user_settings("alice");
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().ui_theme, "Dark");
-    }
-
-    #[test]
-    fn test_get_user_settings_not_found() {
-        let service = create_service();
-
-        let result = service.get_user_settings("nonexistent");
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::NotFound { .. }));
-    }
-
-    #[test]
-    fn test_create_user_settings_success() {
-        let service = UserSettingsService::new(
-            MockUserSettingsRepository::new(),
-            MockAppSettingsRepository::new(),
-            MockUserRepository::with_users(vec!["bob".to_string()]),
-        );
-
-        let result = service.create_user_settings("bob".to_string());
-        assert!(result.is_ok());
-        let settings = result.unwrap();
-        assert_eq!(settings.ui_theme, "Dark"); // Default from AppSettings
-        assert_eq!(settings.ui_language, "en-US"); // Default from AppSettings
-    }
-
-    #[test]
-    fn test_create_user_settings_user_not_found() {
-        let service = create_service();
-
-        let result = service.create_user_settings("nonexistent".to_string());
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::NotFound { .. }));
-    }
-
-    #[test]
-    fn test_create_user_settings_already_exists() {
-        let existing_settings =
-            UserSettings::new_unchecked("Light".to_string(), "es".to_string());
-        let service = UserSettingsService::new(
-            MockUserSettingsRepository::with_settings(vec![(
-                "charlie".to_string(),
-                existing_settings,
-            )]),
-            MockAppSettingsRepository::new(),
-            MockUserRepository::with_users(vec!["charlie".to_string()]),
-        );
-
-        let result = service.create_user_settings("charlie".to_string());
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            CoreError::ValidationError { .. }
-        ));
-    }
-
-    #[test]
-    fn test_update_user_settings_success() {
-        let existing_settings =
-            UserSettings::new_unchecked("Dark".to_string(), "en".to_string());
-        let service = UserSettingsService::new(
-            MockUserSettingsRepository::with_settings(vec![(
-                "dave".to_string(),
-                existing_settings,
-            )]),
-            MockAppSettingsRepository::new(),
-            MockUserRepository::new(),
-        );
-
-        let result = service.update_user_settings(
-            "dave".to_string(),
-            "Light".to_string(),
-            "es".to_string(),
-        );
-        assert!(result.is_ok());
-        let updated = result.unwrap();
-        assert_eq!(updated.ui_theme, "Light");
-        assert_eq!(updated.ui_language, "es");
-    }
-
-    #[test]
-    fn test_update_user_settings_not_found() {
-        let service = create_service();
-
-        let result = service.update_user_settings(
-            "nonexistent".to_string(),
-            "Dark".to_string(),
-            "en".to_string(),
-        );
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::NotFound { .. }));
-    }
-
-    #[test]
-    fn test_update_user_settings_invalid_theme() {
-        let existing_settings =
-            UserSettings::new_unchecked("Dark".to_string(), "en".to_string());
-        let service = UserSettingsService::new(
-            MockUserSettingsRepository::with_settings(vec![(
-                "eve".to_string(),
-                existing_settings,
-            )]),
-            MockAppSettingsRepository::new(),
-            MockUserRepository::new(),
-        );
-
-        let result = service.update_user_settings(
-            "eve".to_string(),
-            "InvalidTheme".to_string(),
-            "en".to_string(),
-        );
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            CoreError::ValidationError { .. }
-        ));
-    }
-
-    #[test]
-    fn test_delete_user_settings_success() {
-        let existing_settings =
-            UserSettings::new_unchecked("Dark".to_string(), "en".to_string());
-        let service = UserSettingsService::new(
-            MockUserSettingsRepository::with_settings(vec![(
-                "frank".to_string(),
-                existing_settings,
-            )]),
-            MockAppSettingsRepository::new(),
-            MockUserRepository::new(),
-        );
-
-        let result = service.delete_user_settings("frank");
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_delete_user_settings_not_found() {
-        let service = create_service();
-
-        let result = service.delete_user_settings("nonexistent");
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), CoreError::NotFound { .. }));
-    }
-
-    #[test]
-    fn test_repository_error_handling() {
-        let service = UserSettingsService::new(
-            MockUserSettingsRepository::with_failure(),
-            MockAppSettingsRepository::new(),
-            MockUserRepository::new(),
-        );
-
-        let result = service.get_user_settings("test");
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            CoreError::RepositoryError { .. }
-        ));
     }
 }

@@ -60,9 +60,14 @@ impl User {
     /// assert!(User::new("a".repeat(51)).is_err());
     /// assert!(User::new("invalid-name!".to_string()).is_err());
     /// ```
-    pub fn new(username: String) -> Result<Self, CoreError> {
-        Self::validate_username(&username)?;
-        Ok(Self { username })
+    pub fn new<U>(username: U) -> Result<Self, CoreError>
+    where
+        U: AsRef<str> + Into<String>,
+    {
+        Self::validate_username(username.as_ref())?;
+        Ok(Self {
+            username: username.into()
+        })
     }
 
     /// Creates a User without validation (for internal use only).

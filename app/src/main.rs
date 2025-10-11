@@ -7,18 +7,19 @@ use std::rc::Rc;
 
 use iced::{window, Element, Task};
 
-use lh_core::api_impl::{AppApiImpl, AppSettingsApiImpl, UsersApiImpl};
+use lh_core::api_impl::{AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl, UsersApiImpl};
 use lh_core::repositories::adapters::{
-    AppSettingsRepositoryAdapter, ProfileRepositoryAdapter, UserRepositoryAdapter,
-    UserSettingsRepositoryAdapter,
+    AppSettingsRepositoryAdapter, ProfileDbRepositoryAdapter, ProfileRepositoryAdapter,
+    UserRepositoryAdapter, UserSettingsRepositoryAdapter,
 };
 use lh_core::services::app_settings_service::AppSettingsService;
 use lh_core::services::profile_service::ProfileService;
+use lh_core::services::user_profiles_service::UserProfilesService;
 use lh_core::services::user_service::UserService;
 use lh_core::services::user_settings_service::UserSettingsService;
 use lh_persistence::{
-    SqliteAppSettingsRepository, SqliteProfileRepository, SqliteUserRepository,
-    SqliteUserSettingsRepository,
+    SqliteAppSettingsRepository, SqliteProfileDbRepository, SqliteProfileRepository,
+    SqliteUserRepository, SqliteUserSettingsRepository,
 };
 
 use gui::router::{Message, RouterNode, RouterStack};
@@ -171,19 +172,29 @@ fn main() -> iced::Result {
         UserRepositoryAdapter::new(user_persistence2),
     );
 
-    // For ProfileService
+    // For UserProfilesService (profile metadata)
     let user_persistence3 = SqliteUserRepository::new(&config.database_path)
-        .expect("Failed to initialize user repository for profile service");
+        .expect("Failed to initialize user repository for profile metadata service");
 
-    let profile_service = ProfileService::new(
+    let profile_metadata_service = UserProfilesService::new(
         profile_repository,
         UserRepositoryAdapter::new(user_persistence3),
     );
 
+    // For ProfileService (profile database management)
+    let profile_db_persistence = SqliteProfileDbRepository::new();
+    let profile_db_repository = ProfileDbRepositoryAdapter::new(profile_db_persistence);
+    let profile_db_service = ProfileService::new(profile_db_repository, &config.data_dir);
+
     // 4. Create the API implementations (bridge between core and API)
-    let users_api = UsersApiImpl::new(user_service, user_settings_service, profile_service);
+    let users_api = UsersApiImpl::new(
+        user_service,
+        user_settings_service,
+        profile_metadata_service,
+    );
+    let profiles_api = ProfilesApiImpl::new(profile_db_service);
     let app_settings_api = AppSettingsApiImpl::new(app_settings_service);
-    let app_api = AppApiImpl::new(users_api, app_settings_api);
+    let app_api = AppApiImpl::new(users_api, app_settings_api, profiles_api);
 
     // 5. Box the AppApi for trait object usage
     let app_api_boxed: Box<dyn lh_api::app_api::AppApi> = Box::new(app_api);

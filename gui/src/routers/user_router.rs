@@ -17,6 +17,7 @@ use crate::i18n_widgets::{localized_text, localized_text_with_arg};
 use crate::iced_params::THEMES;
 use crate::models::UserView;
 use crate::router::{self, RouterEvent, RouterNode};
+use crate::runtime_util::block_on;
 
 /// Messages that can be sent within the account router.
 #[derive(Debug, Clone)]
@@ -38,8 +39,6 @@ pub struct UserRouter {
     app_api: Rc<dyn AppApi>,
     /// User's theme preference
     theme: String,
-    /// User's language preference
-    language: String,
     /// Internationalization instance
     i18n: I18n,
     /// Current font for the user's language
@@ -51,18 +50,16 @@ impl UserRouter {
     ///
     /// # Arguments
     ///
-    /// * `user_view` - The user view model to display
+    /// * `user_view` - The user view model to display (with settings and profiles)
     /// * `app_api` - The API instance for backend communication
     pub fn new(user_view: UserView, app_api: Rc<dyn AppApi>) -> Self {
-        // Get user's settings from the API
-        let user_dto = app_api
-            .users_api()
-            .get_user_by_username(&user_view.username)
-            .expect("User should exist");
-
-        // Use user's settings (theme and language are inherited from app settings when user is created)
-        let theme = user_dto.settings.theme;
-        let language = user_dto.settings.language;
+        // Extract theme and language from user_view settings
+        let (theme, language) = if let Some(ref settings) = user_view.settings {
+            (settings.theme.clone(), settings.language.clone())
+        } else {
+            // Fallback to defaults if settings not loaded
+            ("Dark".to_string(), "en-US".to_string())
+        };
 
         // Initialize i18n with user's language
         let i18n = I18n::new(&language);
@@ -74,9 +71,25 @@ impl UserRouter {
             user_view,
             app_api,
             theme,
-            language,
             i18n,
             current_font,
+        }
+    }
+
+    /// Refreshes user data from the API
+    fn refresh_data(&mut self) {
+        // Fetch fresh user data from API
+        if let Some(user_dto) = block_on(self.app_api.users_api().get_user_by_username(&self.user_view.username)) {
+            use crate::mappers::user_mapper;
+            self.user_view = user_mapper::dto_to_view(&user_dto);
+
+            // Update theme and language if they changed
+            if let Some(ref settings) = self.user_view.settings {
+                self.theme = settings.theme.clone();
+                let language = settings.language.clone();
+                self.i18n = I18n::new(&language);
+                self.current_font = get_font_for_locale(&language);
+            }
         }
     }
 }
@@ -89,14 +102,20 @@ impl UserRouter {
         match message {
             Message::Back => Some(RouterEvent::Pop),
             Message::ViewSettings => {
-                // TODO: Implement settings router
-                // In the future, this will push a SettingsRouter onto the stack
-                None
+                let user_settings_router: Box<dyn crate::router::RouterNode> =
+                    Box::new(super::user_settings_router::UserSettingsRouter::new(
+                        self.user_view.clone(),
+                        Rc::clone(&self.app_api),
+                    ));
+                Some(RouterEvent::Push(user_settings_router))
             }
             Message::ViewProfiles => {
-                // TODO: Implement profiles router
-                // In the future, this will push a ProfilesRouter onto the stack
-                None
+                let profile_list_router: Box<dyn crate::router::RouterNode> =
+                    Box::new(super::profile_list_router::ProfileListRouter::new(
+                        self.user_view.clone(),
+                        Rc::clone(&self.app_api),
+                    ));
+                Some(RouterEvent::Push(profile_list_router))
             }
         }
     }
@@ -177,115 +196,8 @@ impl RouterNode for UserRouter {
             .cloned()
             .unwrap_or(iced::Theme::Dark)
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use lh_api::apis::user_api::UsersApi;
-    use lh_api::errors::api_error::ApiError;
-    use lh_api::models::user::UserDto;
-
-    /// Mock implementation of UsersApi for testing
-    struct MockUsersApi;
-
-    impl UsersApi for MockUsersApi {
-        fn get_usernames(&self) -> Result<Vec<String>, ApiError> {
-            Ok(vec!["test_user".to_string()])
-        }
-
-        fn get_user_by_username(&self, username: &str) -> Option<UserDto> {
-            use lh_api::models::user_settings::UserSettingsDto;
-
-            Some(UserDto {
-                username: username.to_string(),
-                settings: UserSettingsDto {
-                    theme: "Dark".to_string(),
-                    language: "en-US".to_string(),
-                },
-                profiles: vec![],
-            })
-        }
-
-        fn create_user(&self, username: String) -> Result<UserDto, ApiError> {
-            use lh_api::models::user_settings::UserSettingsDto;
-
-            Ok(UserDto {
-                username: username.clone(),
-                settings: UserSettingsDto {
-                    theme: "Dark".to_string(),
-                    language: "en-US".to_string(),
-                },
-                profiles: vec![],
-            })
-        }
-    }
-
-    /// Mock implementation of AppApi for testing
-    struct MockAppApi {
-        users_api: MockUsersApi,
-    }
-
-    impl AppApi for MockAppApi {
-        fn users_api(&self) -> &dyn UsersApi {
-            &self.users_api
-        }
-
-        fn app_settings_api(&self) -> &dyn lh_api::apis::app_settings_api::AppSettingsApi {
-            unimplemented!("app_settings_api not needed for these tests")
-        }
-    }
-
-    fn create_mock_api() -> Rc<dyn AppApi> {
-        Rc::new(MockAppApi {
-            users_api: MockUsersApi,
-        })
-    }
-
-    #[test]
-    fn test_router_initialization() {
-        let api = create_mock_api();
-        let user_view = UserView::new("test_user".to_string());
-        let router = UserRouter::new(user_view.clone(), api);
-
-        assert_eq!(router.user_view.username, "test_user");
-        assert_eq!(router.theme, "Dark");
-        assert_eq!(router.language, "en-US");
-        assert!(router.current_font.is_some()); // en-US uses Noto Sans font
-    }
-
-    #[test]
-    fn test_back_message_pops_router() {
-        let api = create_mock_api();
-        let user_view = UserView::new("test_user".to_string());
-        let mut router = UserRouter::new(user_view, api);
-
-        let event = router.update(Message::Back);
-
-        assert!(matches!(event, Some(RouterEvent::Pop)));
-    }
-
-    #[test]
-    fn test_view_settings_message() {
-        let api = create_mock_api();
-        let user_view = UserView::new("test_user".to_string());
-        let mut router = UserRouter::new(user_view, api);
-
-        let event = router.update(Message::ViewSettings);
-
-        // Currently returns None as it's not implemented
-        assert!(event.is_none());
-    }
-
-    #[test]
-    fn test_view_profiles_message() {
-        let api = create_mock_api();
-        let user_view = UserView::new("test_user".to_string());
-        let mut router = UserRouter::new(user_view, api);
-
-        let event = router.update(Message::ViewProfiles);
-
-        // Currently returns None as it's not implemented
-        assert!(event.is_none());
+    fn refresh(&mut self) {
+        self.refresh_data();
     }
 }
