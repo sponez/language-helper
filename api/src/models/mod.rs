@@ -11,7 +11,9 @@
 //! - **user_settings**: User-specific settings data transfer objects
 //! - **profile**: Learning profile data transfer objects
 //! - **system_requirements**: System requirements and compatibility data transfer objects
+//! - **ai_assistant**: AI assistant and running models data transfer objects
 
+pub mod ai_assistant;
 pub mod app_settings;
 pub mod profile;
 pub mod system_requirements;

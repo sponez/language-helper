@@ -119,6 +119,9 @@ impl ProfileSettingsRouter {
                     self.app_api.clone(),
                     self.app_state.clone(),
                 );
+                // Don't call refresh() here to avoid runtime blocking issues
+                // Data will be displayed with defaults on first visit
+                // and properly loaded on subsequent visits via automatic refresh
                 Some(RouterEvent::Push(Box::new(assistant_router)))
             }
             Message::Save => {
@@ -162,7 +165,10 @@ impl ProfileSettingsRouter {
                     cards_per_set,
                     self.test_answer_method.clone(),
                     streak_length,
-                    None,
+                    self.settings.ai_model.clone(),
+                    self.settings.api_endpoint.clone(),
+                    self.settings.api_key.clone(),
+                    self.settings.api_model_name.clone(),
                 );
 
                 // TODO: Save to API

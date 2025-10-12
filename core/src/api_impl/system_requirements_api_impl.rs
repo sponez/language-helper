@@ -3,7 +3,6 @@
 //! This module provides the concrete implementation of the SystemRequirementsApi trait
 //! using the system_checker utilities from the core layer.
 
-use async_trait::async_trait;
 use lh_api::apis::system_requirements_api::SystemRequirementsApi;
 use lh_api::errors::api_error::ApiError;
 use lh_api::models::system_requirements::{OllamaStatusDto, RequirementStatusDto, SystemCompatibilityDto};
@@ -59,22 +58,18 @@ fn map_compatibility_to_dto(compat: system_checker::SystemCompatibility) -> Syst
     }
 }
 
-#[async_trait]
 impl SystemRequirementsApi for SystemRequirementsApiImpl {
-    async fn check_model_compatibility(&self, model_name: &str) -> Result<SystemCompatibilityDto, ApiError> {
-        // System checking is synchronous, but we wrap it in async for the API contract
+    fn check_model_compatibility(&self, model_name: &str) -> Result<SystemCompatibilityDto, ApiError> {
         let compatibility = system_checker::check_model_compatibility(model_name);
         Ok(map_compatibility_to_dto(compatibility))
     }
 
-    async fn get_compatible_models(&self) -> Result<Vec<String>, ApiError> {
-        // Get all compatible models from the system checker
+    fn get_compatible_models(&self) -> Result<Vec<String>, ApiError> {
         let compatible = system_checker::get_compatible_models();
         Ok(compatible)
     }
 
-    async fn check_multiple_models(&self, model_names: &[&str]) -> Result<Vec<SystemCompatibilityDto>, ApiError> {
-        // Check each model and collect results
+    fn check_multiple_models(&self, model_names: &[&str]) -> Result<Vec<SystemCompatibilityDto>, ApiError> {
         let results: Vec<SystemCompatibilityDto> = model_names
             .iter()
             .map(|&model| {
@@ -86,8 +81,7 @@ impl SystemRequirementsApi for SystemRequirementsApiImpl {
         Ok(results)
     }
 
-    async fn check_ollama_status(&self) -> Result<OllamaStatusDto, ApiError> {
-        // Ollama checking is synchronous, but we wrap it in async for the API contract
+    fn check_ollama_status(&self) -> Result<OllamaStatusDto, ApiError> {
         let status = system_checker::check_ollama_status();
 
         Ok(OllamaStatusDto {
@@ -102,10 +96,10 @@ impl SystemRequirementsApi for SystemRequirementsApiImpl {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_check_api_model_compatibility() {
+    #[test]
+    fn test_check_api_model_compatibility() {
         let api = SystemRequirementsApiImpl::new();
-        let result = api.check_model_compatibility("API").await;
+        let result = api.check_model_compatibility("API");
 
         assert!(result.is_ok());
         let dto = result.unwrap();
@@ -114,10 +108,10 @@ mod tests {
         assert!(dto.missing_requirements.is_empty());
     }
 
-    #[tokio::test]
-    async fn test_check_unknown_model() {
+    #[test]
+    fn test_check_unknown_model() {
         let api = SystemRequirementsApiImpl::new();
-        let result = api.check_model_compatibility("UnknownModel").await;
+        let result = api.check_model_compatibility("UnknownModel");
 
         assert!(result.is_ok());
         let dto = result.unwrap();
@@ -126,10 +120,10 @@ mod tests {
         assert!(!dto.missing_requirements.is_empty());
     }
 
-    #[tokio::test]
-    async fn test_get_compatible_models() {
+    #[test]
+    fn test_get_compatible_models() {
         let api = SystemRequirementsApiImpl::new();
-        let result = api.get_compatible_models().await;
+        let result = api.get_compatible_models();
 
         assert!(result.is_ok());
         let models = result.unwrap();
@@ -137,11 +131,11 @@ mod tests {
         assert!(models.contains(&"API".to_string()));
     }
 
-    #[tokio::test]
-    async fn test_check_multiple_models() {
+    #[test]
+    fn test_check_multiple_models() {
         let api = SystemRequirementsApiImpl::new();
         let models = ["Weak", "Medium", "API"];
-        let result = api.check_multiple_models(&models).await;
+        let result = api.check_multiple_models(&models);
 
         assert!(result.is_ok());
         let results = result.unwrap();

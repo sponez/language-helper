@@ -75,6 +75,10 @@ assistant-settings-ollama-installed = Ollama is installed
 assistant-settings-api-endpoint = API Endpoint:
 assistant-settings-api-key = API Key:
 assistant-settings-api-model = Model Name:
+assistant-settings-start-assistant = Start Assistant
+assistant-settings-stop-assistant = Stop Assistant
+assistant-settings-change-assistant = Change Assistant
+assistant-settings-save-api = Save API Config
 assistant-settings-back = Back
 
 ## Error Messages

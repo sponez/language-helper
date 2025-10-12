@@ -1,5 +1,6 @@
 //! Assistant settings router for configuring AI model options.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -24,6 +25,14 @@ pub enum Message {
     ApiKeyChanged(String),
     /// API model name input changed
     ApiModelChanged(String),
+    /// Start assistant (for local models)
+    StartAssistant,
+    /// Stop assistant (for local models)
+    StopAssistant,
+    /// Change assistant (for local models)
+    ChangeAssistant,
+    /// Save API configuration
+    SaveApiConfig,
     /// Open URL in browser
     OpenUrl(String),
     /// Back button pressed
@@ -50,12 +59,14 @@ pub struct AssistantSettingsRouter {
     api_key: String,
     /// API model name input
     api_model_name: String,
-    /// Compatibility information for all models
-    model_compatibility: HashMap<String, SystemCompatibilityDto>,
-    /// Whether system check has been performed
-    system_check_done: bool,
-    /// Ollama installation status
-    ollama_status: Option<OllamaStatusDto>,
+    /// Compatibility information for all models (wrapped for interior mutability)
+    model_compatibility: RefCell<HashMap<String, SystemCompatibilityDto>>,
+    /// Whether system check has been performed (wrapped for interior mutability)
+    system_check_done: RefCell<bool>,
+    /// Ollama installation status (wrapped for interior mutability)
+    ollama_status: RefCell<Option<OllamaStatusDto>>,
+    /// List of running model names from Ollama (wrapped for interior mutability)
+    running_models: RefCell<Vec<String>>,
 }
 
 impl AssistantSettingsRouter {
@@ -66,7 +77,7 @@ impl AssistantSettingsRouter {
         }
 
         // Start with API as default (always available)
-        let mut router = Self {
+        let router = Self {
             user_view,
             profile,
             app_api,
@@ -75,56 +86,41 @@ impl AssistantSettingsRouter {
             api_endpoint: String::new(),
             api_key: String::new(),
             api_model_name: String::new(),
-            model_compatibility: HashMap::new(),
-            system_check_done: false,
-            ollama_status: None,
+            model_compatibility: RefCell::new(HashMap::new()),
+            system_check_done: RefCell::new(false),
+            ollama_status: RefCell::new(None),
+            running_models: RefCell::new(Vec::new()),
         };
 
-        // Perform system check synchronously (API is already async-ready)
-        router.check_system_requirements();
-        router.check_ollama();
+        // Don't perform checks in constructor to avoid blocking runtime issues
+        // These will be checked lazily on first view render
 
         router
     }
 
     /// Check compatibility for all models
-    fn check_system_requirements(&mut self) {
-        if self.system_check_done {
+    fn check_system_requirements(&self) {
+        if *self.system_check_done.borrow() {
             return;
         }
-
-        // Use block_on to call the async API synchronously during initialization
-        use crate::runtime_util::block_on;
 
         // Check all models
         let all_models = vec!["Tiny", "Light", "Weak", "Medium", "Strong", "API"];
 
-        match block_on(self.app_api.system_requirements_api().check_multiple_models(&all_models)) {
+        match self.app_api.system_requirements_api().check_multiple_models(&all_models) {
             Ok(compatibility_list) => {
                 // Store compatibility info for each model
+                let mut compat_map = self.model_compatibility.borrow_mut();
                 for compat in compatibility_list {
-                    self.model_compatibility.insert(compat.model_name.clone(), compat);
+                    compat_map.insert(compat.model_name.clone(), compat);
                 }
-
-                // Select first compatible model as default, or API if none compatible
-                let first_compatible = all_models
-                    .iter()
-                    .find(|&&model| {
-                        self.model_compatibility
-                            .get(model)
-                            .map(|c| c.is_compatible)
-                            .unwrap_or(false)
-                    })
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| "API".to_string());
-
-                self.selected_model = first_compatible;
             }
             Err(e) => {
                 eprintln!("Failed to check system requirements: {:?}", e);
                 // Fallback: assume all models available but mark as unknown compatibility
+                let mut compat_map = self.model_compatibility.borrow_mut();
                 for model in all_models {
-                    self.model_compatibility.insert(
+                    compat_map.insert(
                         model.to_string(),
                         SystemCompatibilityDto {
                             model_name: model.to_string(),
@@ -137,25 +133,36 @@ impl AssistantSettingsRouter {
             }
         }
 
-        self.system_check_done = true;
+        *self.system_check_done.borrow_mut() = true;
     }
 
     /// Check if Ollama is installed
-    fn check_ollama(&mut self) {
-        use crate::runtime_util::block_on;
-
-        match block_on(self.app_api.system_requirements_api().check_ollama_status()) {
+    fn check_ollama(&self) {
+        match self.app_api.system_requirements_api().check_ollama_status() {
             Ok(status) => {
-                self.ollama_status = Some(status);
+                *self.ollama_status.borrow_mut() = Some(status);
             }
             Err(e) => {
                 eprintln!("Failed to check Ollama status: {:?}", e);
                 // Set a default "not installed" status on error
-                self.ollama_status = Some(OllamaStatusDto {
+                *self.ollama_status.borrow_mut() = Some(OllamaStatusDto {
                     is_installed: false,
                     version: None,
                     message: "Ollama is not installed. To install, go to ollama.com".to_string(),
                 });
+            }
+        }
+    }
+
+    /// Check which models are currently running in Ollama
+    fn check_running_models(&self) {
+        match self.app_api.ai_assistant_api().get_running_models() {
+            Ok(models) => {
+                *self.running_models.borrow_mut() = models;
+            }
+            Err(e) => {
+                eprintln!("Failed to check running models: {:?}", e);
+                *self.running_models.borrow_mut() = Vec::new();
             }
         }
     }
@@ -178,6 +185,27 @@ impl AssistantSettingsRouter {
                 self.api_model_name = value;
                 None
             }
+            Message::StartAssistant => {
+                // TODO: Implement assistant start logic
+                eprintln!("TODO: Start assistant");
+                None
+            }
+            Message::StopAssistant => {
+                // TODO: Implement assistant stop logic
+                eprintln!("TODO: Stop assistant");
+                None
+            }
+            Message::ChangeAssistant => {
+                // TODO: Implement assistant change logic
+                eprintln!("TODO: Change assistant");
+                None
+            }
+            Message::SaveApiConfig => {
+                // TODO: Save API config to profile settings
+                eprintln!("TODO: Save API config - endpoint: {}, key: {}, model: {}",
+                    self.api_endpoint, self.api_key, self.api_model_name);
+                None
+            }
             Message::OpenUrl(url) => {
                 // Open URL in default browser
                 if let Err(e) = opener::open(&url) {
@@ -191,7 +219,75 @@ impl AssistantSettingsRouter {
         }
     }
 
+    /// Get the appropriate button state for the current model
+    /// Returns (button_message, is_enabled)
+    fn get_assistant_button_state(&self) -> Option<(Message, bool)> {
+        match self.selected_model.as_str() {
+            "API" => {
+                // For API model, show Save button (always enabled)
+                Some((Message::SaveApiConfig, true))
+            }
+            "Tiny" | "Light" | "Weak" | "Medium" | "Strong" => {
+                // For local models, check if compatible and Ollama installed
+                let is_compatible = self.model_compatibility.borrow()
+                    .get(&self.selected_model)
+                    .map(|c| c.is_compatible)
+                    .unwrap_or(false);
+
+                let ollama_installed = self.ollama_status.borrow()
+                    .as_ref()
+                    .map(|s| s.is_installed)
+                    .unwrap_or(false);
+
+                // Button is enabled only if system is compatible AND Ollama is installed
+                let button_enabled = is_compatible && ollama_installed;
+
+                // Determine which button to show based on running models
+                let running_models = self.running_models.borrow();
+                if running_models.is_empty() {
+                    // No models running - show Start button
+                    Some((Message::StartAssistant, button_enabled))
+                } else {
+                    // Get the expected model name for the selected model
+                    let expected_model_name = self.get_ollama_model_name(&self.selected_model);
+
+                    // Check if the expected model is running
+                    let is_selected_running = running_models.iter()
+                        .any(|m| m.contains(&expected_model_name));
+
+                    if is_selected_running {
+                        // Selected model is running - show Stop button
+                        Some((Message::StopAssistant, button_enabled))
+                    } else {
+                        // Different model is running - show Change button
+                        Some((Message::ChangeAssistant, button_enabled))
+                    }
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Map model strength to Ollama model name
+    fn get_ollama_model_name(&self, model: &str) -> String {
+        match model {
+            "Tiny" => "phi3:3.8b-mini-4k-instruct-q4_K_M".to_string(),
+            "Light" => "phi4".to_string(),
+            "Weak" => "llama3.2:3b-instruct-q8_0".to_string(),
+            "Medium" => "qwen2.5:7b-instruct-q5_K_M".to_string(),
+            "Strong" => "qwen2.5:14b-instruct-q4_K_M".to_string(),
+            _ => model.to_string(),
+        }
+    }
+
     pub fn view(&self) -> Element<'_, Message> {
+        // Perform lazy initialization on first view
+        if !*self.system_check_done.borrow() {
+            self.check_system_requirements();
+            self.check_ollama();
+            self.check_running_models();
+        }
+
         let i18n = self.app_state.i18n();
         let current_font = self.app_state.current_font();
 
@@ -227,7 +323,7 @@ impl AssistantSettingsRouter {
                 };
 
                 // Add status indicator
-                let is_compatible = self.model_compatibility
+                let is_compatible = self.model_compatibility.borrow()
                     .get(model)
                     .map(|c| c.is_compatible)
                     .unwrap_or(false);
@@ -251,7 +347,7 @@ impl AssistantSettingsRouter {
             _ => self.selected_model.clone(),
         };
 
-        let is_current_compatible = self.model_compatibility
+        let is_current_compatible = self.model_compatibility.borrow()
             .get(&self.selected_model)
             .map(|c| c.is_compatible)
             .unwrap_or(false);
@@ -307,7 +403,9 @@ impl AssistantSettingsRouter {
         let content_section = match self.selected_model.as_str() {
             "Tiny" | "Light" | "Weak" | "Medium" | "Strong" => {
                 // Show system requirements with status indicators
-                let compat = self.model_compatibility.get(&self.selected_model);
+                let compat = self.model_compatibility.borrow()
+                    .get(&self.selected_model)
+                    .cloned();
 
                 let mut requirements_column = column![]
                     .spacing(10)
@@ -387,45 +485,53 @@ impl AssistantSettingsRouter {
                     // Ollama status display
                     requirements_column = requirements_column.push(text("").size(10)); // Spacer
 
-                    if let Some(ref ollama) = self.ollama_status {
-                        if ollama.is_installed {
-                            // Show installed message in green
-                            let mut ollama_text_widget = text(&ollama.message)
-                                .size(14)
-                                .color(Color::from_rgb(0.0, 0.8, 0.0));
+                    let ollama_is_installed = self.ollama_status.borrow()
+                        .as_ref()
+                        .map(|s| s.is_installed)
+                        .unwrap_or(false);
 
-                            if let Some(font) = current_font {
-                                ollama_text_widget = ollama_text_widget.font(font);
-                            }
+                    if ollama_is_installed {
+                        // Show installed message in green
+                        let ollama_message = self.ollama_status.borrow()
+                            .as_ref()
+                            .map(|s| s.message.clone())
+                            .unwrap_or_default();
 
-                            requirements_column = requirements_column.push(ollama_text_widget);
-                        } else {
-                            // Show "not installed" message with clickable link
-                            let mut not_installed_text = text("Ollama is not installed. To install, go to ")
-                                .size(14)
-                                .color(Color::from_rgb(0.8, 0.6, 0.0));
+                        let mut ollama_text_widget = text(ollama_message)
+                            .size(14)
+                            .color(Color::from_rgb(0.0, 0.8, 0.0));
 
-                            if let Some(font) = current_font {
-                                not_installed_text = not_installed_text.font(font);
-                            }
-
-                            let link_button = button(
-                                text("ollama.com")
-                                    .size(14)
-                                    .color(Color::from_rgb(0.2, 0.4, 0.8)) // Blue for link
-                            )
-                            .on_press(Message::OpenUrl("https://ollama.com".to_string()))
-                            .style(button::text);
-
-                            let ollama_row = row![
-                                not_installed_text,
-                                link_button,
-                            ]
-                            .spacing(5)
-                            .align_y(Alignment::Center);
-
-                            requirements_column = requirements_column.push(ollama_row);
+                        if let Some(font) = current_font {
+                            ollama_text_widget = ollama_text_widget.font(font);
                         }
+
+                        requirements_column = requirements_column.push(ollama_text_widget);
+                    } else {
+                        // Show "not installed" message with clickable link
+                        let mut not_installed_text = text("Ollama is not installed. To install, go to ")
+                            .size(14)
+                            .color(Color::from_rgb(0.8, 0.6, 0.0));
+
+                        if let Some(font) = current_font {
+                            not_installed_text = not_installed_text.font(font);
+                        }
+
+                        let link_button = button(
+                            text("ollama.com")
+                                .size(14)
+                                .color(Color::from_rgb(0.2, 0.4, 0.8)) // Blue for link
+                        )
+                        .on_press(Message::OpenUrl("https://ollama.com".to_string()))
+                        .style(button::text);
+
+                        let ollama_row = row![
+                            not_installed_text,
+                            link_button,
+                        ]
+                        .spacing(5)
+                        .align_y(Alignment::Center);
+
+                        requirements_column = requirements_column.push(ollama_row);
                     }
                 } else {
                     // No compatibility data available
@@ -526,25 +632,73 @@ impl AssistantSettingsRouter {
             }
         };
 
-        // Back button
-        let back_text = localized_text(
-            &i18n,
-            "assistant-settings-back",
-            current_font,
-            14,
-        );
+        // Action button (Start/Stop/Change/Save) based on model state
+        let button_row = if let Some((button_message, is_enabled)) = self.get_assistant_button_state() {
+            // Determine button text based on message type
+            let button_text_key = match button_message {
+                Message::StartAssistant => "assistant-settings-start-assistant",
+                Message::StopAssistant => "assistant-settings-stop-assistant",
+                Message::ChangeAssistant => "assistant-settings-change-assistant",
+                Message::SaveApiConfig => "assistant-settings-save-api",
+                _ => "assistant-settings-back", // Fallback
+            };
 
-        let back_button = button(back_text)
-            .on_press(Message::Back)
-            .width(Length::Fixed(120.0))
-            .padding(10);
+            let button_text = localized_text(
+                &i18n,
+                button_text_key,
+                current_font,
+                14,
+            );
+
+            let mut action_button = button(button_text)
+                .width(Length::Fixed(160.0))
+                .padding(10);
+
+            if is_enabled {
+                action_button = action_button.on_press(button_message);
+            }
+
+            // Back button
+            let back_text = localized_text(
+                &i18n,
+                "assistant-settings-back",
+                current_font,
+                14,
+            );
+
+            let back_button = button(back_text)
+                .on_press(Message::Back)
+                .width(Length::Fixed(120.0))
+                .padding(10);
+
+            row![action_button, back_button]
+                .spacing(15)
+                .align_y(Alignment::Center)
+        } else {
+            // No action button, just back button
+            let back_text = localized_text(
+                &i18n,
+                "assistant-settings-back",
+                current_font,
+                14,
+            );
+
+            let back_button = button(back_text)
+                .on_press(Message::Back)
+                .width(Length::Fixed(120.0))
+                .padding(10);
+
+            row![back_button]
+                .spacing(15)
+                .align_y(Alignment::Center)
+        };
 
         // Main content
         let main_content = column![
             title,
             model_row,
             content_section,
-            back_button,
+            button_row,
         ]
         .spacing(20)
         .padding(30)
@@ -560,10 +714,17 @@ impl AssistantSettingsRouter {
 }
 
 impl AssistantSettingsRouter {
+    /// Public refresh method for manual initialization
+    pub fn refresh(&mut self) {
+        self.refresh_data();
+    }
+
     /// Refresh data from the API
     fn refresh_data(&mut self) {
-        // TODO: Reload assistant settings from API
-        eprintln!("TODO: Refresh assistant settings from API");
+        // Perform system checks
+        self.check_system_requirements();
+        self.check_ollama();
+        self.check_running_models();
     }
 }
 

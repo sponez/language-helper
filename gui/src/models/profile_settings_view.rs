@@ -11,6 +11,12 @@ pub struct ProfileSettingsView {
     pub streak_length: u32,
     /// Selected AI model (if any)
     pub ai_model: Option<String>,
+    /// API endpoint URL for API-based models
+    pub api_endpoint: Option<String>,
+    /// API key for authentication
+    pub api_key: Option<String>,
+    /// API model name (e.g., "gpt-4", "claude-3")
+    pub api_model_name: Option<String>,
 }
 
 impl ProfileSettingsView {
@@ -21,6 +27,9 @@ impl ProfileSettingsView {
             test_answer_method: "manual".to_string(),
             streak_length: 5,
             ai_model: None,
+            api_endpoint: None,
+            api_key: None,
+            api_model_name: None,
         }
     }
 
@@ -30,12 +39,18 @@ impl ProfileSettingsView {
         test_answer_method: String,
         streak_length: u32,
         ai_model: Option<String>,
+        api_endpoint: Option<String>,
+        api_key: Option<String>,
+        api_model_name: Option<String>,
     ) -> Self {
         Self {
             cards_per_set,
             test_answer_method,
             streak_length,
             ai_model,
+            api_endpoint,
+            api_key,
+            api_model_name,
         }
     }
 }
