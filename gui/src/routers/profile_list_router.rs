@@ -4,8 +4,7 @@ use iced::widget::{button, column, pick_list, Container, PickList};
 use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
 
-use crate::fonts::get_font_for_locale;
-use crate::i18n::I18n;
+use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
 use crate::iced_params::{LANGUAGES, THEMES};
 use crate::models::UserView;
@@ -31,14 +30,8 @@ pub struct ProfileListRouter {
     user_view: UserView,
     /// API instance for backend communication
     app_api: Rc<dyn AppApi>,
-    /// User's theme preference
-    theme: String,
-    /// User's language
-    language: String,
-    /// Internationalization instance
-    i18n: I18n,
-    /// Current font for the user's language
-    current_font: Option<iced::Font>,
+    /// Global application state (theme, language, i18n, font)
+    app_state: AppState,
     /// Currently selected profile ID (or "+ Create New Profile")
     selected_profile: Option<String>,
     /// Show language picker for new profile
@@ -48,23 +41,16 @@ pub struct ProfileListRouter {
 }
 
 impl ProfileListRouter {
-    pub fn new(user_view: UserView, app_api: Rc<dyn AppApi>) -> Self {
-        let (theme, language) = if let Some(ref settings) = user_view.settings {
-            (settings.theme.clone(), settings.language.clone())
-        } else {
-            ("Dark".to_string(), "en-US".to_string())
-        };
-
-        let i18n = I18n::new(&language);
-        let current_font = get_font_for_locale(&language);
+    pub fn new(user_view: UserView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+        // Update app_state with user's settings if available
+        if let Some(ref settings) = user_view.settings {
+            app_state.update_settings(settings.theme.clone(), settings.language.clone());
+        }
 
         Self {
             user_view,
             app_api,
-            theme,
-            language,
-            i18n,
-            current_font,
+            app_state,
             selected_profile: None,
             show_language_picker: false,
             selected_language: None,
@@ -73,9 +59,9 @@ impl ProfileListRouter {
 
     pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
         match message {
-            Message::Back => Some(RouterEvent::PopAndRefresh),
+            Message::Back => Some(RouterEvent::Pop),
             Message::ProfileSelected(profile_id) => {
-                let create_new_text = self.i18n.get("profile-list-create-new", None);
+                let create_new_text = self.app_state.i18n().get("profile-list-create-new", None);
                 if profile_id == create_new_text {
                     // Show language picker
                     self.show_language_picker = true;
@@ -96,6 +82,7 @@ impl ProfileListRouter {
                                 self.user_view.clone(),
                                 profile,
                                 Rc::clone(&self.app_api),
+                                self.app_state.clone(),
                             ),
                         );
                         Some(RouterEvent::Push(profile_router))
@@ -148,12 +135,15 @@ impl ProfileListRouter {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
+        let i18n = self.app_state.i18n();
+        let current_font = self.app_state.current_font();
+
         if self.show_language_picker {
             // Show language picker for new profile
             let title_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-list-select-language",
-                self.current_font,
+                current_font,
                 18,
             );
 
@@ -168,7 +158,7 @@ impl ProfileListRouter {
             let available_languages: Vec<String> = LANGUAGES
                 .iter()
                 .filter(|lang| {
-                    **lang != self.language && !existing_profile_languages.contains(lang)
+                    **lang != self.app_state.language() && !existing_profile_languages.contains(lang)
                 })
                 .cloned()
                 .collect();
@@ -180,27 +170,33 @@ impl ProfileListRouter {
             )
             .width(200);
 
-            if let Some(font) = self.current_font {
+            if let Some(font) = current_font {
                 language_pick_list = language_pick_list.font(font);
             }
 
             let create_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-list-create-button",
-                self.current_font,
+                current_font,
                 14,
             );
-            let create_button = button(create_text).on_press_maybe(
-                self.selected_language.as_ref().map(|_| Message::CreateProfile),
-            );
+            let create_button = button(create_text)
+                .on_press_maybe(
+                    self.selected_language.as_ref().map(|_| Message::CreateProfile),
+                )
+                .width(Length::Fixed(120.0))
+                .padding(10);
 
             let cancel_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-list-cancel-button",
-                self.current_font,
+                current_font,
                 14,
             );
-            let cancel_button = button(cancel_text).on_press(Message::CancelCreate);
+            let cancel_button = button(cancel_text)
+                .on_press(Message::CancelCreate)
+                .width(Length::Fixed(120.0))
+                .padding(10);
 
             let content = column![
                 title_text,
@@ -221,9 +217,9 @@ impl ProfileListRouter {
 
         // Main profile list view
         let title_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-list-title",
-            self.current_font,
+            current_font,
             18,
         );
 
@@ -236,7 +232,7 @@ impl ProfileListRouter {
             .collect();
 
         // Add "+ Create New Profile" option
-        let create_new_text = self.i18n.get("profile-list-create-new", None);
+        let create_new_text = i18n.get("profile-list-create-new", None);
         profile_options.push(create_new_text.clone());
 
         let mut profile_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
@@ -246,17 +242,20 @@ impl ProfileListRouter {
         )
         .width(300);
 
-        if let Some(font) = self.current_font {
+        if let Some(font) = current_font {
             profile_pick_list = profile_pick_list.font(font);
         }
 
         let back_text = localized_text(
-            &self.i18n,
+            &i18n,
             "user-back-button",
-            self.current_font,
+            current_font,
             14,
         );
-        let back_button = button(back_text).on_press(Message::Back);
+        let back_button = button(back_text)
+            .on_press(Message::Back)
+            .width(Length::Fixed(120.0))
+            .padding(10);
 
         let content = column![
             title_text,
@@ -276,8 +275,29 @@ impl ProfileListRouter {
     }
 }
 
+impl ProfileListRouter {
+    /// Refresh user data (including profiles list) from the API
+    fn refresh_data(&mut self) {
+        if let Some(user_dto) = block_on(self.app_api.users_api().get_user_by_username(&self.user_view.username)) {
+            use crate::mappers::user_mapper;
+            self.user_view = user_mapper::dto_to_view(&user_dto);
+
+            // Update app_state with user's settings if they changed
+            if let Some(ref settings) = self.user_view.settings {
+                self.app_state.update_settings(settings.theme.clone(), settings.language.clone());
+            }
+        } else {
+            eprintln!("Failed to refresh user data for user: {}", self.user_view.username);
+        }
+    }
+}
+
 /// Implementation of RouterNode for ProfileListRouter
 impl RouterNode for ProfileListRouter {
+    fn router_name(&self) -> &'static str {
+        "profile_list"
+    }
+
     fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
         match message {
             router::Message::ProfileList(msg) => ProfileListRouter::update(self, msg.clone()),
@@ -291,8 +311,12 @@ impl RouterNode for ProfileListRouter {
 
     fn theme(&self) -> iced::Theme {
         THEMES
-            .get(&self.theme)
+            .get(&self.app_state.theme())
             .cloned()
             .unwrap_or(iced::Theme::Dark)
+    }
+
+    fn refresh(&mut self) {
+        self.refresh_data();
     }
 }

@@ -1,15 +1,17 @@
 use std::rc::Rc;
 
-use iced::widget::{button, column, Container};
+use iced::widget::{button, column, container, Container};
 use iced::{Alignment, Element, Length};
+use iced::Background;
+use iced::Color;
 use lh_api::app_api::AppApi;
 
-use crate::fonts::get_font_for_locale;
-use crate::i18n::I18n;
+use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
 use crate::iced_params::THEMES;
 use crate::models::{ProfileView, UserView};
-use crate::router::{self, RouterEvent, RouterNode};
+use crate::router::{self, RouterEvent, RouterNode, RouterTarget};
+use crate::runtime_util::block_on;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -21,10 +23,10 @@ pub enum Message {
     ChatWithAI,
     /// Settings button pressed
     Settings,
-    /// Back button pressed - shows submenu
-    BackHover,
-    /// Mouse left the back button area
-    BackUnhover,
+    /// Back button pressed - shows modal
+    ShowBackModal,
+    /// Close the modal without action
+    CloseBackModal,
     /// Navigate to profile selection
     BackToProfileSelection,
     /// Navigate to user selection
@@ -43,43 +45,30 @@ pub struct ProfileRouter {
     /// API instance for backend communication
     #[allow(dead_code)]
     app_api: Rc<dyn AppApi>,
-    /// User's theme preference
-    theme: String,
-    /// User's language
-    #[allow(dead_code)]
-    language: String,
+    /// Global application state (theme, language, i18n, font)
+    app_state: AppState,
     /// Target language being learned
     #[allow(dead_code)]
     target_language: String,
-    /// Internationalization instance
-    i18n: I18n,
-    /// Current font for the user's language
-    current_font: Option<iced::Font>,
     /// Whether the back button submenu is showing
     show_back_menu: bool,
 }
 
 impl ProfileRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>) -> Self {
-        let (theme, language) = if let Some(ref settings) = user_view.settings {
-            (settings.theme.clone(), settings.language.clone())
-        } else {
-            ("Dark".to_string(), "en-US".to_string())
-        };
+    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+        // Update app_state with user's settings if available
+        if let Some(ref settings) = user_view.settings {
+            app_state.update_settings(settings.theme.clone(), settings.language.clone());
+        }
 
         let target_language = profile.target_language.clone();
-        let i18n = I18n::new(&language);
-        let current_font = get_font_for_locale(&language);
 
         Self {
             user_view,
             profile,
             app_api,
-            theme,
-            language,
+            app_state,
             target_language,
-            i18n,
-            current_font,
             show_back_menu: false,
         }
     }
@@ -102,25 +91,32 @@ impl ProfileRouter {
                 None
             }
             Message::Settings => {
-                // TODO: Navigate to profile settings
-                eprintln!("Profile settings not yet implemented");
-                None
+                // Navigate to profile settings
+                let settings_router: Box<dyn RouterNode> = Box::new(
+                    super::profile_settings_router::ProfileSettingsRouter::new(
+                        self.user_view.clone(),
+                        self.profile.clone(),
+                        Rc::clone(&self.app_api),
+                        self.app_state.clone(),
+                    )
+                );
+                Some(RouterEvent::Push(settings_router))
             }
-            Message::BackHover => {
+            Message::ShowBackModal => {
                 self.show_back_menu = true;
                 None
             }
-            Message::BackUnhover => {
+            Message::CloseBackModal => {
                 self.show_back_menu = false;
                 None
             }
             Message::BackToProfileSelection => {
-                // Pop once to go back to profile list
-                Some(RouterEvent::Pop)
+                // Pop back to profile list
+                Some(RouterEvent::PopTo(Some(RouterTarget::ProfileList)))
             }
             Message::BackToUserSelection => {
-                // Pop 3 to go back to user router (which shows user options)
-                Some(RouterEvent::PopMultiple(3))
+                // Pop back to user_list router
+                Some(RouterEvent::PopTo(Some(RouterTarget::UserList)))
             }
             Message::Exit => {
                 Some(RouterEvent::Exit)
@@ -129,65 +125,71 @@ impl ProfileRouter {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        // Main buttons
+        let i18n = self.app_state.i18n();
+        let current_font = self.app_state.current_font();
+        let assistant_running = self.app_state.is_assistant_running();
+
+        // Main buttons - small consistent size
         let cards_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-cards-button",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
         let cards_button = button(cards_text)
             .on_press(Message::Cards)
-            .width(Length::Fixed(300.0))
-            .padding(15);
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
         let explain_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-explain-ai-button",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
+        // Disable AI buttons when assistant is not running
         let explain_button = button(explain_text)
-            .on_press(Message::ExplainWithAI)
-            .width(Length::Fixed(300.0))
-            .padding(15);
+            .on_press_maybe(if assistant_running { Some(Message::ExplainWithAI) } else { None })
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
         let chat_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-chat-ai-button",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
+        // Disable AI buttons when assistant is not running
         let chat_button = button(chat_text)
-            .on_press(Message::ChatWithAI)
-            .width(Length::Fixed(300.0))
-            .padding(15);
+            .on_press_maybe(if assistant_running { Some(Message::ChatWithAI) } else { None })
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
         let settings_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-settings-button",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
         let settings_button = button(settings_text)
             .on_press(Message::Settings)
-            .width(Length::Fixed(300.0))
-            .padding(15);
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
         let back_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-back-button",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
 
-        // Back button with hover detection
+        // Back button - now just a regular button that opens modal
         let back_button = button(back_text)
-            .on_press(Message::BackHover)
-            .width(Length::Fixed(300.0))
-            .padding(15);
+            .on_press(Message::ShowBackModal)
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
-        let mut main_content = column![
+        let main_content = column![
             cards_button,
             explain_button,
             chat_button,
@@ -198,63 +200,146 @@ impl ProfileRouter {
         .padding(20)
         .align_x(Alignment::Center);
 
-        // If back menu is showing, add the submenu
+        let base = Container::new(main_content)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(Alignment::Center)
+            .align_y(Alignment::Center);
+
+        // If back menu is showing, overlay it with a modal
         if self.show_back_menu {
+            // Modal content - navigation options
+            let modal_title = localized_text(
+                &i18n,
+                "profile-back-where",
+                current_font,
+                18,
+            );
+
             let profile_selection_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-back-to-profiles",
-                self.current_font,
+                current_font,
                 14,
             );
             let profile_selection_button = button(profile_selection_text)
                 .on_press(Message::BackToProfileSelection)
-                .width(Length::Fixed(300.0))
+                .width(Length::Fixed(200.0))
                 .padding(10);
 
             let user_selection_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-back-to-user",
-                self.current_font,
+                current_font,
                 14,
             );
             let user_selection_button = button(user_selection_text)
                 .on_press(Message::BackToUserSelection)
-                .width(Length::Fixed(300.0))
+                .width(Length::Fixed(200.0))
                 .padding(10);
 
             let exit_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-exit",
-                self.current_font,
+                current_font,
                 14,
             );
             let exit_button = button(exit_text)
                 .on_press(Message::Exit)
-                .width(Length::Fixed(300.0))
+                .width(Length::Fixed(200.0))
                 .padding(10);
 
-            main_content = main_content.push(
-                column![
-                    profile_selection_button,
-                    user_selection_button,
-                    exit_button,
-                ]
-                .spacing(10)
-                .padding(10)
+            let cancel_text = localized_text(
+                &i18n,
+                "cancel",
+                current_font,
+                14,
             );
-        }
+            let cancel_button = button(cancel_text)
+                .on_press(Message::CloseBackModal)
+                .width(Length::Fixed(200.0))
+                .padding(10);
 
-        Container::new(main_content)
+            let modal_content = column![
+                modal_title,
+                profile_selection_button,
+                user_selection_button,
+                exit_button,
+                cancel_button,
+            ]
+            .spacing(15)
+            .padding(30)
+            .align_x(Alignment::Center);
+
+            // Modal card with background
+            let modal_card = container(modal_content)
+                .style(|_theme| container::Style {
+                    background: Some(Background::Color(Color::from_rgb(0.15, 0.15, 0.15))),
+                    border: iced::Border {
+                        color: Color::from_rgb(0.3, 0.3, 0.3),
+                        width: 2.0,
+                        radius: 10.0.into(),
+                    },
+                    ..Default::default()
+                });
+
+            // Semi-transparent overlay
+            let overlay = container(
+                Container::new(modal_card)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_x(Alignment::Center)
+                    .align_y(Alignment::Center)
+            )
             .width(Length::Fill)
             .height(Length::Fill)
-            .align_x(Alignment::Center)
-            .align_y(Alignment::Center)
-            .into()
+            .style(|_theme| container::Style {
+                background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.7))),
+                ..Default::default()
+            });
+
+            // Stack overlay on top of base
+            iced::widget::stack![base, overlay].into()
+        } else {
+            base.into()
+        }
+    }
+}
+
+impl ProfileRouter {
+    /// Refresh user and profile data from the API
+    fn refresh_data(&mut self) {
+        if let Some(user_dto) = block_on(self.app_api.users_api().get_user_by_username(&self.user_view.username)) {
+            use crate::mappers::user_mapper;
+            self.user_view = user_mapper::dto_to_view(&user_dto);
+
+            // Update app_state with user's settings if they changed
+            if let Some(ref settings) = self.user_view.settings {
+                self.app_state.update_settings(settings.theme.clone(), settings.language.clone());
+            }
+
+            // Find and update the profile data
+            if let Some(updated_profile) = self.user_view.profiles.iter()
+                .find(|p| p.target_language == self.profile.target_language)
+                .cloned()
+            {
+                self.profile = updated_profile;
+                self.target_language = self.profile.target_language.clone();
+            } else {
+                eprintln!("Profile not found after refresh: {}", self.profile.target_language);
+            }
+        } else {
+            eprintln!("Failed to refresh user data for user: {}", self.user_view.username);
+        }
     }
 }
 
 /// Implementation of RouterNode for ProfileRouter
 impl RouterNode for ProfileRouter {
+    fn router_name(&self) -> &'static str {
+        "profile"
+    }
+
     fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
         match message {
             router::Message::Profile(msg) => ProfileRouter::update(self, msg.clone()),
@@ -268,8 +353,12 @@ impl RouterNode for ProfileRouter {
 
     fn theme(&self) -> iced::Theme {
         THEMES
-            .get(&self.theme)
+            .get(&self.app_state.theme())
             .cloned()
             .unwrap_or(iced::Theme::Dark)
+    }
+
+    fn refresh(&mut self) {
+        self.refresh_data();
     }
 }

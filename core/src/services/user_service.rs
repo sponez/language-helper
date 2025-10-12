@@ -22,10 +22,10 @@ use crate::repositories::user_repository::UserRepository;
 /// use lh_core::services::user_service::UserService;
 /// use lh_core::repositories::user_repository::UserRepository;
 ///
-/// fn example(repository: impl UserRepository) {
+/// async fn example(repository: impl UserRepository) {
 ///     let service = UserService::new(repository);
 ///
-///     match service.get_all_usernames() {
+///     match service.get_all_usernames().await {
 ///         Ok(usernames) => println!("Found {} users", usernames.len()),
 ///         Err(e) => eprintln!("Error: {}", e),
 ///     }
@@ -77,8 +77,8 @@ impl<R: UserRepository> UserService<R> {
     /// ```no_run
     /// # use lh_core::services::user_service::UserService;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserService<impl UserRepository>) {
-    /// match service.get_all_usernames() {
+    /// # async fn example(service: &UserService<impl UserRepository>) {
+    /// match service.get_all_usernames().await {
     ///     Ok(usernames) => {
     ///         for username in usernames {
     ///             println!("User: {}", username);
@@ -115,8 +115,8 @@ impl<R: UserRepository> UserService<R> {
     /// ```no_run
     /// # use lh_core::services::user_service::UserService;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserService<impl UserRepository>) {
-    /// match service.get_user_by_username("john_doe") {
+    /// # async fn example(service: &UserService<impl UserRepository>) {
+    /// match service.get_user_by_username("john_doe").await {
     ///     Ok(Some(user)) => println!("Found user: {:?}", user),
     ///     Ok(None) => println!("User not found"),
     ///     Err(e) => eprintln!("Error: {}", e),
@@ -149,8 +149,8 @@ impl<R: UserRepository> UserService<R> {
     /// ```no_run
     /// # use lh_core::services::user_service::UserService;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserService<impl UserRepository>) {
-    /// match service.create_user("jane_doe") {
+    /// # async fn example(service: &UserService<impl UserRepository>) {
+    /// match service.create_user("jane_doe").await {
     ///     Ok(user) => println!("Created user: {:?}", user),
     ///     Err(e) => eprintln!("Failed to create user: {}", e),
     /// }
@@ -194,8 +194,8 @@ impl<R: UserRepository> UserService<R> {
     /// ```no_run
     /// # use lh_core::services::user_service::UserService;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserService<impl UserRepository>) {
-    /// match service.update_user("john_doe") {
+    /// # async fn example(service: &UserService<impl UserRepository>) {
+    /// match service.update_user("john_doe").await {
     ///     Ok(user) => println!("Updated user: {:?}", user),
     ///     Err(e) => eprintln!("Failed to update user: {}", e),
     /// }
@@ -234,8 +234,8 @@ impl<R: UserRepository> UserService<R> {
     /// ```no_run
     /// # use lh_core::services::user_service::UserService;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserService<impl UserRepository>) {
-    /// match service.delete_user("john_doe") {
+    /// # async fn example(service: &UserService<impl UserRepository>) {
+    /// match service.delete_user("john_doe").await {
     ///     Ok(()) => println!("User deleted successfully"),
     ///     Err(e) => eprintln!("Failed to delete user: {}", e),
     /// }

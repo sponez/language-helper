@@ -36,9 +36,39 @@ profile-explain-ai-button = Explain with AI
 profile-chat-ai-button = Chat with AI
 profile-settings-button = Settings
 profile-back-button = Back
+profile-back-where = Where would you like to go?
 profile-back-to-profiles = To Profile Selection
 profile-back-to-user = To User Selection
 profile-exit = Exit
+
+## Profile Settings Screen
+profile-settings-title = Profile settings
+profile-settings-cards-per-set = Cards per set:
+profile-settings-test-method = Test answer method:
+profile-settings-test-method-manual = Manual text entry
+profile-settings-test-method-self = Self review
+profile-settings-streak-length = Streak length for remembering:
+profile-settings-assistant-settings-button = Assistant settings
+profile-settings-save = Save
+profile-settings-delete-profile = Delete profile
+profile-settings-delete-warning = Are you sure you want to delete this profile? All cards and progress will be permanently lost.
+profile-settings-delete-confirm = Yes, delete
+profile-settings-delete-cancel = No, keep it
+profile-settings-back = Back
+profile-settings-saved = Settings saved successfully
+
+## Assistant Settings Screen
+assistant-settings-title = Assistant Settings
+assistant-settings-model-label = Model Strength:
+assistant-settings-weak = Weak
+assistant-settings-medium = Medium
+assistant-settings-strong = Strong
+assistant-settings-api = API
+assistant-settings-ollama-not-found = Ollama not found X
+assistant-settings-api-endpoint = API Endpoint:
+assistant-settings-api-key = API Key:
+assistant-settings-api-model = Model Name:
+assistant-settings-back = Back
 
 ## Error Messages
 error-username-empty = Username cannot be empty
@@ -47,6 +77,9 @@ error-create-user = Error creating user: { $error }
 error-update-theme = Failed to update theme: { $error }
 error-update-language = Failed to update language: { $error }
 error-user-created-not-found = User created but not found
+error-invalid-number = Please enter a valid number
+error-cards-per-set-range = Cards per set must be between 1 and 100
+error-streak-length-range = Streak length must be between 1 and 50
 
 ## Settings
 settings-theme = Theme

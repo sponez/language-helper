@@ -23,10 +23,10 @@ use crate::repositories::app_settings_repository::AppSettingsRepository;
 /// use lh_core::services::app_settings_service::AppSettingsService;
 /// use lh_core::repositories::app_settings_repository::AppSettingsRepository;
 ///
-/// fn example(repository: impl AppSettingsRepository) {
+/// async fn example(repository: impl AppSettingsRepository) {
 ///     let service = AppSettingsService::new(repository);
 ///
-///     match service.get_settings() {
+///     match service.get_settings().await {
 ///         Ok(settings) => println!("Theme: {}", settings.ui_theme),
 ///         Err(e) => eprintln!("Error: {}", e),
 ///     }
@@ -81,8 +81,8 @@ impl<R: AppSettingsRepository> AppSettingsService<R> {
     /// ```no_run
     /// # use lh_core::services::app_settings_service::AppSettingsService;
     /// # use lh_core::repositories::app_settings_repository::AppSettingsRepository;
-    /// # fn example(service: &AppSettingsService<impl AppSettingsRepository>) {
-    /// match service.get_settings() {
+    /// # async fn example(service: &AppSettingsService<impl AppSettingsRepository>) {
+    /// match service.get_settings().await {
     ///     Ok(settings) => {
     ///         println!("UI Theme: {}", settings.ui_theme);
     ///         println!("Default Language: {}", settings.default_ui_language);
@@ -128,8 +128,8 @@ impl<R: AppSettingsRepository> AppSettingsService<R> {
     /// ```no_run
     /// # use lh_core::services::app_settings_service::AppSettingsService;
     /// # use lh_core::repositories::app_settings_repository::AppSettingsRepository;
-    /// # fn example(service: &AppSettingsService<impl AppSettingsRepository>) {
-    /// match service.update_settings("Dark", "es") {
+    /// # async fn example(service: &AppSettingsService<impl AppSettingsRepository>) {
+    /// match service.update_settings("Dark", "es").await {
     ///     Ok(settings) => println!("Settings updated: {:?}", settings),
     ///     Err(e) => eprintln!("Failed to update settings: {}", e),
     /// }
@@ -160,8 +160,8 @@ impl<R: AppSettingsRepository> AppSettingsService<R> {
     /// ```no_run
     /// # use lh_core::services::app_settings_service::AppSettingsService;
     /// # use lh_core::repositories::app_settings_repository::AppSettingsRepository;
-    /// # fn example(service: &AppSettingsService<impl AppSettingsRepository>) {
-    /// match service.initialize_defaults() {
+    /// # async fn example(service: &AppSettingsService<impl AppSettingsRepository>) {
+    /// match service.initialize_defaults().await {
     ///     Ok(settings) => println!("Settings initialized: {:?}", settings),
     ///     Err(e) => eprintln!("Failed to initialize settings: {}", e),
     /// }

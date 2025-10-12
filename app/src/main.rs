@@ -22,8 +22,10 @@ use lh_persistence::{
     SqliteUserRepository, SqliteUserSettingsRepository,
 };
 
+use gui::app_state::AppState;
 use gui::router::{Message, RouterNode, RouterStack};
 use gui::routers::user_list_router::UserListRouter;
+use gui::runtime_util::block_on;
 
 mod config;
 use config::AppConfig;
@@ -50,8 +52,19 @@ impl LanguageHelperApp {
     /// - The new `LanguageHelperApp` instance
     /// - An initial task (currently none)
     fn new(app_api: Box<dyn lh_api::app_api::AppApi>) -> (Self, Task<Message>) {
-        let app_api_rc = Rc::from(app_api);
-        let root_router: Box<dyn RouterNode> = Box::new(UserListRouter::new(app_api_rc));
+        let app_api_rc: Rc<dyn lh_api::app_api::AppApi> = Rc::from(app_api);
+
+        // Load initial app settings to create AppState
+        let app_settings = block_on(app_api_rc.app_settings_api().get_app_settings())
+            .expect("Failed to load app settings");
+
+        // Create global app state
+        let app_state = AppState::new(app_settings.theme, app_settings.language);
+
+        let root_router: Box<dyn RouterNode> = Box::new(UserListRouter::new(
+            app_api_rc,
+            app_state,
+        ));
         let router_stack = RouterStack::new(root_router);
 
         (Self { router_stack }, Task::none())

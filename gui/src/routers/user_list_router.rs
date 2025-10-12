@@ -11,9 +11,8 @@ use iced::{Alignment, Element, Length};
 
 use lh_api::app_api::AppApi;
 
-use crate::fonts::get_font_for_locale;
+use crate::app_state::AppState;
 use crate::mappers::user_mapper;
-use crate::i18n::I18n;
 use crate::iced_params::{get_sorted_themes, LANGUAGES, THEMES};
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::runtime_util::block_on;
@@ -39,14 +38,8 @@ pub enum Message {
 pub struct UserListRouter {
     /// API instance for backend communication
     app_api: Rc<dyn AppApi>,
-    /// The currently selected app theme
-    theme: Option<String>,
-    /// The currently selected app language
-    language: Option<String>,
-    /// Internationalization handler
-    i18n: I18n,
-    /// Current font for the selected language
-    current_font: Option<iced::Font>,
+    /// Global application state (theme, language, i18n, font)
+    app_state: AppState,
     /// The currently selected username from the pick list
     selected_username: Option<String>,
     /// Whether we're in "add new user" mode
@@ -63,19 +56,11 @@ impl UserListRouter {
     /// # Arguments
     ///
     /// * `app_api` - The API instance for backend communication
-    pub fn new(app_api: Rc<dyn AppApi>) -> Self {
-        let app_settings = block_on(app_api.app_settings_api().get_app_settings())
-            .expect("Failed to load app settings");
-
-        let i18n = I18n::new(&app_settings.language);
-        let current_font = get_font_for_locale(&app_settings.language);
-
+    /// * `app_state` - Global application state
+    pub fn new(app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
         Self {
             app_api,
-            theme: Some(app_settings.theme),
-            language: Some(app_settings.language),
-            i18n,
-            current_font,
+            app_state,
             selected_username: None,
             is_adding_new_user: false,
             new_username_input: String::new(),
@@ -91,26 +76,23 @@ impl UserListRouter {
     pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
         match message {
             Message::Theme(theme) => {
-                self.theme = Some(theme.clone());
+                self.app_state.set_theme(theme.clone());
                 if let Err(e) = block_on(self.app_api.app_settings_api().update_app_theme(&theme)) {
                     self.error_message = Some(format!("Failed to update theme: {}", e));
                 }
                 None
             }
             Message::Language(language) => {
-                self.language = Some(language.clone());
-                // Update i18n locale
-                self.i18n.set_locale(&language);
-                // Update font for the new language
-                self.current_font = get_font_for_locale(&language);
+                self.app_state.set_language(language.clone());
 
                 if let Err(e) = block_on(self.app_api.app_settings_api().update_app_language(&language)) {
-                    self.error_message = Some(self.i18n.get_with_arg("error-update-language", "error", &e.to_string()));
+                    let i18n = self.app_state.i18n();
+                    self.error_message = Some(i18n.get_with_arg("error-update-language", "error", &e.to_string()));
                 }
                 None
             }
             Message::OptionSelected(selection) => {
-                if selection == self.i18n.get("user-list-add-new", None) {
+                if selection == self.app_state.i18n().get("user-list-add-new", None) {
                     // Switch to "add new user" mode
                     self.is_adding_new_user = true;
                     self.selected_username = None;
@@ -134,7 +116,7 @@ impl UserListRouter {
                     // Create new user
                     let username = self.new_username_input.trim().to_string();
                     if username.is_empty() {
-                        self.error_message = Some(self.i18n.get("error-username-empty", None));
+                        self.error_message = Some(self.app_state.i18n().get("error-username-empty", None));
                         return None;
                     }
 
@@ -148,6 +130,7 @@ impl UserListRouter {
                                     Box::new(super::user_router::UserRouter::new(
                                         user_view,
                                         Rc::clone(&self.app_api),
+                                        self.app_state.clone(),
                                     ));
 
                                 // Reset state before navigating
@@ -157,12 +140,12 @@ impl UserListRouter {
 
                                 return Some(RouterEvent::Push(account_router));
                             } else {
-                                self.error_message = Some(self.i18n.get("error-user-created-not-found", None));
+                                self.error_message = Some(self.app_state.i18n().get("error-user-created-not-found", None));
                                 None
                             }
                         }
                         Err(e) => {
-                            self.error_message = Some(self.i18n.get_with_arg("error-create-user", "error", &e.to_string()));
+                            self.error_message = Some(self.app_state.i18n().get_with_arg("error-create-user", "error", &e.to_string()));
                             None
                         }
                     }
@@ -173,11 +156,11 @@ impl UserListRouter {
                         {
                             let user_view = user_mapper::dto_to_view(&user_dto);
                             let account_router: Box<dyn crate::router::RouterNode> = Box::new(
-                                super::user_router::UserRouter::new(user_view, Rc::clone(&self.app_api)),
+                                super::user_router::UserRouter::new(user_view, Rc::clone(&self.app_api), self.app_state.clone()),
                             );
                             Some(RouterEvent::Push(account_router))
                         } else {
-                            self.error_message = Some(self.i18n.get("error-user-not-found", None));
+                            self.error_message = Some(self.app_state.i18n().get("error-user-not-found", None));
                             None
                         }
                     } else {
@@ -208,33 +191,33 @@ impl UserListRouter {
 
         // Theme pick list - sorted alphabetically
         let themes: Vec<String> = get_sorted_themes();
-        let theme_selected: Option<String> = self.theme.clone();
+        let theme_selected: Option<String> = Some(self.app_state.theme());
         let themes_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
             themes.clone(),
             theme_selected,
             Message::Theme,
         )
-            .placeholder(self.theme.clone().unwrap())
+            .placeholder(self.app_state.theme())
             .width(150);
 
         // Language pick list
         let languages: Vec<String> = LANGUAGES.clone();
-        let language_selected: Option<String> = self.language.clone();
+        let language_selected: Option<String> = Some(self.app_state.language());
         let mut languages_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
             languages.clone(),
             language_selected,
             Message::Language,
         )
-            .placeholder(self.language.clone().unwrap())
+            .placeholder(self.app_state.language())
             .width(100);
 
         // Apply current font to language picker
-        if let Some(font) = self.current_font {
+        if let Some(font) = self.app_state.current_font() {
             languages_pick_list = languages_pick_list.font(font);
         }
 
         // Add "Add new user" option at the end
-        let add_new_text = self.i18n.get("user-list-add-new", None);
+        let add_new_text = self.app_state.i18n().get("user-list-add-new", None);
         usernames.push(add_new_text.clone());
 
         // Determine selected value
@@ -249,11 +232,11 @@ impl UserListRouter {
             username_selected,
             Message::OptionSelected
         )
-            .placeholder(self.i18n.get("user-list-select-placeholder", None))
+            .placeholder(self.app_state.i18n().get("user-list-select-placeholder", None))
             .width(300);
 
         // Apply current font to username picker
-        if let Some(font) = self.current_font {
+        if let Some(font) = self.app_state.current_font() {
             username_pick_list = username_pick_list.font(font);
         }
 
@@ -263,7 +246,7 @@ impl UserListRouter {
         // If "Add new user" is selected, show text input
         if self.is_adding_new_user {
             let text_input_widget = text_input(
-                &self.i18n.get("user-list-username-placeholder", None),
+                &self.app_state.i18n().get("user-list-username-placeholder", None),
                 &self.new_username_input
             )
                 .on_input(Message::NewUsernameChanged)
@@ -271,8 +254,8 @@ impl UserListRouter {
                 .padding(10)
                 .width(300);
 
-            let mut enter_username_text = text(self.i18n.get("user-list-enter-username", None));
-            if let Some(font) = self.current_font {
+            let mut enter_username_text = text(self.app_state.i18n().get("user-list-enter-username", None));
+            if let Some(font) = self.app_state.current_font() {
                 enter_username_text = enter_username_text.font(font);
             }
             content = content.push(enter_username_text);
@@ -283,46 +266,53 @@ impl UserListRouter {
                 let mut error_text = text(error).style(|_theme| iced::widget::text::Style {
                     color: Some(iced::Color::from_rgb(0.8, 0.0, 0.0)),
                 });
-                if let Some(font) = self.current_font {
+                if let Some(font) = self.app_state.current_font() {
                     error_text = error_text.font(font);
                 }
                 content = content.push(error_text);
             }
         }
 
-        // Button row with OK and Exit buttons
-        // Try to apply font, but cosmic-text may crash if font lacks glyphs
-        // Using smaller text size to potentially avoid the overflow issue
+        // Button row with OK and Exit buttons - small consistent size
         let ok_button = if self.is_adding_new_user {
-            let mut ok_text = text(self.i18n.get("user-list-ok-button", None))
-                .size(14);  // Smaller size may help avoid overflow
-            if let Some(font) = self.current_font {
-                ok_text = ok_text.font(font);
-            }
-            button(ok_text).on_press_maybe(if !self.new_username_input.trim().is_empty() {
-                Some(Message::ConfirmSelection)
-            } else {
-                None
-            })
-        } else {
-            let mut ok_text = text(self.i18n.get("user-list-ok-button", None))
+            let mut ok_text = text(self.app_state.i18n().get("user-list-ok-button", None))
                 .size(14);
-            if let Some(font) = self.current_font {
+            if let Some(font) = self.app_state.current_font() {
                 ok_text = ok_text.font(font);
             }
-            button(ok_text).on_press_maybe(
-                self.selected_username
-                    .as_ref()
-                    .map(|_| Message::ConfirmSelection),
-            )
+            button(ok_text)
+                .on_press_maybe(if !self.new_username_input.trim().is_empty() {
+                    Some(Message::ConfirmSelection)
+                } else {
+                    None
+                })
+                .width(Length::Fixed(120.0))
+                .padding(10)
+        } else {
+            let mut ok_text = text(self.app_state.i18n().get("user-list-ok-button", None))
+                .size(14);
+            if let Some(font) = self.app_state.current_font() {
+                ok_text = ok_text.font(font);
+            }
+            button(ok_text)
+                .on_press_maybe(
+                    self.selected_username
+                        .as_ref()
+                        .map(|_| Message::ConfirmSelection),
+                )
+                .width(Length::Fixed(120.0))
+                .padding(10)
         };
 
-        let mut exit_text = text(self.i18n.get("user-list-exit-button", None))
+        let mut exit_text = text(self.app_state.i18n().get("user-list-exit-button", None))
             .size(14);
-        if let Some(font) = self.current_font {
+        if let Some(font) = self.app_state.current_font() {
             exit_text = exit_text.font(font);
         }
-        let exit_button = button(exit_text).on_press(Message::Exit);
+        let exit_button = button(exit_text)
+            .on_press(Message::Exit)
+            .width(Length::Fixed(120.0))
+            .padding(10);
 
         let button_row = row![ok_button, exit_button].spacing(10);
 
@@ -352,8 +342,23 @@ impl UserListRouter {
     }
 }
 
+impl UserListRouter {
+    /// Refresh app settings from the API
+    fn refresh_data(&mut self) {
+        if let Ok(app_settings) = block_on(self.app_api.app_settings_api().get_app_settings()) {
+            self.app_state.update_settings(app_settings.theme, app_settings.language);
+        } else {
+            eprintln!("Failed to refresh app settings");
+        }
+    }
+}
+
 /// Implementation of RouterNode for AccountListRouter
 impl RouterNode for UserListRouter {
+    fn router_name(&self) -> &'static str {
+        "user_list"
+    }
+
     fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
         match message {
             router::Message::UserList(msg) => UserListRouter::update(self, msg.clone()),
@@ -366,6 +371,10 @@ impl RouterNode for UserListRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        THEMES.get(&self.theme.clone().unwrap()).cloned().unwrap_or(iced::Theme::Light)
+        THEMES.get(&self.app_state.theme()).cloned().unwrap_or(iced::Theme::Light)
+    }
+
+    fn refresh(&mut self) {
+        self.refresh_data();
     }
 }
