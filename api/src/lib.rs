@@ -27,8 +27,8 @@
 //! use lh_api::app_api::AppApi;
 //! use lh_api::apis::user_api::UsersApi;
 //!
-//! fn list_users(app_api: &dyn AppApi) {
-//!     match app_api.users_api().get_usernames() {
+//! async fn list_users(app_api: &dyn AppApi) {
+//!     match app_api.users_api().get_usernames().await {
 //!         Ok(usernames) => {
 //!             for username in usernames {
 //!                 println!("User: {}", username);

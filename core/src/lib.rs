@@ -27,10 +27,10 @@
 //! use lh_core::repositories::user_repository::UserRepository;
 //!
 //! // Your persistence layer implements UserRepository
-//! fn example(repository: impl UserRepository) {
+//! async fn example(repository: impl UserRepository) {
 //!     let user_service = UserService::new(repository);
 //!
-//!     match user_service.get_all_usernames() {
+//!     match user_service.get_all_usernames().await {
 //!         Ok(usernames) => {
 //!             for username in usernames {
 //!                 println!("User: {}", username);

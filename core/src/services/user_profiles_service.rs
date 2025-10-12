@@ -25,10 +25,10 @@ use crate::repositories::user_repository::UserRepository;
 /// use lh_core::repositories::user_profiles_repository::UserProfilesRepository;
 /// use lh_core::repositories::user_repository::UserRepository;
 ///
-/// fn example(profile_repo: impl UserProfilesRepository, user_repo: impl UserRepository) {
+/// async fn example(profile_repo: impl UserProfilesRepository, user_repo: impl UserRepository) {
 ///     let service = UserProfilesService::new(profile_repo, user_repo);
 ///
-///     match service.get_profiles_for_user("john_doe") {
+///     match service.get_profiles_for_user("john_doe").await {
 ///         Ok(profiles) => println!("Found {} profiles", profiles.len()),
 ///         Err(e) => eprintln!("Error: {}", e),
 ///     }
@@ -79,8 +79,8 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// # use lh_core::services::user_profiles_service::UserProfilesService;
     /// # use lh_core::repositories::user_profiles_repository::UserProfilesRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
-    /// match service.get_profiles_for_user("john_doe") {
+    /// # async fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
+    /// match service.get_profiles_for_user("john_doe").await {
     ///     Ok(profiles) => {
     ///         for profile in profiles {
     ///             println!("Profile: {}", profile.target_language);
@@ -118,8 +118,8 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// # use lh_core::services::user_profiles_service::UserProfilesService;
     /// # use lh_core::repositories::user_profiles_repository::UserProfilesRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
-    /// match service.get_profile_by_id("john_doe", "spanish") {
+    /// # async fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
+    /// match service.get_profile_by_id("john_doe", "spanish").await {
     ///     Ok(profile) => println!("Found profile: {:?}", profile),
     ///     Err(e) => eprintln!("Error: {}", e),
     /// }
@@ -162,8 +162,8 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// # use lh_core::services::user_profiles_service::UserProfilesService;
     /// # use lh_core::repositories::user_profiles_repository::UserProfilesRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
-    /// match service.create_profile("jane_doe", "spanish") {
+    /// # async fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
+    /// match service.create_profile("jane_doe", "spanish").await {
     ///     Ok(profile) => println!("Created profile: {:?}", profile),
     ///     Err(e) => eprintln!("Failed to create profile: {}", e),
     /// }
@@ -213,8 +213,8 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// # use lh_core::services::user_profiles_service::UserProfilesService;
     /// # use lh_core::repositories::user_profiles_repository::UserProfilesRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
-    /// match service.update_profile_activity("john_doe", "spanish") {
+    /// # async fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
+    /// match service.update_profile_activity("john_doe", "spanish").await {
     ///     Ok(profile) => println!("Updated activity: {:?}", profile),
     ///     Err(e) => eprintln!("Failed to update activity: {}", e),
     /// }
@@ -258,8 +258,8 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// # use lh_core::services::user_profiles_service::UserProfilesService;
     /// # use lh_core::repositories::user_profiles_repository::UserProfilesRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
-    /// match service.delete_profile("john_doe", "spanish") {
+    /// # async fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
+    /// match service.delete_profile("john_doe", "spanish").await {
     ///     Ok(()) => println!("Profile deleted successfully"),
     ///     Err(e) => eprintln!("Failed to delete profile: {}", e),
     /// }

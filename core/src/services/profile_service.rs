@@ -23,10 +23,10 @@ use std::path::PathBuf;
 /// use lh_core::services::profile_service::ProfileService;
 /// use lh_core::repositories::profile_repository::ProfileRepository;
 ///
-/// fn example(repo: impl ProfileRepository) {
+/// async fn example(repo: impl ProfileRepository) {
 ///     let service = ProfileService::new(repo, "data");
 ///
-///     match service.create_profile_database("john_doe", "spanish") {
+///     match service.create_profile_database("john_doe", "spanish").await {
 ///         Ok(path) => println!("Created database at: {:?}", path),
 ///         Err(e) => eprintln!("Error: {}", e),
 ///     }
@@ -80,8 +80,8 @@ impl<R: ProfileRepository> ProfileService<R> {
     /// ```no_run
     /// # use lh_core::services::profile_service::ProfileService;
     /// # use lh_core::repositories::profile_repository::ProfileRepository;
-    /// # fn example(service: &ProfileService<impl ProfileRepository>) {
-    /// match service.create_profile_database("jane_doe", "french") {
+    /// # async fn example(service: &ProfileService<impl ProfileRepository>) {
+    /// match service.create_profile_database("jane_doe", "french").await {
     ///     Ok(path) => println!("Database created at: {:?}", path),
     ///     Err(e) => eprintln!("Failed to create database: {}", e),
     /// }

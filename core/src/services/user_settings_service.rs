@@ -28,14 +28,14 @@ use crate::repositories::user_settings_repository::UserSettingsRepository;
 /// use lh_core::repositories::app_settings_repository::AppSettingsRepository;
 /// use lh_core::repositories::user_repository::UserRepository;
 ///
-/// fn example(
+/// async fn example(
 ///     settings_repo: impl UserSettingsRepository,
 ///     app_repo: impl AppSettingsRepository,
 ///     user_repo: impl UserRepository,
 /// ) {
 ///     let service = UserSettingsService::new(settings_repo, app_repo, user_repo);
 ///
-///     match service.get_user_settings("john_doe") {
+///     match service.get_user_settings("john_doe").await {
 ///         Ok(settings) => println!("Theme: {}", settings.ui_theme),
 ///         Err(e) => eprintln!("Error: {}", e),
 ///     }
@@ -97,8 +97,8 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// # use lh_core::repositories::user_settings_repository::UserSettingsRepository;
     /// # use lh_core::repositories::app_settings_repository::AppSettingsRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserSettingsService<impl UserSettingsRepository, impl AppSettingsRepository, impl UserRepository>) {
-    /// match service.get_user_settings("john_doe") {
+    /// # async fn example(service: &UserSettingsService<impl UserSettingsRepository, impl AppSettingsRepository, impl UserRepository>) {
+    /// match service.get_user_settings("john_doe").await {
     ///     Ok(settings) => println!("Found settings: {:?}", settings),
     ///     Err(e) => eprintln!("Error: {}", e),
     /// }
@@ -138,8 +138,8 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// # use lh_core::repositories::user_settings_repository::UserSettingsRepository;
     /// # use lh_core::repositories::app_settings_repository::AppSettingsRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserSettingsService<impl UserSettingsRepository, impl AppSettingsRepository, impl UserRepository>) {
-    /// match service.create_user_settings("jane_doe") {
+    /// # async fn example(service: &UserSettingsService<impl UserSettingsRepository, impl AppSettingsRepository, impl UserRepository>) {
+    /// match service.create_user_settings("jane_doe").await {
     ///     Ok(settings) => println!("Created settings: {:?}", settings),
     ///     Err(e) => eprintln!("Failed to create settings: {}", e),
     /// }
@@ -202,8 +202,8 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// # use lh_core::repositories::user_settings_repository::UserSettingsRepository;
     /// # use lh_core::repositories::app_settings_repository::AppSettingsRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserSettingsService<impl UserSettingsRepository, impl AppSettingsRepository, impl UserRepository>) {
-    /// match service.update_user_settings("john_doe", "Dark", "es") {
+    /// # async fn example(service: &UserSettingsService<impl UserSettingsRepository, impl AppSettingsRepository, impl UserRepository>) {
+    /// match service.update_user_settings("john_doe", "Dark", "es").await {
     ///     Ok(settings) => println!("Updated settings: {:?}", settings),
     ///     Err(e) => eprintln!("Failed to update settings: {}", e),
     /// }
@@ -255,8 +255,8 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// # use lh_core::repositories::user_settings_repository::UserSettingsRepository;
     /// # use lh_core::repositories::app_settings_repository::AppSettingsRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
-    /// # fn example(service: &UserSettingsService<impl UserSettingsRepository, impl AppSettingsRepository, impl UserRepository>) {
-    /// match service.delete_user_settings("john_doe") {
+    /// # async fn example(service: &UserSettingsService<impl UserSettingsRepository, impl AppSettingsRepository, impl UserRepository>) {
+    /// match service.delete_user_settings("john_doe").await {
     ///     Ok(()) => println!("Settings deleted successfully"),
     ///     Err(e) => eprintln!("Failed to delete settings: {}", e),
     /// }
