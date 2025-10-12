@@ -13,6 +13,7 @@ use crate::i18n_widgets::localized_text;
 use crate::iced_params::THEMES;
 use crate::models::{ProfileSettingsView, ProfileView, UserView};
 use crate::router::{self, RouterEvent, RouterNode};
+use crate::routers::assistant_settings_router::AssistantSettingsRouter;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -22,10 +23,8 @@ pub enum Message {
     TestAnswerMethodSelected(String),
     /// Streak length input changed
     StreakLengthChanged(String),
-    /// AI model selected (future)
-    AIModelSelected(String),
-    /// Run AI assistant button pressed
-    RunAssistant,
+    /// Assistant settings button pressed
+    AssistantSettings,
     /// Save settings button pressed
     Save,
     /// Show delete profile confirmation modal
@@ -43,12 +42,10 @@ pub struct ProfileSettingsRouter {
     /// User view with all user data
     user_view: UserView,
     /// Currently selected profile
-    #[allow(dead_code)]
     profile: ProfileView,
     /// Profile settings (loaded from API)
     settings: ProfileSettingsView,
     /// API instance for backend communication
-    #[allow(dead_code)]
     app_api: Rc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
@@ -60,8 +57,6 @@ pub struct ProfileSettingsRouter {
     test_answer_method: String,
     /// Streak length input text
     streak_length_input: String,
-    /// Selected AI model
-    selected_ai_model: Option<String>,
     /// Whether delete confirmation modal is showing
     show_delete_confirmation: bool,
     /// Error message to display
@@ -84,7 +79,6 @@ impl ProfileSettingsRouter {
         let cards_per_set_input = settings.cards_per_set.to_string();
         let test_answer_method = settings.test_answer_method.clone();
         let streak_length_input = settings.streak_length.to_string();
-        let selected_ai_model = settings.ai_model.clone();
 
         Self {
             user_view,
@@ -96,7 +90,6 @@ impl ProfileSettingsRouter {
             cards_per_set_input,
             test_answer_method,
             streak_length_input,
-            selected_ai_model,
             show_delete_confirmation: false,
             error_message: None,
         }
@@ -118,14 +111,15 @@ impl ProfileSettingsRouter {
                 self.error_message = None;
                 None
             }
-            Message::AIModelSelected(model) => {
-                self.selected_ai_model = Some(model);
-                None
-            }
-            Message::RunAssistant => {
-                // TODO: Implement AI assistant feature
-                eprintln!("Run AI assistant - not yet implemented");
-                None
+            Message::AssistantSettings => {
+                // Navigate to assistant settings router
+                let assistant_router = AssistantSettingsRouter::new(
+                    self.user_view.clone(),
+                    self.profile.clone(),
+                    self.app_api.clone(),
+                    self.app_state.clone(),
+                );
+                Some(RouterEvent::Push(Box::new(assistant_router)))
             }
             Message::Save => {
                 let i18n = self.app_state.i18n();
@@ -168,7 +162,7 @@ impl ProfileSettingsRouter {
                     cards_per_set,
                     self.test_answer_method.clone(),
                     streak_length,
-                    self.selected_ai_model.clone(),
+                    None,
                 );
 
                 // TODO: Save to API
@@ -208,7 +202,6 @@ impl ProfileSettingsRouter {
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
         let current_font = self.app_state.current_font();
-        let assistant_running = self.app_state.is_assistant_running();
 
         // Title
         let title = localized_text(
@@ -304,47 +297,18 @@ impl ProfileSettingsRouter {
         .spacing(10)
         .align_y(Alignment::Center);
 
-        // AI Model section
-        let ai_model_label = localized_text(
+        // Assistant settings button
+        let assistant_settings_text = localized_text(
             &i18n,
-            "profile-settings-ai-model",
-            current_font,
-            16,
-        );
-
-        let ai_models = vec![
-            i18n.get("profile-settings-add-model", None),
-        ];
-
-        let ai_model_picker = pick_list(
-            ai_models,
-            self.selected_ai_model.clone().or_else(|| Some(
-                i18n.get("profile-settings-add-model", None)
-            )),
-            Message::AIModelSelected,
-        )
-        .width(Length::Fixed(200.0));
-
-        let run_assistant_text = localized_text(
-            &i18n,
-            "profile-settings-run-assistant",
+            "profile-settings-assistant-settings-button",
             current_font,
             14,
         );
 
-        // Disable Run assistant button when assistant is not running
-        let run_assistant_button = button(run_assistant_text)
-            .on_press_maybe(if assistant_running { Some(Message::RunAssistant) } else { None })
-            .width(Length::Fixed(120.0))
+        let assistant_settings_button = button(assistant_settings_text)
+            .on_press(Message::AssistantSettings)
+            .width(Length::Fixed(200.0))
             .padding(10);
-
-        let ai_model_row = row![
-            ai_model_label,
-            ai_model_picker,
-            run_assistant_button,
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
 
         // Error/Success message
         let message_widget = if let Some(ref msg) = self.error_message {
@@ -419,7 +383,7 @@ impl ProfileSettingsRouter {
             cards_per_set_row,
             test_method_row,
             streak_length_row,
-            ai_model_row,
+            assistant_settings_button,
         ]
         .spacing(20)
         .padding(30)

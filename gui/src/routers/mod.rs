@@ -3,6 +3,7 @@
 //! Each module in this directory represents a self-contained screen/router
 //! that handles its own logic and navigation to child screens.
 
+pub mod assistant_settings_router;
 pub mod profile_list_router;
 pub mod profile_router;
 pub mod profile_settings_router;

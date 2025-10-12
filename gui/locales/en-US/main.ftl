@@ -48,9 +48,7 @@ profile-settings-test-method = Test answer method:
 profile-settings-test-method-manual = Manual text entry
 profile-settings-test-method-self = Self review
 profile-settings-streak-length = Streak length for remembering:
-profile-settings-ai-model = AI model:
-profile-settings-add-model = + Add new model
-profile-settings-run-assistant = Run assistant
+profile-settings-assistant-settings-button = Assistant settings
 profile-settings-save = Save
 profile-settings-delete-profile = Delete profile
 profile-settings-delete-warning = Are you sure you want to delete this profile? All cards and progress will be permanently lost.
@@ -58,6 +56,19 @@ profile-settings-delete-confirm = Yes, delete
 profile-settings-delete-cancel = No, keep it
 profile-settings-back = Back
 profile-settings-saved = Settings saved successfully
+
+## Assistant Settings Screen
+assistant-settings-title = Assistant Settings
+assistant-settings-model-label = Model Strength:
+assistant-settings-weak = Weak
+assistant-settings-medium = Medium
+assistant-settings-strong = Strong
+assistant-settings-api = API
+assistant-settings-ollama-not-found = Ollama not found X
+assistant-settings-api-endpoint = API Endpoint:
+assistant-settings-api-key = API Key:
+assistant-settings-api-model = Model Name:
+assistant-settings-back = Back
 
 ## Error Messages
 error-username-empty = Username cannot be empty

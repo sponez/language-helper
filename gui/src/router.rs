@@ -29,7 +29,7 @@
 
 use iced::Element;
 
-use crate::routers::{profile_list_router, profile_router, profile_settings_router, user_list_router, user_router, user_settings_router};
+use crate::routers::{assistant_settings_router, profile_list_router, profile_router, profile_settings_router, user_list_router, user_router, user_settings_router};
 
 /// Identifies a specific router type for navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,6 +40,7 @@ pub enum RouterTarget {
     ProfileList,
     Profile,
     ProfileSettings,
+    AssistantSettings,
 }
 
 impl RouterTarget {
@@ -52,6 +53,7 @@ impl RouterTarget {
             RouterTarget::ProfileList => "profile_list",
             RouterTarget::Profile => "profile",
             RouterTarget::ProfileSettings => "profile_settings",
+            RouterTarget::AssistantSettings => "assistant_settings",
         }
     }
 }
@@ -97,6 +99,8 @@ pub enum Message {
     Profile(profile_router::Message),
     /// Message for the profile settings router
     ProfileSettings(profile_settings_router::Message),
+    /// Message for the assistant settings router
+    AssistantSettings(assistant_settings_router::Message),
 }
 
 /// Type-erased router node that can be stored in the stack.
