@@ -8,8 +8,7 @@ use iced::Background;
 use iced::Color;
 use lh_api::app_api::AppApi;
 
-use crate::fonts::get_font_for_locale;
-use crate::i18n::I18n;
+use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
 use crate::iced_params::THEMES;
 use crate::models::{ProfileSettingsView, ProfileView, UserView};
@@ -51,17 +50,10 @@ pub struct ProfileSettingsRouter {
     /// API instance for backend communication
     #[allow(dead_code)]
     app_api: Rc<dyn AppApi>,
-    /// User's theme preference
-    theme: String,
-    /// User's language
-    #[allow(dead_code)]
-    language: String,
+    /// Global application state (theme, language, i18n, font)
+    app_state: AppState,
     /// Target language being learned
     target_language: String,
-    /// Internationalization instance
-    i18n: I18n,
-    /// Current font for the user's language
-    current_font: Option<iced::Font>,
     /// Cards per set input text
     cards_per_set_input: String,
     /// Selected test answer method
@@ -77,16 +69,13 @@ pub struct ProfileSettingsRouter {
 }
 
 impl ProfileSettingsRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>) -> Self {
-        let (theme, language) = if let Some(ref settings) = user_view.settings {
-            (settings.theme.clone(), settings.language.clone())
-        } else {
-            ("Dark".to_string(), "en-US".to_string())
-        };
+    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+        // Update app_state with user's settings if available
+        if let Some(ref settings) = user_view.settings {
+            app_state.update_settings(settings.theme.clone(), settings.language.clone());
+        }
 
         let target_language = profile.target_language.clone();
-        let i18n = I18n::new(&language);
-        let current_font = get_font_for_locale(&language);
 
         // TODO: Load settings from API
         // For now, use defaults
@@ -102,11 +91,8 @@ impl ProfileSettingsRouter {
             profile,
             settings,
             app_api,
-            theme,
-            language,
+            app_state,
             target_language,
-            i18n,
-            current_font,
             cards_per_set_input,
             test_answer_method,
             streak_length_input,
@@ -142,18 +128,20 @@ impl ProfileSettingsRouter {
                 None
             }
             Message::Save => {
+                let i18n = self.app_state.i18n();
+
                 // Validate inputs
                 let cards_per_set = match self.cards_per_set_input.parse::<u32>() {
                     Ok(n) if n >= 1 && n <= 100 => n,
                     Ok(_) => {
                         self.error_message = Some(
-                            self.i18n.get("error-cards-per-set-range", None)
+                            i18n.get("error-cards-per-set-range", None)
                         );
                         return None;
                     }
                     Err(_) => {
                         self.error_message = Some(
-                            self.i18n.get("error-invalid-number", None)
+                            i18n.get("error-invalid-number", None)
                         );
                         return None;
                     }
@@ -163,13 +151,13 @@ impl ProfileSettingsRouter {
                     Ok(n) if n >= 1 && n <= 50 => n,
                     Ok(_) => {
                         self.error_message = Some(
-                            self.i18n.get("error-streak-length-range", None)
+                            i18n.get("error-streak-length-range", None)
                         );
                         return None;
                     }
                     Err(_) => {
                         self.error_message = Some(
-                            self.i18n.get("error-invalid-number", None)
+                            i18n.get("error-invalid-number", None)
                         );
                         return None;
                     }
@@ -188,7 +176,7 @@ impl ProfileSettingsRouter {
 
                 // Show success message briefly
                 self.error_message = Some(
-                    self.i18n.get("profile-settings-saved", None)
+                    i18n.get("profile-settings-saved", None)
                 );
 
                 None
@@ -218,19 +206,23 @@ impl ProfileSettingsRouter {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
+        let i18n = self.app_state.i18n();
+        let current_font = self.app_state.current_font();
+        let assistant_running = self.app_state.is_assistant_running();
+
         // Title
         let title = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-settings-title",
-            self.current_font,
+            current_font,
             24,
         );
 
         // Cards per set section
         let cards_per_set_label = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-settings-cards-per-set",
-            self.current_font,
+            current_font,
             16,
         );
 
@@ -251,28 +243,29 @@ impl ProfileSettingsRouter {
 
         // Test answer method section
         let test_method_label = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-settings-test-method",
-            self.current_font,
+            current_font,
             16,
         );
 
         let test_methods = vec![
-            self.i18n.get("profile-settings-test-method-manual", None),
-            self.i18n.get("profile-settings-test-method-self", None),
+            i18n.get("profile-settings-test-method-manual", None),
+            i18n.get("profile-settings-test-method-self", None),
         ];
 
         let selected_method = if self.test_answer_method == "manual" {
-            self.i18n.get("profile-settings-test-method-manual", None)
+            i18n.get("profile-settings-test-method-manual", None)
         } else {
-            self.i18n.get("profile-settings-test-method-self", None)
+            i18n.get("profile-settings-test-method-self", None)
         };
 
+        let manual_method_text = i18n.get("profile-settings-test-method-manual", None);
         let test_method_picker = pick_list(
             test_methods,
             Some(selected_method.clone()),
-            |selected| {
-                if selected == self.i18n.get("profile-settings-test-method-manual", None) {
+            move |selected| {
+                if selected == manual_method_text {
                     Message::TestAnswerMethodSelected("manual".to_string())
                 } else {
                     Message::TestAnswerMethodSelected("self_review".to_string())
@@ -290,9 +283,9 @@ impl ProfileSettingsRouter {
 
         // Streak length section
         let streak_length_label = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-settings-streak-length",
-            self.current_font,
+            current_font,
             16,
         );
 
@@ -313,34 +306,36 @@ impl ProfileSettingsRouter {
 
         // AI Model section
         let ai_model_label = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-settings-ai-model",
-            self.current_font,
+            current_font,
             16,
         );
 
         let ai_models = vec![
-            self.i18n.get("profile-settings-add-model", None),
+            i18n.get("profile-settings-add-model", None),
         ];
 
         let ai_model_picker = pick_list(
             ai_models,
             self.selected_ai_model.clone().or_else(|| Some(
-                self.i18n.get("profile-settings-add-model", None)
+                i18n.get("profile-settings-add-model", None)
             )),
             Message::AIModelSelected,
         )
         .width(Length::Fixed(200.0));
 
         let run_assistant_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-settings-run-assistant",
-            self.current_font,
+            current_font,
             14,
         );
 
+        // Disable Run assistant button when assistant is not running
         let run_assistant_button = button(run_assistant_text)
-            .on_press(Message::RunAssistant)
+            .on_press_maybe(if assistant_running { Some(Message::RunAssistant) } else { None })
+            .width(Length::Fixed(120.0))
             .padding(10);
 
         let ai_model_row = row![
@@ -361,7 +356,7 @@ impl ProfileSettingsRouter {
             };
 
             let mut msg_text = text(msg);
-            if let Some(font) = self.current_font {
+            if let Some(font) = current_font {
                 msg_text = msg_text.font(font);
             }
             msg_text = msg_text.style(move |_theme| iced::widget::text::Style {
@@ -375,36 +370,39 @@ impl ProfileSettingsRouter {
 
         // Action buttons
         let save_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-settings-save",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
 
         let save_button = button(save_text)
             .on_press(Message::Save)
+            .width(Length::Fixed(120.0))
             .padding(10);
 
         let delete_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-settings-delete-profile",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
 
         let delete_button = button(delete_text)
             .on_press(Message::ShowDeleteConfirmation)
+            .width(Length::Fixed(120.0))
             .padding(10);
 
         let back_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-settings-back",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
 
         let back_button = button(back_text)
             .on_press(Message::Back)
+            .width(Length::Fixed(120.0))
             .padding(10);
 
         let button_row = row![
@@ -442,35 +440,35 @@ impl ProfileSettingsRouter {
         // If delete confirmation is showing, overlay modal
         if self.show_delete_confirmation {
             let warning_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-settings-delete-warning",
-                self.current_font,
+                current_font,
                 16,
             );
 
             let confirm_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-settings-delete-confirm",
-                self.current_font,
+                current_font,
                 14,
             );
 
             let confirm_button = button(confirm_text)
                 .on_press(Message::ConfirmDelete)
-                .padding(15)
-                .width(Length::Fixed(150.0));
+                .padding(10)
+                .width(Length::Fixed(120.0));
 
             let cancel_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-settings-delete-cancel",
-                self.current_font,
+                current_font,
                 14,
             );
 
             let cancel_button = button(cancel_text)
                 .on_press(Message::CancelDelete)
-                .padding(15)
-                .width(Length::Fixed(150.0));
+                .padding(10)
+                .width(Length::Fixed(120.0));
 
             let modal_content = column![
                 warning_text,
@@ -539,7 +537,7 @@ impl RouterNode for ProfileSettingsRouter {
 
     fn theme(&self) -> iced::Theme {
         THEMES
-            .get(&self.theme)
+            .get(&self.app_state.theme())
             .cloned()
             .unwrap_or(iced::Theme::Dark)
     }

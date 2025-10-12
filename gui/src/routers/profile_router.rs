@@ -6,8 +6,7 @@ use iced::Background;
 use iced::Color;
 use lh_api::app_api::AppApi;
 
-use crate::fonts::get_font_for_locale;
-use crate::i18n::I18n;
+use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
 use crate::iced_params::THEMES;
 use crate::models::{ProfileView, UserView};
@@ -46,43 +45,30 @@ pub struct ProfileRouter {
     /// API instance for backend communication
     #[allow(dead_code)]
     app_api: Rc<dyn AppApi>,
-    /// User's theme preference
-    theme: String,
-    /// User's language
-    #[allow(dead_code)]
-    language: String,
+    /// Global application state (theme, language, i18n, font)
+    app_state: AppState,
     /// Target language being learned
     #[allow(dead_code)]
     target_language: String,
-    /// Internationalization instance
-    i18n: I18n,
-    /// Current font for the user's language
-    current_font: Option<iced::Font>,
     /// Whether the back button submenu is showing
     show_back_menu: bool,
 }
 
 impl ProfileRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>) -> Self {
-        let (theme, language) = if let Some(ref settings) = user_view.settings {
-            (settings.theme.clone(), settings.language.clone())
-        } else {
-            ("Dark".to_string(), "en-US".to_string())
-        };
+    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+        // Update app_state with user's settings if available
+        if let Some(ref settings) = user_view.settings {
+            app_state.update_settings(settings.theme.clone(), settings.language.clone());
+        }
 
         let target_language = profile.target_language.clone();
-        let i18n = I18n::new(&language);
-        let current_font = get_font_for_locale(&language);
 
         Self {
             user_view,
             profile,
             app_api,
-            theme,
-            language,
+            app_state,
             target_language,
-            i18n,
-            current_font,
             show_back_menu: false,
         }
     }
@@ -111,6 +97,7 @@ impl ProfileRouter {
                         self.user_view.clone(),
                         self.profile.clone(),
                         Rc::clone(&self.app_api),
+                        self.app_state.clone(),
                     )
                 );
                 Some(RouterEvent::Push(settings_router))
@@ -138,63 +125,69 @@ impl ProfileRouter {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        // Main buttons
+        let i18n = self.app_state.i18n();
+        let current_font = self.app_state.current_font();
+        let assistant_running = self.app_state.is_assistant_running();
+
+        // Main buttons - small consistent size
         let cards_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-cards-button",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
         let cards_button = button(cards_text)
             .on_press(Message::Cards)
-            .width(Length::Fixed(300.0))
-            .padding(15);
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
         let explain_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-explain-ai-button",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
+        // Disable AI buttons when assistant is not running
         let explain_button = button(explain_text)
-            .on_press(Message::ExplainWithAI)
-            .width(Length::Fixed(300.0))
-            .padding(15);
+            .on_press_maybe(if assistant_running { Some(Message::ExplainWithAI) } else { None })
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
         let chat_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-chat-ai-button",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
+        // Disable AI buttons when assistant is not running
         let chat_button = button(chat_text)
-            .on_press(Message::ChatWithAI)
-            .width(Length::Fixed(300.0))
-            .padding(15);
+            .on_press_maybe(if assistant_running { Some(Message::ChatWithAI) } else { None })
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
         let settings_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-settings-button",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
         let settings_button = button(settings_text)
             .on_press(Message::Settings)
-            .width(Length::Fixed(300.0))
-            .padding(15);
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
         let back_text = localized_text(
-            &self.i18n,
+            &i18n,
             "profile-back-button",
-            self.current_font,
-            16,
+            current_font,
+            14,
         );
 
         // Back button - now just a regular button that opens modal
         let back_button = button(back_text)
             .on_press(Message::ShowBackModal)
-            .width(Length::Fixed(300.0))
-            .padding(15);
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
         let main_content = column![
             cards_button,
@@ -217,55 +210,55 @@ impl ProfileRouter {
         if self.show_back_menu {
             // Modal content - navigation options
             let modal_title = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-back-where",
-                self.current_font,
+                current_font,
                 18,
             );
 
             let profile_selection_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-back-to-profiles",
-                self.current_font,
-                16,
+                current_font,
+                14,
             );
             let profile_selection_button = button(profile_selection_text)
                 .on_press(Message::BackToProfileSelection)
-                .width(Length::Fixed(350.0))
-                .padding(15);
+                .width(Length::Fixed(200.0))
+                .padding(10);
 
             let user_selection_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-back-to-user",
-                self.current_font,
-                16,
+                current_font,
+                14,
             );
             let user_selection_button = button(user_selection_text)
                 .on_press(Message::BackToUserSelection)
-                .width(Length::Fixed(350.0))
-                .padding(15);
+                .width(Length::Fixed(200.0))
+                .padding(10);
 
             let exit_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "profile-exit",
-                self.current_font,
-                16,
+                current_font,
+                14,
             );
             let exit_button = button(exit_text)
                 .on_press(Message::Exit)
-                .width(Length::Fixed(350.0))
-                .padding(15);
+                .width(Length::Fixed(200.0))
+                .padding(10);
 
             let cancel_text = localized_text(
-                &self.i18n,
+                &i18n,
                 "cancel",
-                self.current_font,
-                16,
+                current_font,
+                14,
             );
             let cancel_button = button(cancel_text)
                 .on_press(Message::CloseBackModal)
-                .width(Length::Fixed(350.0))
-                .padding(15);
+                .width(Length::Fixed(200.0))
+                .padding(10);
 
             let modal_content = column![
                 modal_title,
@@ -320,13 +313,9 @@ impl ProfileRouter {
             use crate::mappers::user_mapper;
             self.user_view = user_mapper::dto_to_view(&user_dto);
 
-            // Update theme and language from user settings
+            // Update app_state with user's settings if they changed
             if let Some(ref settings) = self.user_view.settings {
-                self.theme = settings.theme.clone();
-                let language = settings.language.clone();
-                self.language = language.clone();
-                self.i18n = I18n::new(&language);
-                self.current_font = get_font_for_locale(&language);
+                self.app_state.update_settings(settings.theme.clone(), settings.language.clone());
             }
 
             // Find and update the profile data
@@ -364,7 +353,7 @@ impl RouterNode for ProfileRouter {
 
     fn theme(&self) -> iced::Theme {
         THEMES
-            .get(&self.theme)
+            .get(&self.app_state.theme())
             .cloned()
             .unwrap_or(iced::Theme::Dark)
     }

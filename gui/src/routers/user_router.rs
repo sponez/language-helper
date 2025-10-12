@@ -6,13 +6,12 @@
 
 use std::rc::Rc;
 
-use iced::widget::{button, column, row, Container};
+use iced::widget::{button, column, Container};
 use iced::{Alignment, Element, Length};
 
 use lh_api::app_api::AppApi;
 
-use crate::fonts::get_font_for_locale;
-use crate::i18n::I18n;
+use crate::app_state::AppState;
 use crate::i18n_widgets::{localized_text, localized_text_with_arg};
 use crate::iced_params::THEMES;
 use crate::models::UserView;
@@ -37,12 +36,8 @@ pub struct UserRouter {
     /// API instance for backend communication
     #[allow(dead_code)]
     app_api: Rc<dyn AppApi>,
-    /// User's theme preference
-    theme: String,
-    /// Internationalization instance
-    i18n: I18n,
-    /// Current font for the user's language
-    current_font: Option<iced::Font>,
+    /// Global application state (theme, language, i18n, font)
+    app_state: AppState,
 }
 
 impl UserRouter {
@@ -52,27 +47,17 @@ impl UserRouter {
     ///
     /// * `user_view` - The user view model to display (with settings and profiles)
     /// * `app_api` - The API instance for backend communication
-    pub fn new(user_view: UserView, app_api: Rc<dyn AppApi>) -> Self {
-        // Extract theme and language from user_view settings
-        let (theme, language) = if let Some(ref settings) = user_view.settings {
-            (settings.theme.clone(), settings.language.clone())
-        } else {
-            // Fallback to defaults if settings not loaded
-            ("Dark".to_string(), "en-US".to_string())
-        };
-
-        // Initialize i18n with user's language
-        let i18n = I18n::new(&language);
-
-        // Get font for user's language
-        let current_font = get_font_for_locale(&language);
+    /// * `app_state` - Global application state
+    pub fn new(user_view: UserView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+        // Update app_state with user's settings if available
+        if let Some(ref settings) = user_view.settings {
+            app_state.update_settings(settings.theme.clone(), settings.language.clone());
+        }
 
         Self {
             user_view,
             app_api,
-            theme,
-            i18n,
-            current_font,
+            app_state,
         }
     }
 
@@ -83,12 +68,9 @@ impl UserRouter {
             use crate::mappers::user_mapper;
             self.user_view = user_mapper::dto_to_view(&user_dto);
 
-            // Update theme and language if they changed
+            // Update app_state with user's settings if they changed
             if let Some(ref settings) = self.user_view.settings {
-                self.theme = settings.theme.clone();
-                let language = settings.language.clone();
-                self.i18n = I18n::new(&language);
-                self.current_font = get_font_for_locale(&language);
+                self.app_state.update_settings(settings.theme.clone(), settings.language.clone());
             }
         }
     }
@@ -106,6 +88,7 @@ impl UserRouter {
                     Box::new(super::user_settings_router::UserSettingsRouter::new(
                         self.user_view.clone(),
                         Rc::clone(&self.app_api),
+                        self.app_state.clone(),
                     ));
                 Some(RouterEvent::Push(user_settings_router))
             }
@@ -114,6 +97,7 @@ impl UserRouter {
                     Box::new(super::profile_list_router::ProfileListRouter::new(
                         self.user_view.clone(),
                         Rc::clone(&self.app_api),
+                        self.app_state.clone(),
                     ));
                 Some(RouterEvent::Push(profile_list_router))
             }
@@ -124,46 +108,61 @@ impl UserRouter {
     ///
     /// Returns an Element containing the UI for this router.
     pub fn view(&self) -> Element<'_, Message> {
+        let i18n = self.app_state.i18n();
+        let current_font = self.app_state.current_font();
+
         // Username text with font and localization
         let username_text = localized_text_with_arg(
-            &self.i18n,
+            &i18n,
             "user-account-title",
             "username",
             &self.user_view.username,
-            self.current_font,
+            current_font,
             24,
         );
 
-        // Settings button
-        let settings_text = localized_text(
-            &self.i18n,
-            "user-settings-button",
-            self.current_font,
-            14,
-        );
-        let settings_button = button(settings_text).on_press(Message::ViewSettings);
-
-        // Profiles button
+        // Profiles button (first)
         let profiles_text = localized_text(
-            &self.i18n,
+            &i18n,
             "user-profiles-button",
-            self.current_font,
+            current_font,
             14,
         );
-        let profiles_button = button(profiles_text).on_press(Message::ViewProfiles);
+        let profiles_button = button(profiles_text)
+            .on_press(Message::ViewProfiles)
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
-        // Back button
+        // Settings button (second)
+        let settings_text = localized_text(
+            &i18n,
+            "user-settings-button",
+            current_font,
+            14,
+        );
+        let settings_button = button(settings_text)
+            .on_press(Message::ViewSettings)
+            .width(Length::Fixed(200.0))
+            .padding(10);
+
+        // Back button (third)
         let back_text = localized_text(
-            &self.i18n,
+            &i18n,
             "user-back-button",
-            self.current_font,
+            current_font,
             14,
         );
-        let back_button = button(back_text).on_press(Message::Back);
+        let back_button = button(back_text)
+            .on_press(Message::Back)
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
-        let button_row = row![settings_button, profiles_button].spacing(10);
-
-        let content = column![username_text, button_row, back_button,]
+        let content = column![
+            username_text,
+            profiles_button,
+            settings_button,
+            back_button,
+        ]
             .spacing(20)
             .padding(20)
             .align_x(Alignment::Center);
@@ -196,7 +195,7 @@ impl RouterNode for UserRouter {
 
     fn theme(&self) -> iced::Theme {
         THEMES
-            .get(&self.theme)
+            .get(&self.app_state.theme())
             .cloned()
             .unwrap_or(iced::Theme::Dark)
     }
