@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use iced::{window, Element, Task};
 
-use lh_core::api_impl::{AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl, UsersApiImpl};
+use lh_core::api_impl::{AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl, SystemRequirementsApiImpl, UsersApiImpl};
 use lh_core::repositories::adapters::{
     AppSettingsRepositoryAdapter, ProfileDbRepositoryAdapter, ProfileRepositoryAdapter,
     UserRepositoryAdapter, UserSettingsRepositoryAdapter,
@@ -207,7 +207,8 @@ fn main() -> iced::Result {
     );
     let profiles_api = ProfilesApiImpl::new(profile_db_service);
     let app_settings_api = AppSettingsApiImpl::new(app_settings_service);
-    let app_api = AppApiImpl::new(users_api, app_settings_api, profiles_api);
+    let system_requirements_api = SystemRequirementsApiImpl::new();
+    let app_api = AppApiImpl::new(users_api, app_settings_api, profiles_api, system_requirements_api);
 
     // 5. Box the AppApi for trait object usage
     let app_api_boxed: Box<dyn lh_api::app_api::AppApi> = Box::new(app_api);

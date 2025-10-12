@@ -10,8 +10,10 @@
 //! - **app_settings**: Application settings data transfer objects
 //! - **user_settings**: User-specific settings data transfer objects
 //! - **profile**: Learning profile data transfer objects
+//! - **system_requirements**: System requirements and compatibility data transfer objects
 
 pub mod app_settings;
 pub mod profile;
+pub mod system_requirements;
 pub mod user;
 pub mod user_settings;
