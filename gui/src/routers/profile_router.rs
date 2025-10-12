@@ -105,9 +105,15 @@ impl ProfileRouter {
                 None
             }
             Message::Settings => {
-                // TODO: Navigate to profile settings
-                eprintln!("Profile settings not yet implemented");
-                None
+                // Navigate to profile settings
+                let settings_router: Box<dyn RouterNode> = Box::new(
+                    super::profile_settings_router::ProfileSettingsRouter::new(
+                        self.user_view.clone(),
+                        self.profile.clone(),
+                        Rc::clone(&self.app_api),
+                    )
+                );
+                Some(RouterEvent::Push(settings_router))
             }
             Message::ShowBackModal => {
                 self.show_back_menu = true;
