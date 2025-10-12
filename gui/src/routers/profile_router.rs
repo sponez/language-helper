@@ -12,6 +12,7 @@ use crate::i18n_widgets::localized_text;
 use crate::iced_params::THEMES;
 use crate::models::{ProfileView, UserView};
 use crate::router::{self, RouterEvent, RouterNode, RouterTarget};
+use crate::runtime_util::block_on;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -306,6 +307,38 @@ impl ProfileRouter {
     }
 }
 
+impl ProfileRouter {
+    /// Refresh user and profile data from the API
+    fn refresh_data(&mut self) {
+        if let Some(user_dto) = block_on(self.app_api.users_api().get_user_by_username(&self.user_view.username)) {
+            use crate::mappers::user_mapper;
+            self.user_view = user_mapper::dto_to_view(&user_dto);
+
+            // Update theme and language from user settings
+            if let Some(ref settings) = self.user_view.settings {
+                self.theme = settings.theme.clone();
+                let language = settings.language.clone();
+                self.language = language.clone();
+                self.i18n = I18n::new(&language);
+                self.current_font = get_font_for_locale(&language);
+            }
+
+            // Find and update the profile data
+            if let Some(updated_profile) = self.user_view.profiles.iter()
+                .find(|p| p.target_language == self.profile.target_language)
+                .cloned()
+            {
+                self.profile = updated_profile;
+                self.target_language = self.profile.target_language.clone();
+            } else {
+                eprintln!("Profile not found after refresh: {}", self.profile.target_language);
+            }
+        } else {
+            eprintln!("Failed to refresh user data for user: {}", self.user_view.username);
+        }
+    }
+}
+
 /// Implementation of RouterNode for ProfileRouter
 impl RouterNode for ProfileRouter {
     fn router_name(&self) -> &'static str {
@@ -328,5 +361,9 @@ impl RouterNode for ProfileRouter {
             .get(&self.theme)
             .cloned()
             .unwrap_or(iced::Theme::Dark)
+    }
+
+    fn refresh(&mut self) {
+        self.refresh_data();
     }
 }

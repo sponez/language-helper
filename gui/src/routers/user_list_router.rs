@@ -352,6 +352,21 @@ impl UserListRouter {
     }
 }
 
+impl UserListRouter {
+    /// Refresh app settings from the API
+    fn refresh_data(&mut self) {
+        if let Ok(app_settings) = block_on(self.app_api.app_settings_api().get_app_settings()) {
+            self.theme = Some(app_settings.theme);
+            let language = app_settings.language.clone();
+            self.language = Some(language.clone());
+            self.i18n = I18n::new(&language);
+            self.current_font = get_font_for_locale(&language);
+        } else {
+            eprintln!("Failed to refresh app settings");
+        }
+    }
+}
+
 /// Implementation of RouterNode for AccountListRouter
 impl RouterNode for UserListRouter {
     fn router_name(&self) -> &'static str {
@@ -371,5 +386,9 @@ impl RouterNode for UserListRouter {
 
     fn theme(&self) -> iced::Theme {
         THEMES.get(&self.theme.clone().unwrap()).cloned().unwrap_or(iced::Theme::Light)
+    }
+
+    fn refresh(&mut self) {
+        self.refresh_data();
     }
 }
