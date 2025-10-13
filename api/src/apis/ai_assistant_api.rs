@@ -24,4 +24,21 @@ pub trait AiAssistantApi: Send + Sync {
     ///
     /// Returns an error only if there's a system-level failure during the check.
     fn get_running_models(&self) -> Result<Vec<String>, ApiError>;
+
+    /// Stops a running AI model in Ollama.
+    ///
+    /// Makes a POST request to Ollama to stop the specified model.
+    ///
+    /// # Arguments
+    ///
+    /// * `model_name` - The name of the model to stop (e.g., "qwen2.5:7b-instruct-q5_K_M")
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the model was stopped successfully or if Ollama is not running.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request fails for reasons other than Ollama not being available.
+    fn stop_model(&self, model_name: &str) -> Result<(), ApiError>;
 }

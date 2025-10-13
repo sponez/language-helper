@@ -35,6 +35,8 @@ pub enum Message {
     SaveApiConfig,
     /// Open URL in browser
     OpenUrl(String),
+    /// Refresh running models state (internal message)
+    RefreshState,
     /// Back button pressed
     Back,
 }
@@ -191,8 +193,29 @@ impl AssistantSettingsRouter {
                 None
             }
             Message::StopAssistant => {
-                // TODO: Implement assistant stop logic
-                eprintln!("TODO: Stop assistant");
+                // Get the model name to stop
+                let model_name = self.get_ollama_model_name(&self.selected_model);
+
+                // Stop the model
+                match self.app_api.ai_assistant_api().stop_model(&model_name) {
+                    Ok(_) => {
+                        println!("Model '{}' stopped successfully", model_name);
+                        // Give Ollama a moment to fully unload the model
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                        // Refresh running models list
+                        self.check_running_models();
+                        // Trigger refresh to update UI
+                        self.refresh();
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to stop model '{}': {:?}", model_name, e);
+                    }
+                }
+                None
+            }
+            Message::RefreshState => {
+                // Refresh all state to trigger UI update
+                self.check_running_models();
                 None
             }
             Message::ChangeAssistant => {
@@ -244,22 +267,31 @@ impl AssistantSettingsRouter {
 
                 // Determine which button to show based on running models
                 let running_models = self.running_models.borrow();
+                println!("DEBUG: Running models: {:?}", *running_models);
+
                 if running_models.is_empty() {
                     // No models running - show Start button
+                    println!("DEBUG: No models running, showing Start button");
                     Some((Message::StartAssistant, button_enabled))
                 } else {
                     // Get the expected model name for the selected model
                     let expected_model_name = self.get_ollama_model_name(&self.selected_model);
+                    println!("DEBUG: Expected model name: {}", expected_model_name);
 
                     // Check if the expected model is running
                     let is_selected_running = running_models.iter()
-                        .any(|m| m.contains(&expected_model_name));
+                        .any(|m| {
+                            println!("DEBUG: Comparing '{}' with '{}'", m, expected_model_name);
+                            m.contains(&expected_model_name)
+                        });
 
                     if is_selected_running {
                         // Selected model is running - show Stop button
+                        println!("DEBUG: Selected model is running, showing Stop button");
                         Some((Message::StopAssistant, button_enabled))
                     } else {
                         // Different model is running - show Change button
+                        println!("DEBUG: Different model is running, showing Change button");
                         Some((Message::ChangeAssistant, button_enabled))
                     }
                 }

@@ -36,6 +36,11 @@ impl AiAssistantApi for AiAssistantApiImpl {
         let models = ollama_client::get_running_models();
         Ok(models)
     }
+
+    fn stop_model(&self, model_name: &str) -> Result<(), ApiError> {
+        ollama_client::stop_model(model_name)
+            .map_err(|e| ApiError::internal_error(e))
+    }
 }
 
 #[cfg(test)]
