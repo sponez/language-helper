@@ -228,12 +228,12 @@ impl AddCardRouter {
 
     /// Validates the form and saves the card
     fn validate_and_save(&self) -> Option<String> {
-        // Validate word name
+        // Validate word name (required)
         if self.word_name.trim().is_empty() {
             return Some("Word name cannot be empty".to_string());
         }
 
-        // Validate readings (all must be non-empty)
+        // Validate readings (optional, but if present must be non-empty)
         for (i, reading) in self.readings.iter().enumerate() {
             if reading.value.trim().is_empty() {
                 return Some(format!("Reading {} cannot be empty", i + 1));
@@ -247,12 +247,18 @@ impl AddCardRouter {
 
         // Validate each meaning
         for (i, meaning) in self.meanings.iter().enumerate() {
+            // Definition is required
             if meaning.definition.trim().is_empty() {
                 return Some(format!("Definition {} cannot be empty", i + 1));
             }
-            if meaning.translated_definition.trim().is_empty() {
-                return Some(format!("Translated definition {} cannot be empty", i + 1));
+
+            // Translated definition is optional - no validation needed
+
+            // Must have at least one translation
+            if meaning.translations.is_empty() {
+                return Some(format!("Meaning {} must have at least one translation", i + 1));
             }
+
             // Validate translations (all must be non-empty)
             for (j, translation) in meaning.translations.iter().enumerate() {
                 if translation.value.trim().is_empty() {
