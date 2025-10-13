@@ -19,8 +19,6 @@ pub enum Message {
     Cards,
     /// Explain with AI button pressed
     ExplainWithAI,
-    /// Chat with AI button pressed
-    ChatWithAI,
     /// Settings button pressed
     Settings,
     /// Back button pressed - shows modal
@@ -233,11 +231,6 @@ impl ProfileRouter {
                 );
                 Some(RouterEvent::Push(explain_router))
             }
-            Message::ChatWithAI => {
-                // TODO: Navigate to AI chat view
-                eprintln!("Chat with AI feature not yet implemented");
-                None
-            }
             Message::Settings => {
                 // Navigate to profile settings
                 let settings_router: Box<dyn RouterNode> = Box::new(
@@ -295,21 +288,9 @@ impl ProfileRouter {
             current_font,
             14,
         );
-        // Disable AI buttons when assistant is not running
+        // Disable AI button when assistant is not running
         let explain_button = button(explain_text)
             .on_press_maybe(if assistant_running { Some(Message::ExplainWithAI) } else { None })
-            .width(Length::Fixed(200.0))
-            .padding(10);
-
-        let chat_text = localized_text(
-            &i18n,
-            "profile-chat-ai-button",
-            current_font,
-            14,
-        );
-        // Disable AI buttons when assistant is not running
-        let chat_button = button(chat_text)
-            .on_press_maybe(if assistant_running { Some(Message::ChatWithAI) } else { None })
             .width(Length::Fixed(200.0))
             .padding(10);
 
@@ -340,7 +321,6 @@ impl ProfileRouter {
         let main_content = column![
             cards_button,
             explain_button,
-            chat_button,
             settings_button,
             back_button,
         ]
