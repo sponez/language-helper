@@ -320,9 +320,93 @@ impl AddCardRouter {
                 None
             }
             Message::FillWithAI => {
-                // TODO: Implement AI filling
-                eprintln!("AI filling not yet implemented");
-                None
+                // Get assistant settings
+                let username = self.user_view.username.clone();
+                let target_language = self.profile.target_language.clone();
+                let api = Rc::clone(&self.app_api);
+
+                let runtime = tokio::runtime::Runtime::new().unwrap();
+
+                // First, get assistant settings
+                let assistant_settings_result = runtime.block_on(async {
+                    api.profile_api().get_assistant_settings(&username, &target_language).await
+                });
+
+                let assistant_settings = match assistant_settings_result {
+                    Ok(settings) => settings,
+                    Err(e) => {
+                        self.error_message = Some(format!("Failed to get assistant settings: {}", e));
+                        return None;
+                    }
+                };
+
+                // Check if AI is configured
+                if assistant_settings.ai_model.is_none() {
+                    self.error_message = Some("AI assistant is not configured".to_string());
+                    return None;
+                }
+
+                // Get card name from input
+                if self.word_name.trim().is_empty() {
+                    self.error_message = Some("Please enter a word name before using AI".to_string());
+                    return None;
+                }
+
+                let card_name = self.word_name.clone();
+                let card_type_str = match self.card_type {
+                    CardType::Straight => "straight".to_string(),
+                    CardType::Reverse => "reverse".to_string(),
+                };
+
+                // Get user language from settings
+                let user_language = self.user_view.settings
+                    .as_ref()
+                    .map(|s| s.language.to_string())
+                    .unwrap_or_else(|| "en-US".to_string());
+
+                // Call fill_card API
+                let fill_result = runtime.block_on(async {
+                    api.ai_assistant_api().fill_card(
+                        assistant_settings,
+                        card_name,
+                        card_type_str,
+                        user_language,
+                        target_language,
+                    ).await
+                });
+
+                match fill_result {
+                    Ok(card_dto) => {
+                        // Fill the form with AI-generated data
+                        self.word_name = card_dto.word.name;
+
+                        // Fill readings
+                        self.readings = card_dto.word.readings
+                            .into_iter()
+                            .map(|r| ReadingField { value: r })
+                            .collect();
+
+                        // Fill meanings
+                        self.meanings = card_dto.meanings
+                            .into_iter()
+                            .map(|m| MeaningFields {
+                                definition: m.definition,
+                                translated_definition: m.translated_definition,
+                                translations: m.word_translations
+                                    .into_iter()
+                                    .map(|t| TranslationField { value: t })
+                                    .collect(),
+                            })
+                            .collect();
+
+                        self.error_message = None;
+                        None
+                    }
+                    Err(e) => {
+                        self.error_message = Some(format!("AI filling failed: {}", e));
+                        None
+                    }
+                }
             }
             Message::Save => {
                 match self.validate_and_save() {

@@ -7,6 +7,7 @@ use std::pin::Pin;
 
 use crate::errors::api_error::ApiError;
 use crate::models::assistant_settings::AssistantSettingsDto;
+use crate::models::card::CardDto;
 
 /// API for managing AI assistants and checking running models.
 ///
@@ -146,4 +147,37 @@ pub trait AiAssistantApi: Send + Sync {
         profile_language: String,
         message: String,
     ) -> Pin<Box<dyn Future<Output = Result<String, ApiError>> + Send + '_>>;
+
+    /// Fills a vocabulary card using AI.
+    ///
+    /// This operation sends a structured prompt to the AI model to generate
+    /// complete card data including readings, meanings, definitions, and translations.
+    ///
+    /// # Arguments
+    ///
+    /// * `assistant_settings` - Settings containing model type and API configuration
+    /// * `card_name` - The word or phrase to create a card for
+    /// * `card_type` - The type of card (Straight or Reverse)
+    /// * `user_language` - The learner's native/interface language
+    /// * `profile_language` - The target/study language
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(CardDto)` containing the AI-generated card data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The HTTP request fails
+    /// - The AI response cannot be parsed as JSON
+    /// - The JSON doesn't match the expected schema
+    /// - The API returns an error
+    fn fill_card(
+        &self,
+        assistant_settings: AssistantSettingsDto,
+        card_name: String,
+        card_type: String,
+        user_language: String,
+        profile_language: String,
+    ) -> Pin<Box<dyn Future<Output = Result<CardDto, ApiError>> + Send + '_>>;
 }
