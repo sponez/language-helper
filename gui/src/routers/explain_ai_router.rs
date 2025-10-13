@@ -67,10 +67,46 @@ impl ExplainAIRouter {
                 None
             }
             Message::Send => {
-                // TODO: Send to AI and get response
-                eprintln!("TODO: Send message to AI: {}", self.input_text);
-                // For now, just show a placeholder response
-                self.response_text = format!("AI response will appear here for: '{}'", self.input_text);
+                if self.input_text.trim().is_empty() {
+                    return None;
+                }
+
+                // Get assistant settings and call explain API using blocking runtime
+                let username = self.user_view.username.clone();
+                let target_language = self.target_language.clone();
+                let message_text = self.input_text.clone();
+
+                // Get user's interface language (defaults to "en-US" if not set)
+                let user_language = self.user_view.settings
+                    .as_ref()
+                    .map(|s| s.language.clone())
+                    .unwrap_or_else(|| "en-US".to_string());
+
+                let runtime = tokio::runtime::Runtime::new().unwrap();
+                let result = runtime.block_on(async {
+                    // Load assistant settings
+                    let settings = self.app_api
+                        .profile_api()
+                        .get_assistant_settings(&username, &target_language)
+                        .await?;
+
+                    // Call explain API with language parameters
+                    self.app_api
+                        .ai_assistant_api()
+                        .explain(settings, user_language, target_language, message_text)
+                        .await
+                });
+
+                // Update response based on result
+                match result {
+                    Ok(response) => {
+                        self.response_text = response;
+                    }
+                    Err(e) => {
+                        self.response_text = format!("Error: {}", e);
+                    }
+                }
+
                 None
             }
             Message::Back => {
@@ -114,8 +150,13 @@ impl ExplainAIRouter {
             14,
         );
 
+        // Disable send button when input is empty
         let send_button = button(send_text)
-            .on_press(Message::Send)
+            .on_press_maybe(if !self.input_text.trim().is_empty() {
+                Some(Message::Send)
+            } else {
+                None
+            })
             .padding(10)
             .width(Length::Fixed(120.0));
 

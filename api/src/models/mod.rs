@@ -16,6 +16,7 @@
 //! - **ai_assistant**: AI assistant and running models data transfer objects
 
 pub mod ai_assistant;
+pub mod ai_explain;
 pub mod app_settings;
 pub mod assistant_settings;
 pub mod card_settings;

@@ -2,7 +2,11 @@
 //!
 //! This module provides the trait definition for AI assistant management operations.
 
+use std::future::Future;
+use std::pin::Pin;
+
 use crate::errors::api_error::ApiError;
+use crate::models::assistant_settings::AssistantSettingsDto;
 
 /// API for managing AI assistants and checking running models.
 ///
@@ -112,4 +116,34 @@ pub trait AiAssistantApi: Send + Sync {
     ///
     /// Returns an error if the model failed to start or timeout occurred.
     fn run_model(&self, model_name: &str) -> Result<(), ApiError>;
+
+    /// Explains a phrase or word using AI.
+    ///
+    /// This operation sends a message to either a local Ollama model or an external API
+    /// based on the assistant settings. The operation is asynchronous.
+    ///
+    /// # Arguments
+    ///
+    /// * `assistant_settings` - Settings containing model type and API configuration
+    /// * `user_language` - The language in which the AI should respond (user's interface language)
+    /// * `profile_language` - The language being learned (the language of the phrase to explain)
+    /// * `message` - The phrase or word to explain
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(String)` containing the AI's explanation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The HTTP request fails
+    /// - The response cannot be parsed
+    /// - The API returns an error
+    fn explain(
+        &self,
+        assistant_settings: AssistantSettingsDto,
+        user_language: String,
+        profile_language: String,
+        message: String,
+    ) -> Pin<Box<dyn Future<Output = Result<String, ApiError>> + Send + '_>>;
 }
