@@ -1,8 +1,8 @@
-//! Profile settings router for configuring learning parameters.
+//! Profile settings router - a menu for accessing profile-related settings and actions.
 
 use std::rc::Rc;
 
-use iced::widget::{button, column, container, pick_list, row, text, text_input, Container};
+use iced::widget::{button, column, container, row, Container};
 use iced::{Alignment, Element, Length};
 use iced::Background;
 use iced::Color;
@@ -11,22 +11,17 @@ use lh_api::app_api::AppApi;
 use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
 use crate::iced_params::THEMES;
-use crate::models::{ProfileSettingsView, ProfileView, UserView};
-use crate::router::{self, RouterEvent, RouterNode};
+use crate::models::{ProfileView, UserView};
+use crate::router::{self, RouterEvent, RouterNode, RouterTarget};
 use crate::routers::assistant_settings_router::AssistantSettingsRouter;
+use crate::routers::card_settings_router::CardSettingsRouter;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    /// Cards per set input changed
-    CardsPerSetChanged(String),
-    /// Test answer method selected
-    TestAnswerMethodSelected(String),
-    /// Streak length input changed
-    StreakLengthChanged(String),
+    /// Card settings button pressed
+    CardSettings,
     /// Assistant settings button pressed
     AssistantSettings,
-    /// Save settings button pressed
-    Save,
     /// Show delete profile confirmation modal
     ShowDeleteConfirmation,
     /// Cancel delete operation
@@ -43,24 +38,14 @@ pub struct ProfileSettingsRouter {
     user_view: UserView,
     /// Currently selected profile
     profile: ProfileView,
-    /// Profile settings (loaded from API)
-    settings: ProfileSettingsView,
     /// API instance for backend communication
     app_api: Rc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Target language being learned
     target_language: String,
-    /// Cards per set input text
-    cards_per_set_input: String,
-    /// Selected test answer method
-    test_answer_method: String,
-    /// Streak length input text
-    streak_length_input: String,
     /// Whether delete confirmation modal is showing
     show_delete_confirmation: bool,
-    /// Error message to display
-    error_message: Option<String>,
 }
 
 impl ProfileSettingsRouter {
@@ -72,44 +57,27 @@ impl ProfileSettingsRouter {
 
         let target_language = profile.target_language.clone();
 
-        // TODO: Load settings from API
-        // For now, use defaults
-        let settings = ProfileSettingsView::default();
-
-        let cards_per_set_input = settings.cards_per_set.to_string();
-        let test_answer_method = settings.test_answer_method.clone();
-        let streak_length_input = settings.streak_length.to_string();
-
         Self {
             user_view,
             profile,
-            settings,
             app_api,
             app_state,
             target_language,
-            cards_per_set_input,
-            test_answer_method,
-            streak_length_input,
             show_delete_confirmation: false,
-            error_message: None,
         }
     }
 
     pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
         match message {
-            Message::CardsPerSetChanged(value) => {
-                self.cards_per_set_input = value;
-                self.error_message = None;
-                None
-            }
-            Message::TestAnswerMethodSelected(method) => {
-                self.test_answer_method = method;
-                None
-            }
-            Message::StreakLengthChanged(value) => {
-                self.streak_length_input = value;
-                self.error_message = None;
-                None
+            Message::CardSettings => {
+                // Navigate to card settings router
+                let card_router = CardSettingsRouter::new(
+                    self.user_view.clone(),
+                    self.profile.clone(),
+                    self.app_api.clone(),
+                    self.app_state.clone(),
+                );
+                Some(RouterEvent::Push(Box::new(card_router)))
             }
             Message::AssistantSettings => {
                 // Navigate to assistant settings router
@@ -121,60 +89,6 @@ impl ProfileSettingsRouter {
                 );
                 Some(RouterEvent::Push(Box::new(assistant_router)))
             }
-            Message::Save => {
-                let i18n = self.app_state.i18n();
-
-                // Validate inputs
-                let cards_per_set = match self.cards_per_set_input.parse::<u32>() {
-                    Ok(n) if n >= 1 && n <= 100 => n,
-                    Ok(_) => {
-                        self.error_message = Some(
-                            i18n.get("error-cards-per-set-range", None)
-                        );
-                        return None;
-                    }
-                    Err(_) => {
-                        self.error_message = Some(
-                            i18n.get("error-invalid-number", None)
-                        );
-                        return None;
-                    }
-                };
-
-                let streak_length = match self.streak_length_input.parse::<u32>() {
-                    Ok(n) if n >= 1 && n <= 50 => n,
-                    Ok(_) => {
-                        self.error_message = Some(
-                            i18n.get("error-streak-length-range", None)
-                        );
-                        return None;
-                    }
-                    Err(_) => {
-                        self.error_message = Some(
-                            i18n.get("error-invalid-number", None)
-                        );
-                        return None;
-                    }
-                };
-
-                // Update settings
-                self.settings = ProfileSettingsView::new(
-                    cards_per_set,
-                    self.test_answer_method.clone(),
-                    streak_length,
-                    None,
-                );
-
-                // TODO: Save to API
-                eprintln!("TODO: Save settings to API: {:?}", self.settings);
-
-                // Show success message briefly
-                self.error_message = Some(
-                    i18n.get("profile-settings-saved", None)
-                );
-
-                None
-            }
             Message::ShowDeleteConfirmation => {
                 self.show_delete_confirmation = true;
                 None
@@ -184,14 +98,35 @@ impl ProfileSettingsRouter {
                 None
             }
             Message::ConfirmDelete => {
-                // TODO: Delete profile via API
-                eprintln!("TODO: Delete profile {} for user {}",
-                    self.target_language,
-                    self.user_view.username
-                );
+                let username = &self.user_view.username;
+                let target_language = &self.target_language;
 
-                // Navigate back to profile list
-                Some(RouterEvent::Pop)
+                // Use a runtime to block on async operations
+                let runtime = tokio::runtime::Runtime::new().unwrap();
+
+                // Delete profile database
+                let db_result = runtime.block_on(async {
+                    self.app_api.profile_api().delete_profile_database(username, target_language).await
+                });
+
+                // Delete profile metadata
+                let profile_result = runtime.block_on(async {
+                    self.app_api.users_api().delete_profile(username, target_language).await
+                });
+
+                // Check for errors
+                match (db_result, profile_result) {
+                    (Ok(_), Ok(_)) => {
+                        println!("Successfully deleted profile {} for user {}", target_language, username);
+                        // Navigate back to profile list
+                        Some(RouterEvent::PopTo(Some(RouterTarget::ProfileList)))
+                    }
+                    (Err(e), _) | (_, Err(e)) => {
+                        eprintln!("Error deleting profile: {:?}", e);
+                        // Still navigate back but log the error
+                        Some(RouterEvent::PopTo(Some(RouterTarget::ProfileList)))
+                    }
+                }
             }
             Message::Back => {
                 Some(RouterEvent::Pop)
@@ -211,93 +146,20 @@ impl ProfileSettingsRouter {
             24,
         );
 
-        // Cards per set section
-        let cards_per_set_label = localized_text(
+        // Card Settings button
+        let card_settings_text = localized_text(
             &i18n,
-            "profile-settings-cards-per-set",
+            "profile-settings-card-settings-button",
             current_font,
-            16,
+            14,
         );
 
-        let cards_per_set_input = text_input(
-            "10",
-            &self.cards_per_set_input,
-        )
-        .on_input(Message::CardsPerSetChanged)
-        .padding(10)
-        .width(Length::Fixed(100.0));
+        let card_settings_button = button(card_settings_text)
+            .on_press(Message::CardSettings)
+            .width(Length::Fixed(200.0))
+            .padding(10);
 
-        let cards_per_set_row = row![
-            cards_per_set_label,
-            cards_per_set_input,
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
-
-        // Test answer method section
-        let test_method_label = localized_text(
-            &i18n,
-            "profile-settings-test-method",
-            current_font,
-            16,
-        );
-
-        let test_methods = vec![
-            i18n.get("profile-settings-test-method-manual", None),
-            i18n.get("profile-settings-test-method-self", None),
-        ];
-
-        let selected_method = if self.test_answer_method == "manual" {
-            i18n.get("profile-settings-test-method-manual", None)
-        } else {
-            i18n.get("profile-settings-test-method-self", None)
-        };
-
-        let manual_method_text = i18n.get("profile-settings-test-method-manual", None);
-        let test_method_picker = pick_list(
-            test_methods,
-            Some(selected_method.clone()),
-            move |selected| {
-                if selected == manual_method_text {
-                    Message::TestAnswerMethodSelected("manual".to_string())
-                } else {
-                    Message::TestAnswerMethodSelected("self_review".to_string())
-                }
-            },
-        )
-        .width(Length::Fixed(200.0));
-
-        let test_method_row = row![
-            test_method_label,
-            test_method_picker,
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
-
-        // Streak length section
-        let streak_length_label = localized_text(
-            &i18n,
-            "profile-settings-streak-length",
-            current_font,
-            16,
-        );
-
-        let streak_length_input = text_input(
-            "5",
-            &self.streak_length_input,
-        )
-        .on_input(Message::StreakLengthChanged)
-        .padding(10)
-        .width(Length::Fixed(100.0));
-
-        let streak_length_row = row![
-            streak_length_label,
-            streak_length_input,
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
-
-        // Assistant settings button
+        // Assistant Settings button
         let assistant_settings_text = localized_text(
             &i18n,
             "profile-settings-assistant-settings-button",
@@ -310,41 +172,7 @@ impl ProfileSettingsRouter {
             .width(Length::Fixed(200.0))
             .padding(10);
 
-        // Error/Success message
-        let message_widget = if let Some(ref msg) = self.error_message {
-            let is_success = msg.contains("successfully") || msg.contains("saved");
-            let color = if is_success {
-                Color::from_rgb(0.0, 0.8, 0.0)
-            } else {
-                Color::from_rgb(0.8, 0.0, 0.0)
-            };
-
-            let mut msg_text = text(msg);
-            if let Some(font) = current_font {
-                msg_text = msg_text.font(font);
-            }
-            msg_text = msg_text.style(move |_theme| iced::widget::text::Style {
-                color: Some(color),
-            });
-
-            Some(msg_text)
-        } else {
-            None
-        };
-
-        // Action buttons
-        let save_text = localized_text(
-            &i18n,
-            "profile-settings-save",
-            current_font,
-            14,
-        );
-
-        let save_button = button(save_text)
-            .on_press(Message::Save)
-            .width(Length::Fixed(120.0))
-            .padding(10);
-
+        // Delete Profile button
         let delete_text = localized_text(
             &i18n,
             "profile-settings-delete-profile",
@@ -354,9 +182,10 @@ impl ProfileSettingsRouter {
 
         let delete_button = button(delete_text)
             .on_press(Message::ShowDeleteConfirmation)
-            .width(Length::Fixed(120.0))
+            .width(Length::Fixed(200.0))
             .padding(10);
 
+        // Back button
         let back_text = localized_text(
             &i18n,
             "profile-settings-back",
@@ -366,34 +195,20 @@ impl ProfileSettingsRouter {
 
         let back_button = button(back_text)
             .on_press(Message::Back)
-            .width(Length::Fixed(120.0))
+            .width(Length::Fixed(200.0))
             .padding(10);
 
-        let button_row = row![
-            save_button,
+        // Main content - vertical menu
+        let main_content = column![
+            title,
+            card_settings_button,
+            assistant_settings_button,
             delete_button,
             back_button,
-        ]
-        .spacing(15)
-        .align_y(Alignment::Center);
-
-        // Main content
-        let mut main_content = column![
-            title,
-            cards_per_set_row,
-            test_method_row,
-            streak_length_row,
-            assistant_settings_button,
         ]
         .spacing(20)
         .padding(30)
         .align_x(Alignment::Center);
-
-        if let Some(msg_widget) = message_widget {
-            main_content = main_content.push(msg_widget);
-        }
-
-        main_content = main_content.push(button_row);
 
         let base = Container::new(main_content)
             .width(Length::Fill)
@@ -475,10 +290,9 @@ impl ProfileSettingsRouter {
 }
 
 impl ProfileSettingsRouter {
-    /// Refresh profile data from the API
+    /// Refresh profile data from the API (no-op for menu screen)
     fn refresh_data(&mut self) {
-        // TODO: Reload settings from API
-        eprintln!("TODO: Refresh profile settings from API");
+        // No data to refresh for a simple menu screen
     }
 }
 

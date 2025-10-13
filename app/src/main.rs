@@ -5,9 +5,9 @@
 
 use std::rc::Rc;
 
-use iced::{window, Element, Task};
+use iced::{window, Element, Subscription, Task};
 
-use lh_core::api_impl::{AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl, UsersApiImpl};
+use lh_core::api_impl::{AiAssistantApiImpl, AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl, SystemRequirementsApiImpl, UsersApiImpl};
 use lh_core::repositories::adapters::{
     AppSettingsRepositoryAdapter, ProfileDbRepositoryAdapter, ProfileRepositoryAdapter,
     UserRepositoryAdapter, UserSettingsRepositoryAdapter,
@@ -109,6 +109,18 @@ impl LanguageHelperApp {
     fn theme(&self) -> iced::Theme {
         self.router_stack.theme()
     }
+
+    /// Returns subscriptions for the current router.
+    ///
+    /// This method delegates to the router stack to get subscriptions from
+    /// the currently active router.
+    ///
+    /// # Returns
+    ///
+    /// A `Subscription` that produces messages for the current router
+    fn subscription(&self) -> Subscription<Message> {
+        self.router_stack.subscription()
+    }
 }
 
 /// Main entry point for the Language Helper application.
@@ -207,7 +219,9 @@ fn main() -> iced::Result {
     );
     let profiles_api = ProfilesApiImpl::new(profile_db_service);
     let app_settings_api = AppSettingsApiImpl::new(app_settings_service);
-    let app_api = AppApiImpl::new(users_api, app_settings_api, profiles_api);
+    let system_requirements_api = SystemRequirementsApiImpl::new();
+    let ai_assistant_api = AiAssistantApiImpl::new();
+    let app_api = AppApiImpl::new(users_api, app_settings_api, profiles_api, system_requirements_api, ai_assistant_api);
 
     // 5. Box the AppApi for trait object usage
     let app_api_boxed: Box<dyn lh_api::app_api::AppApi> = Box::new(app_api);
@@ -239,6 +253,7 @@ fn main() -> iced::Result {
         LanguageHelperApp::view,
     )
     .theme(LanguageHelperApp::theme)
+    .subscription(LanguageHelperApp::subscription)
     .font(fonts[0]) // Noto Sans (default)
     .font(fonts[1]) // Arabic
     .font(fonts[2]) // Devanagari

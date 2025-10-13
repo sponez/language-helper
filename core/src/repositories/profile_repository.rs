@@ -6,6 +6,7 @@
 
 use async_trait::async_trait;
 use crate::errors::CoreError;
+use crate::models::{AssistantSettings, CardSettings};
 use std::path::PathBuf;
 
 /// Repository trait for profile database operations.
@@ -43,4 +44,66 @@ pub trait ProfileRepository: Send + Sync {
     /// * `Ok(false)` - If the database didn't exist
     /// * `Err(CoreError)` - If an error occurs during deletion
     async fn delete_database(&self, db_path: PathBuf) -> Result<bool, CoreError>;
+
+    /// Gets card settings from a profile database.
+    ///
+    /// # Arguments
+    ///
+    /// * `db_path` - The full path to the profile database
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(CardSettings)` - The card settings from the database
+    /// * `Err(CoreError)` - If an error occurs
+    async fn get_card_settings(&self, db_path: PathBuf) -> Result<CardSettings, CoreError>;
+
+    /// Updates card settings in a profile database.
+    ///
+    /// # Arguments
+    ///
+    /// * `db_path` - The full path to the profile database
+    /// * `settings` - The card settings to save
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the settings were successfully saved
+    /// * `Err(CoreError)` - If an error occurs
+    async fn update_card_settings(&self, db_path: PathBuf, settings: CardSettings) -> Result<(), CoreError>;
+
+    /// Gets assistant settings from a profile database.
+    ///
+    /// # Arguments
+    ///
+    /// * `db_path` - The full path to the profile database
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(AssistantSettings)` - The assistant settings from the database
+    /// * `Err(CoreError)` - If an error occurs
+    async fn get_assistant_settings(&self, db_path: PathBuf) -> Result<AssistantSettings, CoreError>;
+
+    /// Updates assistant settings in a profile database.
+    ///
+    /// # Arguments
+    ///
+    /// * `db_path` - The full path to the profile database
+    /// * `settings` - The assistant settings to save
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the settings were successfully saved
+    /// * `Err(CoreError)` - If an error occurs
+    async fn update_assistant_settings(&self, db_path: PathBuf, settings: AssistantSettings) -> Result<(), CoreError>;
+
+    /// Clears assistant settings in a profile database (sets all AI fields to None).
+    ///
+    /// # Arguments
+    ///
+    /// * `db_path` - The full path to the profile database
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the settings were successfully cleared
+    /// * `Err(CoreError)` - If an error occurs
+    async fn clear_assistant_settings(&self, db_path: PathBuf) -> Result<(), CoreError>;
 }

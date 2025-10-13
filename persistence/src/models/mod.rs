@@ -11,11 +11,15 @@
 //! - Timestamps are stored as Unix timestamps (seconds since epoch)
 
 pub mod app_settings_entity;
+pub mod assistant_settings_entity;
+pub mod card_settings_entity;
 pub mod profile_entity;
 pub mod user_entity;
 pub mod user_settings_entity;
 
 pub use app_settings_entity::AppSettingsEntity;
+pub use assistant_settings_entity::AssistantSettingsEntity;
+pub use card_settings_entity::CardSettingsEntity;
 pub use profile_entity::ProfileEntity;
 pub use user_entity::UserEntity;
 pub use user_settings_entity::UserSettingsEntity;

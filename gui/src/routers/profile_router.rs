@@ -52,6 +52,8 @@ pub struct ProfileRouter {
     target_language: String,
     /// Whether the back button submenu is showing
     show_back_menu: bool,
+    /// Whether AI buttons should be active
+    ai_buttons_active: bool,
 }
 
 impl ProfileRouter {
@@ -63,6 +65,14 @@ impl ProfileRouter {
 
         let target_language = profile.target_language.clone();
 
+        // Determine if AI buttons should be active
+        let ai_buttons_active = Self::determine_ai_button_state(
+            &user_view.username,
+            &target_language,
+            &app_api,
+            &app_state,
+        );
+
         Self {
             user_view,
             profile,
@@ -70,7 +80,138 @@ impl ProfileRouter {
             app_state,
             target_language,
             show_back_menu: false,
+            ai_buttons_active,
         }
+    }
+
+    /// Determines if AI buttons should be active based on settings and running models
+    fn determine_ai_button_state(
+        username: &str,
+        target_language: &str,
+        app_api: &Rc<dyn AppApi>,
+        app_state: &AppState,
+    ) -> bool {
+        use lh_api::models::assistant_settings::AssistantSettingsDto;
+
+        // Step 1: Load assistant settings from database
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let settings_result = runtime.block_on(async {
+            app_api.profile_api().get_assistant_settings(username, target_language).await
+        });
+
+        let settings = match settings_result {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Error loading assistant settings: {:?}", e);
+                // Don't return yet - still check for running models
+                AssistantSettingsDto::new(None, None, None, None)
+            }
+        };
+
+        // Step 2: Check if it's API mode
+        if let Some(ref ai_model) = settings.ai_model {
+            if ai_model.to_lowercase() == "api" {
+                // API mode - buttons always active
+                app_state.set_assistant_running(true);
+                return true;
+            }
+        }
+
+        // Step 3: Get running models (always check, even if ai_model is None)
+        let running_models_result = app_api.ai_assistant_api().get_running_models();
+        let running_models = match running_models_result {
+            Ok(models) => models,
+            Err(e) => {
+                eprintln!("Error getting running models: {:?}", e);
+                app_state.set_assistant_running(false);
+                return false; // Can't check models = buttons inactive
+            }
+        };
+
+        // Step 4: If ai_model is configured, check if it's running
+        if let Some(ref ai_model) = settings.ai_model {
+            let expected_model_name = Self::get_ollama_model_name(ai_model);
+
+            if running_models.iter().any(|m| m.contains(&expected_model_name)) {
+                // Configured model is running - activate buttons
+                app_state.set_assistant_running(true);
+                return true;
+            }
+        }
+
+        // Step 5: Check if any suitable model is running (even if ai_model is None)
+        // This handles cases where user launched a model manually
+        if !running_models.is_empty() {
+            // Find the most powerful running model
+            if let Some(best_model) = Self::find_most_powerful_model(&running_models) {
+                // Update database with the best model
+                let new_settings = AssistantSettingsDto::new(
+                    Some(best_model.clone().to_lowercase()),
+                    None,
+                    None,
+                    None,
+                );
+
+                let update_result = runtime.block_on(async {
+                    app_api.profile_api().update_assistant_settings(
+                        username,
+                        target_language,
+                        new_settings
+                    ).await
+                });
+
+                match update_result {
+                    Ok(_) => {
+                        println!("Auto-selected running model: {}", best_model);
+                        app_state.set_assistant_running(true);
+                        return true;
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to auto-select model: {:?}", e);
+                        // Even if DB update fails, buttons can still be active
+                        app_state.set_assistant_running(true);
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Step 6: No suitable models running
+        app_state.set_assistant_running(false);
+        false
+    }
+
+    /// Maps model names to Ollama model identifiers
+    fn get_ollama_model_name(model: &str) -> String {
+        match model.to_lowercase().as_str() {
+            "tiny" => "phi3:3.8b-mini-4k-instruct-q4_K_M".to_string(),
+            "light" => "phi4".to_string(),
+            "weak" => "llama3.2:3b-instruct-q8_0".to_string(),
+            "medium" => "qwen2.5:7b-instruct-q5_K_M".to_string(),
+            "strong" => "qwen2.5:14b-instruct-q4_K_M".to_string(),
+            _ => model.to_string(),
+        }
+    }
+
+    /// Finds the most powerful model from a list of running models
+    fn find_most_powerful_model(running_models: &[String]) -> Option<String> {
+        // Model power ranking (most powerful first)
+        let power_ranking = vec![
+            ("qwen2.5:14b", "Strong"),
+            ("qwen2.5:7b", "Medium"),
+            ("llama3.2:3b", "Weak"),
+            ("phi4", "Light"),
+            ("phi3:3.8b", "Tiny"),
+        ];
+
+        // Find the most powerful model that's currently running
+        for (model_pattern, model_name) in power_ranking {
+            if running_models.iter().any(|m| m.contains(model_pattern)) {
+                return Some(model_name.to_string());
+            }
+        }
+
+        None
     }
 
     pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
@@ -127,7 +268,7 @@ impl ProfileRouter {
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
         let current_font = self.app_state.current_font();
-        let assistant_running = self.app_state.is_assistant_running();
+        let assistant_running = self.ai_buttons_active;
 
         // Main buttons - small consistent size
         let cards_text = localized_text(
@@ -331,6 +472,14 @@ impl ProfileRouter {
         } else {
             eprintln!("Failed to refresh user data for user: {}", self.user_view.username);
         }
+
+        // Re-determine AI button state after refresh
+        self.ai_buttons_active = Self::determine_ai_button_state(
+            &self.user_view.username,
+            &self.target_language,
+            &self.app_api,
+            &self.app_state,
+        );
     }
 }
 

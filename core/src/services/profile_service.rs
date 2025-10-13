@@ -5,6 +5,7 @@
 //! Each profile gets its own database file at `data/{username}/{target_language}_profile.db`.
 
 use crate::errors::CoreError;
+use crate::models::{AssistantSettings, CardSettings};
 use crate::repositories::profile_repository::ProfileRepository;
 use std::path::PathBuf;
 
@@ -185,5 +186,116 @@ impl<R: ProfileRepository> ProfileService<R> {
         })?;
 
         Ok(true)
+    }
+
+    /// Helper method to construct database path from username and target language
+    fn get_db_path(&self, username: &str, target_language: &str) -> PathBuf {
+        let user_dir = PathBuf::from(&self.data_dir).join(username);
+        let db_filename = format!("{}_profile.db", target_language);
+        user_dir.join(db_filename)
+    }
+
+    /// Gets card settings from a profile database.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `target_language` - The target language
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(CardSettings)` - The card settings from the database
+    /// * `Err(CoreError)` - If an error occurs
+    pub async fn get_card_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<CardSettings, CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+        self.repository.get_card_settings(db_path).await
+    }
+
+    /// Updates card settings in a profile database.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `target_language` - The target language
+    /// * `settings` - The card settings to save
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the settings were successfully saved
+    /// * `Err(CoreError)` - If an error occurs
+    pub async fn update_card_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+        settings: CardSettings,
+    ) -> Result<(), CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+        self.repository.update_card_settings(db_path, settings).await
+    }
+
+    /// Gets assistant settings from a profile database.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `target_language` - The target language
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(AssistantSettings)` - The assistant settings from the database
+    /// * `Err(CoreError)` - If an error occurs
+    pub async fn get_assistant_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<AssistantSettings, CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+        self.repository.get_assistant_settings(db_path).await
+    }
+
+    /// Updates assistant settings in a profile database.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `target_language` - The target language
+    /// * `settings` - The assistant settings to save
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the settings were successfully saved
+    /// * `Err(CoreError)` - If an error occurs
+    pub async fn update_assistant_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+        settings: AssistantSettings,
+    ) -> Result<(), CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+        self.repository.update_assistant_settings(db_path, settings).await
+    }
+
+    /// Clears assistant settings in a profile database (sets all AI fields to None).
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `target_language` - The target language
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the settings were successfully cleared
+    /// * `Err(CoreError)` - If an error occurs
+    pub async fn clear_assistant_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<(), CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+        self.repository.clear_assistant_settings(db_path).await
     }
 }

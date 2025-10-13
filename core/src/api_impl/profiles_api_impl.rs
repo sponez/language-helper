@@ -5,8 +5,11 @@
 use async_trait::async_trait;
 use lh_api::apis::profiles_api::ProfilesApi;
 use lh_api::errors::api_error::ApiError;
+use lh_api::models::assistant_settings::AssistantSettingsDto;
+use lh_api::models::card_settings::CardSettingsDto;
 
 use crate::errors::CoreError;
+use crate::models::{AssistantSettings, CardSettings};
 use crate::repositories::profile_repository::ProfileRepository;
 use crate::services::profile_service::ProfileService;
 
@@ -65,6 +68,71 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
     async fn delete_user_folder(&self, username: &str) -> Result<bool, ApiError> {
         self.profile_service
             .delete_user_folder(username)
+            .await
+            .map_err(map_core_error_to_api_error)
+    }
+
+    async fn get_card_settings(&self, username: &str, target_language: &str) -> Result<CardSettingsDto, ApiError> {
+        let settings = self.profile_service
+            .get_card_settings(username, target_language)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Convert domain model to DTO
+        Ok(CardSettingsDto::new(
+            settings.cards_per_set,
+            settings.test_answer_method,
+            settings.streak_length,
+        ))
+    }
+
+    async fn update_card_settings(&self, username: &str, target_language: &str, settings: CardSettingsDto) -> Result<(), ApiError> {
+        // Convert DTO to domain model
+        let domain_settings = CardSettings::new(
+            settings.cards_per_set,
+            settings.test_answer_method,
+            settings.streak_length,
+        );
+
+        self.profile_service
+            .update_card_settings(username, target_language, domain_settings)
+            .await
+            .map_err(map_core_error_to_api_error)
+    }
+
+    async fn get_assistant_settings(&self, username: &str, target_language: &str) -> Result<AssistantSettingsDto, ApiError> {
+        let settings = self.profile_service
+            .get_assistant_settings(username, target_language)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Convert domain model to DTO
+        Ok(AssistantSettingsDto::new(
+            settings.ai_model,
+            settings.api_endpoint,
+            settings.api_key,
+            settings.api_model_name,
+        ))
+    }
+
+    async fn update_assistant_settings(&self, username: &str, target_language: &str, settings: AssistantSettingsDto) -> Result<(), ApiError> {
+        // Convert DTO to domain model
+        let domain_settings = AssistantSettings::new(
+            settings.ai_model,
+            settings.api_endpoint,
+            settings.api_key,
+            settings.api_model_name,
+        );
+
+        self.profile_service
+            .update_assistant_settings(username, target_language, domain_settings)
+            .await
+            .map_err(map_core_error_to_api_error)
+    }
+
+    async fn clear_assistant_settings(&self, username: &str, target_language: &str) -> Result<(), ApiError> {
+        self.profile_service
+            .clear_assistant_settings(username, target_language)
             .await
             .map_err(map_core_error_to_api_error)
     }

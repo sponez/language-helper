@@ -27,9 +27,9 @@
 //! Each router only knows about its immediate children and can push them
 //! onto the stack. Routers never need to know about parent or sibling routers.
 
-use iced::Element;
+use iced::{Element, Subscription};
 
-use crate::routers::{assistant_settings_router, profile_list_router, profile_router, profile_settings_router, user_list_router, user_router, user_settings_router};
+use crate::routers::{assistant_settings_router, card_settings_router, profile_list_router, profile_router, profile_settings_router, user_list_router, user_router, user_settings_router};
 
 /// Identifies a specific router type for navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,6 +40,7 @@ pub enum RouterTarget {
     ProfileList,
     Profile,
     ProfileSettings,
+    CardSettings,
     AssistantSettings,
 }
 
@@ -53,6 +54,7 @@ impl RouterTarget {
             RouterTarget::ProfileList => "profile_list",
             RouterTarget::Profile => "profile",
             RouterTarget::ProfileSettings => "profile_settings",
+            RouterTarget::CardSettings => "card_settings",
             RouterTarget::AssistantSettings => "assistant_settings",
         }
     }
@@ -99,6 +101,8 @@ pub enum Message {
     Profile(profile_router::Message),
     /// Message for the profile settings router
     ProfileSettings(profile_settings_router::Message),
+    /// Message for the card settings router
+    CardSettings(card_settings_router::Message),
     /// Message for the assistant settings router
     AssistantSettings(assistant_settings_router::Message),
 }
@@ -128,6 +132,14 @@ pub trait RouterNode {
     /// Routers should reload their data from the API to ensure they display current information.
     /// Default implementation does nothing.
     fn refresh(&mut self) {}
+
+    /// Get the router's subscriptions for async operations
+    ///
+    /// Returns a subscription that will produce messages for this router.
+    /// Default implementation returns no subscriptions.
+    fn subscription(&self) -> Subscription<Message> {
+        Subscription::none()
+    }
 }
 
 /// Manages a stack of routers for hierarchical navigation.
@@ -245,6 +257,19 @@ impl RouterStack {
             router.theme()
         } else {
             iced::Theme::Dark
+        }
+    }
+
+    /// Get subscriptions from the current (topmost) router.
+    ///
+    /// # Returns
+    ///
+    /// The subscription for the current router, or no subscriptions if the stack is empty.
+    pub fn subscription(&self) -> Subscription<Message> {
+        if let Some(router) = self.stack.last() {
+            router.subscription()
+        } else {
+            Subscription::none()
         }
     }
 }

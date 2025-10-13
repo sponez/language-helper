@@ -48,6 +48,7 @@ profile-settings-test-method = Test answer method:
 profile-settings-test-method-manual = Manual text entry
 profile-settings-test-method-self = Self review
 profile-settings-streak-length = Streak length for remembering:
+profile-settings-card-settings-button = Card settings
 profile-settings-assistant-settings-button = Assistant settings
 profile-settings-save = Save
 profile-settings-delete-profile = Delete profile
@@ -57,17 +58,33 @@ profile-settings-delete-cancel = No, keep it
 profile-settings-back = Back
 profile-settings-saved = Settings saved successfully
 
+## Card Settings Screen
+card-settings-title = Card Settings
+card-settings-save = Save
+card-settings-back = Back
+
 ## Assistant Settings Screen
 assistant-settings-title = Assistant Settings
 assistant-settings-model-label = Model Strength:
-assistant-settings-weak = Weak
-assistant-settings-medium = Medium
-assistant-settings-strong = Strong
+assistant-settings-tiny = Tiny (1B)
+assistant-settings-light = Light (3-4B)
+assistant-settings-weak = Weak (3B)
+assistant-settings-medium = Medium (7B)
+assistant-settings-strong = Strong (14B)
 assistant-settings-api = API
-assistant-settings-ollama-not-found = Ollama not found X
+assistant-settings-requirements-title = System Requirements:
+assistant-settings-incompatible = This model cannot run on your system due to missing requirements.
+assistant-settings-no-data = System requirements information not available.
+assistant-settings-ollama-status = Ollama Status:
+assistant-settings-ollama-not-installed = Ollama is not installed. To install, go to ollama.com
+assistant-settings-ollama-installed = Ollama is installed
 assistant-settings-api-endpoint = API Endpoint:
 assistant-settings-api-key = API Key:
 assistant-settings-api-model = Model Name:
+assistant-settings-start-assistant = Start Assistant
+assistant-settings-stop-assistant = Stop Assistant
+assistant-settings-change-assistant = Change Assistant
+assistant-settings-save-api = Save API Config
 assistant-settings-back = Back
 
 ## Error Messages
