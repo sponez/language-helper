@@ -296,8 +296,54 @@ impl AssistantSettingsRouter {
                 None
             }
             Message::ChangeAssistant => {
-                // TODO: Implement assistant change logic
-                eprintln!("TODO: Change assistant");
+                // Get the currently running model to stop
+                let running_models = self.running_models.borrow();
+
+                if let Some(current_model) = running_models.first() {
+                    // Stop the current model
+                    match self.app_api.ai_assistant_api().stop_model(current_model) {
+                        Ok(_) => {
+                            println!("Model '{}' stopped successfully", current_model);
+                            // Give Ollama a moment to fully unload the model
+                            std::thread::sleep(std::time::Duration::from_millis(500));
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to stop model '{}': {:?}", current_model, e);
+                        }
+                    }
+                }
+
+                // Drop the borrow before starting the new assistant
+                drop(running_models);
+
+                // Now launch the selected model using the same logic as StartAssistant
+                *self.show_launch_modal.borrow_mut() = true;
+                *self.launch_status.borrow_mut() = LaunchStatus::CheckingServer;
+                *self.launch_progress_message.borrow_mut() = "Changing assistant...".to_string();
+                *self.launch_error_message.borrow_mut() = None;
+
+                // Get the model name we want to launch
+                let model_name = self.get_ollama_model_name(&self.selected_model);
+
+                // Check if server is running (quick check, non-blocking)
+                match self.app_api.ai_assistant_api().check_server_status() {
+                    Ok(is_running) => {
+                        if !is_running {
+                            // Server not running - start it asynchronously
+                            *self.launch_status.borrow_mut() = LaunchStatus::StartingServer;
+                            *self.launch_progress_message.borrow_mut() = "Starting Ollama server, please wait...".to_string();
+                            *self.async_operation.borrow_mut() = AsyncOperation::StartingServer;
+                        } else {
+                            // Server running - check models
+                            self.check_models_and_launch(model_name);
+                        }
+                    }
+                    Err(e) => {
+                        *self.launch_status.borrow_mut() = LaunchStatus::Error;
+                        *self.launch_error_message.borrow_mut() = Some(format!("Failed to check server status: {:?}", e));
+                    }
+                }
+
                 None
             }
             Message::SaveApiConfig => {
