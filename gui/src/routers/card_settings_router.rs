@@ -62,10 +62,17 @@ impl CardSettingsRouter {
         }
 
         let target_language = profile.target_language.clone();
+        let username = user_view.username.clone();
 
-        // TODO: Load settings from API once persistence is implemented
-        // For now, use default values
-        let settings = CardSettingsView::default();
+        // Load settings from database
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let settings = runtime.block_on(async {
+            app_api.profile_api().get_card_settings(&username, &target_language).await
+        })
+        .ok()
+        .map(|dto| CardSettingsView::from_dto(dto))
+        .unwrap_or_else(|| CardSettingsView::default());
+
         let cards_per_set_input = settings.cards_per_set.to_string();
         let test_answer_method = settings.test_answer_method.clone();
         let streak_length_input = settings.streak_length.to_string();
@@ -104,7 +111,7 @@ impl CardSettingsRouter {
                 let i18n = self.app_state.i18n();
 
                 // Validate inputs
-                let _cards_per_set = match self.cards_per_set_input.parse::<u32>() {
+                let cards_per_set = match self.cards_per_set_input.parse::<u32>() {
                     Ok(n) if n >= 1 && n <= 100 => n,
                     Ok(_) => {
                         self.error_message = Some(
@@ -120,7 +127,7 @@ impl CardSettingsRouter {
                     }
                 };
 
-                let _streak_length = match self.streak_length_input.parse::<u32>() {
+                let streak_length = match self.streak_length_input.parse::<u32>() {
                     Ok(n) if n >= 1 && n <= 50 => n,
                     Ok(_) => {
                         self.error_message = Some(
@@ -136,14 +143,34 @@ impl CardSettingsRouter {
                     }
                 };
 
-                // TODO: Save to API once persistence is implemented
-                eprintln!("TODO: Save card settings to API (cards_per_set={}, test_method={}, streak_length={})",
-                    _cards_per_set, self.test_answer_method, _streak_length);
+                // Update the settings view model
+                self.settings.cards_per_set = cards_per_set;
+                self.settings.test_answer_method = self.test_answer_method.clone();
+                self.settings.streak_length = streak_length;
 
-                // Show success message
-                self.error_message = Some(
-                    i18n.get("profile-settings-saved", None)
-                );
+                // Save to database
+                let username = self.user_view.username.clone();
+                let target_language = self.target_language.clone();
+                let settings_dto = self.settings.to_dto();
+
+                let runtime = tokio::runtime::Runtime::new().unwrap();
+                let result = runtime.block_on(async {
+                    self.app_api.profile_api().update_card_settings(&username, &target_language, settings_dto).await
+                });
+
+                match result {
+                    Ok(_) => {
+                        self.error_message = Some(
+                            i18n.get("profile-settings-saved", None)
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!("Error saving card settings: {:?}", e);
+                        self.error_message = Some(
+                            "Failed to save settings. Please try again.".to_string()
+                        );
+                    }
+                }
 
                 None
             }

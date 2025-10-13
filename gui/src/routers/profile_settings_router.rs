@@ -12,7 +12,7 @@ use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
 use crate::iced_params::THEMES;
 use crate::models::{ProfileView, UserView};
-use crate::router::{self, RouterEvent, RouterNode};
+use crate::router::{self, RouterEvent, RouterNode, RouterTarget};
 use crate::routers::assistant_settings_router::AssistantSettingsRouter;
 use crate::routers::card_settings_router::CardSettingsRouter;
 
@@ -98,14 +98,35 @@ impl ProfileSettingsRouter {
                 None
             }
             Message::ConfirmDelete => {
-                // TODO: Delete profile via API
-                eprintln!("TODO: Delete profile {} for user {}",
-                    self.target_language,
-                    self.user_view.username
-                );
+                let username = &self.user_view.username;
+                let target_language = &self.target_language;
 
-                // Navigate back to profile list
-                Some(RouterEvent::Pop)
+                // Use a runtime to block on async operations
+                let runtime = tokio::runtime::Runtime::new().unwrap();
+
+                // Delete profile database
+                let db_result = runtime.block_on(async {
+                    self.app_api.profile_api().delete_profile_database(username, target_language).await
+                });
+
+                // Delete profile metadata
+                let profile_result = runtime.block_on(async {
+                    self.app_api.users_api().delete_profile(username, target_language).await
+                });
+
+                // Check for errors
+                match (db_result, profile_result) {
+                    (Ok(_), Ok(_)) => {
+                        println!("Successfully deleted profile {} for user {}", target_language, username);
+                        // Navigate back to profile list
+                        Some(RouterEvent::PopTo(Some(RouterTarget::ProfileList)))
+                    }
+                    (Err(e), _) | (_, Err(e)) => {
+                        eprintln!("Error deleting profile: {:?}", e);
+                        // Still navigate back but log the error
+                        Some(RouterEvent::PopTo(Some(RouterTarget::ProfileList)))
+                    }
+                }
             }
             Message::Back => {
                 Some(RouterEvent::Pop)

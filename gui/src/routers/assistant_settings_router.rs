@@ -124,16 +124,52 @@ impl AssistantSettingsRouter {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
         }
 
-        // Start with API as default (always available)
+        // Load assistant settings from database
+        let username = user_view.username.clone();
+        let target_language = profile.target_language.clone();
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let loaded_settings = runtime.block_on(async {
+            app_api.profile_api().get_assistant_settings(&username, &target_language).await
+        }).ok();
+
+        // Set initial values based on loaded settings
+        let (selected_model, api_endpoint, api_key, api_model_name) = if let Some(settings_dto) = loaded_settings {
+            let selected = if let Some(ref ai_model) = settings_dto.ai_model {
+                // Map lowercase to proper case
+                match ai_model.to_lowercase().as_str() {
+                    "api" => "API".to_string(),
+                    "tiny" => "Tiny".to_string(),
+                    "light" => "Light".to_string(),
+                    "weak" => "Weak".to_string(),
+                    "medium" => "Medium".to_string(),
+                    "strong" => "Strong".to_string(),
+                    _ => ai_model.clone(),
+                }
+            } else {
+                "API".to_string() // Default if no model selected
+            };
+
+            (
+                selected,
+                settings_dto.api_endpoint.unwrap_or_default(),
+                settings_dto.api_key.unwrap_or_default(),
+                settings_dto.api_model_name.unwrap_or_default(),
+            )
+        } else {
+            // No settings found - use defaults
+            ("API".to_string(), String::new(), String::new(), String::new())
+        };
+
         let router = Self {
             user_view,
             profile,
             app_api,
             app_state,
-            selected_model: "API".to_string(),
-            api_endpoint: String::new(),
-            api_key: String::new(),
-            api_model_name: String::new(),
+            selected_model,
+            api_endpoint,
+            api_key,
+            api_model_name,
             model_compatibility: RefCell::new(HashMap::new()),
             system_check_done: RefCell::new(false),
             ollama_status: RefCell::new(None),
@@ -279,6 +315,25 @@ impl AssistantSettingsRouter {
                         println!("Model '{}' stopped successfully", model_name);
                         // Give Ollama a moment to fully unload the model
                         std::thread::sleep(std::time::Duration::from_millis(500));
+
+                        // Clear assistant settings from database
+                        let username = self.user_view.username.clone();
+                        let target_language = self.profile.target_language.clone();
+
+                        let runtime = tokio::runtime::Runtime::new().unwrap();
+                        let clear_result = runtime.block_on(async {
+                            self.app_api.profile_api().clear_assistant_settings(&username, &target_language).await
+                        });
+
+                        match clear_result {
+                            Ok(_) => {
+                                println!("Assistant settings cleared from database");
+                            }
+                            Err(e) => {
+                                eprintln!("Error clearing assistant settings: {:?}", e);
+                            }
+                        }
+
                         // Refresh running models list
                         self.check_running_models();
                         // Trigger refresh to update UI
@@ -347,9 +402,35 @@ impl AssistantSettingsRouter {
                 None
             }
             Message::SaveApiConfig => {
-                // TODO: Save API config to profile settings
-                eprintln!("TODO: Save API config - endpoint: {}, key: {}, model: {}",
-                    self.api_endpoint, self.api_key, self.api_model_name);
+                use lh_api::models::assistant_settings::AssistantSettingsDto;
+
+                let username = self.user_view.username.clone();
+                let target_language = self.profile.target_language.clone();
+
+                // Create settings DTO with API configuration
+                let settings_dto = AssistantSettingsDto::new(
+                    Some("api".to_string()),
+                    Some(self.api_endpoint.clone()),
+                    Some(self.api_key.clone()),
+                    Some(self.api_model_name.clone()),
+                );
+
+                // Save to database
+                let runtime = tokio::runtime::Runtime::new().unwrap();
+                let result = runtime.block_on(async {
+                    self.app_api.profile_api().update_assistant_settings(&username, &target_language, settings_dto).await
+                });
+
+                match result {
+                    Ok(_) => {
+                        println!("API settings saved successfully");
+                        // Could show a success message in the UI
+                    }
+                    Err(e) => {
+                        eprintln!("Error saving API settings: {:?}", e);
+                    }
+                }
+
                 None
             }
             Message::ConfirmPull => {
@@ -423,6 +504,35 @@ impl AssistantSettingsRouter {
 
                         // Refresh running models
                         self.check_running_models();
+
+                        // Save the selected model to database
+                        use lh_api::models::assistant_settings::AssistantSettingsDto;
+
+                        let username = self.user_view.username.clone();
+                        let target_language = self.profile.target_language.clone();
+
+                        // Create settings DTO with the launched model
+                        let settings_dto = AssistantSettingsDto::new(
+                            Some(self.selected_model.clone().to_lowercase()),
+                            None,
+                            None,
+                            None,
+                        );
+
+                        // Save to database
+                        let runtime = tokio::runtime::Runtime::new().unwrap();
+                        let save_result = runtime.block_on(async {
+                            self.app_api.profile_api().update_assistant_settings(&username, &target_language, settings_dto).await
+                        });
+
+                        match save_result {
+                            Ok(_) => {
+                                println!("Model selection saved to database");
+                            }
+                            Err(e) => {
+                                eprintln!("Error saving model selection: {:?}", e);
+                            }
+                        }
                     }
                     Err(e) => {
                         *self.launch_status.borrow_mut() = LaunchStatus::Error;
