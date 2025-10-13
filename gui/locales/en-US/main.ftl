@@ -102,6 +102,15 @@ cards-menu-test = Test
 cards-menu-repeat = Repeat
 cards-menu-back = Back
 
+## Manage Cards Screen
+manage-cards-title = Manage Cards
+manage-cards-unlearned-tab = Unlearned
+manage-cards-learned-tab = Learned
+manage-cards-no-unlearned = No unlearned cards yet
+manage-cards-no-learned = No learned cards yet
+manage-cards-add-new = Add New
+manage-cards-back = Back
+
 ## Error Messages
 error-username-empty = Username cannot be empty
 error-user-not-found = User not found

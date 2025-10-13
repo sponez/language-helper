@@ -59,9 +59,16 @@ impl CardsMenuRouter {
     pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
         match message {
             Message::ManageCards => {
-                // TODO: Navigate to manage cards view
-                eprintln!("Manage Cards feature not yet implemented");
-                None
+                // Navigate to manage cards view
+                let manage_cards_router: Box<dyn RouterNode> = Box::new(
+                    super::manage_cards_router::ManageCardsRouter::new(
+                        self.user_view.clone(),
+                        self.profile.clone(),
+                        Rc::clone(&self.app_api),
+                        self.app_state.clone(),
+                    )
+                );
+                Some(RouterEvent::Push(manage_cards_router))
             }
             Message::Learn => {
                 // TODO: Navigate to learn mode

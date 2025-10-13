@@ -69,3 +69,12 @@ cards-menu-learn = Изучить
 cards-menu-test = Тест
 cards-menu-repeat = Повторить
 cards-menu-back = Назад
+
+## Управление карточками
+manage-cards-title = Управление карточками
+manage-cards-unlearned-tab = Неизученные
+manage-cards-learned-tab = Изученные
+manage-cards-no-unlearned = Пока нет неизученных карточек
+manage-cards-no-learned = Пока нет изученных карточек
+manage-cards-add-new = Добавить
+manage-cards-back = Назад
