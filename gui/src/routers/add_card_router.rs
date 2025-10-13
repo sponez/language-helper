@@ -141,6 +141,18 @@ impl AddCardRouter {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
         }
 
+        // Check if AI assistant is configured
+        let username = user_view.username.clone();
+        let target_language = profile.target_language.clone();
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let ai_available = runtime.block_on(async {
+            app_api.profile_api().get_assistant_settings(&username, &target_language).await
+        })
+        .ok()
+        .map(|settings| settings.ai_model.is_some())
+        .unwrap_or(false);
+
         Self {
             user_view,
             profile,
@@ -152,7 +164,7 @@ impl AddCardRouter {
             readings: vec![],
             meanings: vec![],
             error_message: None,
-            ai_available: false, // TODO: Check AI availability
+            ai_available,
             show_inverse_modal: false,
         }
     }
@@ -169,6 +181,18 @@ impl AddCardRouter {
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
         }
+
+        // Check if AI assistant is configured
+        let username = user_view.username.clone();
+        let target_language = profile.target_language.clone();
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let ai_available = runtime.block_on(async {
+            app_api.profile_api().get_assistant_settings(&username, &target_language).await
+        })
+        .ok()
+        .map(|settings| settings.ai_model.is_some())
+        .unwrap_or(false);
 
         // Convert CardDto fields to internal structures
         let readings: Vec<ReadingField> = card.word.readings
@@ -199,7 +223,7 @@ impl AddCardRouter {
             readings,
             meanings,
             error_message: None,
-            ai_available: false, // TODO: Check AI availability
+            ai_available,
             show_inverse_modal: false,
         }
     }
@@ -403,25 +427,22 @@ impl AddCardRouter {
         // Title with Fill with AI button in top right
         let title_text = localized_text(&i18n, "add-card-title", current_font, 24);
 
-        let title_row = if self.ai_available {
-            let fill_ai_text = localized_text(&i18n, "add-card-fill-ai", current_font, 14);
-            let fill_ai_button = button(fill_ai_text)
-                .on_press(Message::FillWithAI)
-                .padding(8);
+        let fill_ai_text = localized_text(&i18n, "add-card-fill-ai", current_font, 14);
+        let mut fill_ai_button = button(fill_ai_text).padding(8);
 
-            // Create a row with title on left and button on right
-            row![
-                title_text,
-                iced::widget::Space::with_width(Length::Fill),
-                fill_ai_button
-            ]
-            .spacing(10)
-            .align_y(Alignment::Center)
-        } else {
-            row![title_text]
-                .spacing(10)
-                .align_y(Alignment::Center)
-        };
+        // Only enable the button if AI is available
+        if self.ai_available {
+            fill_ai_button = fill_ai_button.on_press(Message::FillWithAI);
+        }
+
+        // Create a row with title on left and button on right
+        let title_row = row![
+            title_text,
+            iced::widget::Space::with_width(Length::Fill),
+            fill_ai_button
+        ]
+        .spacing(10)
+        .align_y(Alignment::Center);
 
         // Card type selector
         let card_type_label = localized_text(&i18n, "add-card-type-label", current_font, 14);
