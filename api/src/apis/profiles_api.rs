@@ -4,6 +4,7 @@
 
 use async_trait::async_trait;
 use crate::errors::api_error::ApiError;
+use crate::models::card::CardDto;
 use crate::models::card_settings::CardSettingsDto;
 use crate::models::assistant_settings::AssistantSettingsDto;
 
@@ -41,9 +42,24 @@ pub trait ProfilesApi: Send + Sync {
     /// Clears assistant settings in a profile database (sets all AI fields to None).
     async fn clear_assistant_settings(&self, username: &str, target_language: &str) -> Result<(), ApiError>;
 
-    // Future methods will be added here for:
-    // - Adding vocabulary cards
-    // - Tracking learning progress
-    // - Managing flashcard decks
-    // - etc.
+    /// Creates a new card in the profile database.
+    async fn create_card(&self, username: &str, target_language: &str, card: CardDto) -> Result<i64, ApiError>;
+
+    /// Gets all cards from the profile database.
+    async fn get_all_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError>;
+
+    /// Gets unlearned cards (streak below threshold).
+    async fn get_unlearned_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError>;
+
+    /// Gets learned cards (streak at or above threshold).
+    async fn get_learned_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError>;
+
+    /// Gets a single card by ID.
+    async fn get_card_by_id(&self, username: &str, target_language: &str, card_id: i64) -> Result<CardDto, ApiError>;
+
+    /// Updates a card's streak.
+    async fn update_card_streak(&self, username: &str, target_language: &str, card_id: i64, streak: i32) -> Result<(), ApiError>;
+
+    /// Deletes a card from the database.
+    async fn delete_card(&self, username: &str, target_language: &str, card_id: i64) -> Result<bool, ApiError>;
 }

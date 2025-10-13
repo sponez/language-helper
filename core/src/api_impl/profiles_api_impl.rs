@@ -6,10 +6,11 @@ use async_trait::async_trait;
 use lh_api::apis::profiles_api::ProfilesApi;
 use lh_api::errors::api_error::ApiError;
 use lh_api::models::assistant_settings::AssistantSettingsDto;
+use lh_api::models::card::{CardDto, CardType as ApiCardType, MeaningDto, WordDto};
 use lh_api::models::card_settings::CardSettingsDto;
 
 use crate::errors::CoreError;
-use crate::models::{AssistantSettings, CardSettings};
+use crate::models::{AssistantSettings, Card, CardSettings, CardType, Meaning, Word};
 use crate::repositories::profile_repository::ProfileRepository;
 use crate::services::profile_service::ProfileService;
 
@@ -23,6 +24,67 @@ fn map_core_error_to_api_error(error: CoreError) -> ApiError {
         CoreError::RepositoryError { message } => {
             ApiError::internal_error(format!("Internal error: {}", message))
         }
+    }
+}
+
+/// Convert domain Card to DTO
+fn card_to_dto(card: Card) -> CardDto {
+    CardDto {
+        id: card.id,
+        card_type: match card.card_type {
+            CardType::Straight => ApiCardType::Straight,
+            CardType::Reverse => ApiCardType::Reverse,
+        },
+        word: WordDto {
+            name: card.word.name,
+            readings: card.word.readings,
+        },
+        meanings: card
+            .meanings
+            .into_iter()
+            .map(|m| MeaningDto {
+                definition: m.definition,
+                translated_definition: m.translated_definition,
+                word_translations: m.word_translations,
+            })
+            .collect(),
+        streak: card.streak,
+        created_at: card.created_at,
+    }
+}
+
+/// Convert DTO to domain Card
+fn dto_to_card(dto: CardDto) -> Result<Card, ApiError> {
+    let card_type = match dto.card_type {
+        ApiCardType::Straight => CardType::Straight,
+        ApiCardType::Reverse => CardType::Reverse,
+    };
+
+    let word = Word::new(dto.word.name, dto.word.readings)
+        .map_err(|e| ApiError::validation_error(e.to_string()))?;
+
+    let meanings: Result<Vec<Meaning>, ApiError> = dto
+        .meanings
+        .into_iter()
+        .map(|m| {
+            Meaning::new(m.definition, m.translated_definition, m.word_translations)
+                .map_err(|e| ApiError::validation_error(e.to_string()))
+        })
+        .collect();
+
+    let meanings = meanings?;
+
+    if let Some(id) = dto.id {
+        Ok(Card::new_unchecked(
+            Some(id),
+            card_type,
+            word,
+            meanings,
+            dto.streak,
+            dto.created_at,
+        ))
+    } else {
+        Card::new(card_type, word, meanings).map_err(|e| ApiError::validation_error(e.to_string()))
     }
 }
 
@@ -133,6 +195,64 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
     async fn clear_assistant_settings(&self, username: &str, target_language: &str) -> Result<(), ApiError> {
         self.profile_service
             .clear_assistant_settings(username, target_language)
+            .await
+            .map_err(map_core_error_to_api_error)
+    }
+
+    async fn create_card(&self, username: &str, target_language: &str, card: CardDto) -> Result<i64, ApiError> {
+        let domain_card = dto_to_card(card)?;
+        self.profile_service
+            .create_card(username, target_language, domain_card)
+            .await
+            .map_err(map_core_error_to_api_error)
+    }
+
+    async fn get_all_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError> {
+        let cards = self.profile_service
+            .get_all_cards(username, target_language)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        Ok(cards.into_iter().map(card_to_dto).collect())
+    }
+
+    async fn get_unlearned_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError> {
+        let cards = self.profile_service
+            .get_unlearned_cards(username, target_language)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        Ok(cards.into_iter().map(card_to_dto).collect())
+    }
+
+    async fn get_learned_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError> {
+        let cards = self.profile_service
+            .get_learned_cards(username, target_language)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        Ok(cards.into_iter().map(card_to_dto).collect())
+    }
+
+    async fn get_card_by_id(&self, username: &str, target_language: &str, card_id: i64) -> Result<CardDto, ApiError> {
+        let card = self.profile_service
+            .get_card_by_id(username, target_language, card_id)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        Ok(card_to_dto(card))
+    }
+
+    async fn update_card_streak(&self, username: &str, target_language: &str, card_id: i64, streak: i32) -> Result<(), ApiError> {
+        self.profile_service
+            .update_card_streak(username, target_language, card_id, streak)
+            .await
+            .map_err(map_core_error_to_api_error)
+    }
+
+    async fn delete_card(&self, username: &str, target_language: &str, card_id: i64) -> Result<bool, ApiError> {
+        self.profile_service
+            .delete_card(username, target_language, card_id)
             .await
             .map_err(map_core_error_to_api_error)
     }

@@ -5,7 +5,7 @@
 //! Each profile gets its own database file at `data/{username}/{target_language}_profile.db`.
 
 use crate::errors::CoreError;
-use crate::models::{AssistantSettings, CardSettings};
+use crate::models::{AssistantSettings, Card, CardSettings};
 use crate::repositories::profile_repository::ProfileRepository;
 use std::path::PathBuf;
 
@@ -297,5 +297,90 @@ impl<R: ProfileRepository> ProfileService<R> {
     ) -> Result<(), CoreError> {
         let db_path = self.get_db_path(username, target_language);
         self.repository.clear_assistant_settings(db_path).await
+    }
+
+    /// Creates a new card in the profile database.
+    pub async fn create_card(
+        &self,
+        username: &str,
+        target_language: &str,
+        card: Card,
+    ) -> Result<i64, CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+        self.repository.create_card(db_path, card).await
+    }
+
+    /// Gets all cards from the profile database.
+    pub async fn get_all_cards(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<Vec<Card>, CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+        self.repository.get_all_cards(db_path).await
+    }
+
+    /// Gets unlearned cards (streak below threshold).
+    pub async fn get_unlearned_cards(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<Vec<Card>, CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+        // Get streak threshold from card settings
+        let settings = self.repository.get_card_settings(db_path.clone()).await?;
+        self.repository
+            .get_cards_by_learned_status(db_path, settings.streak_length, false)
+            .await
+    }
+
+    /// Gets learned cards (streak at or above threshold).
+    pub async fn get_learned_cards(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<Vec<Card>, CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+        // Get streak threshold from card settings
+        let settings = self.repository.get_card_settings(db_path.clone()).await?;
+        self.repository
+            .get_cards_by_learned_status(db_path, settings.streak_length, true)
+            .await
+    }
+
+    /// Gets a single card by ID.
+    pub async fn get_card_by_id(
+        &self,
+        username: &str,
+        target_language: &str,
+        card_id: i64,
+    ) -> Result<Card, CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+        self.repository.get_card_by_id(db_path, card_id).await
+    }
+
+    /// Updates a card's streak.
+    pub async fn update_card_streak(
+        &self,
+        username: &str,
+        target_language: &str,
+        card_id: i64,
+        streak: i32,
+    ) -> Result<(), CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+        self.repository
+            .update_card_streak(db_path, card_id, streak)
+            .await
+    }
+
+    /// Deletes a card from the database.
+    pub async fn delete_card(
+        &self,
+        username: &str,
+        target_language: &str,
+        card_id: i64,
+    ) -> Result<bool, CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+        self.repository.delete_card(db_path, card_id).await
     }
 }

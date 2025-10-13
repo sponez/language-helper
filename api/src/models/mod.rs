@@ -14,11 +14,13 @@
 //! - **assistant_settings**: AI assistant settings data transfer objects
 //! - **system_requirements**: System requirements and compatibility data transfer objects
 //! - **ai_assistant**: AI assistant and running models data transfer objects
+//! - **card**: Flashcard and vocabulary data transfer objects
 
 pub mod ai_assistant;
 pub mod ai_explain;
 pub mod app_settings;
 pub mod assistant_settings;
+pub mod card;
 pub mod card_settings;
 pub mod profile;
 pub mod system_requirements;

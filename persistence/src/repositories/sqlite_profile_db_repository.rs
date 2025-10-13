@@ -5,8 +5,8 @@
 //! for storing learning content (vocabulary cards, progress, etc.).
 
 use crate::errors::PersistenceError;
-use crate::models::{AssistantSettingsEntity, CardSettingsEntity};
-use lh_core::models::{AssistantSettings, CardSettings};
+use crate::models::{AssistantSettingsEntity, CardEntity, CardSettingsEntity, CardWithRelations, MeaningEntity, WordEntity};
+use lh_core::models::{AssistantSettings, Card, CardSettings};
 use lh_core::repositories::adapters::PersistenceProfileDbRepository;
 use rusqlite::{Connection, params};
 use std::fs;
@@ -94,6 +94,60 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
             )
             .map_err(|e| {
                 PersistenceError::database_error(format!("Failed to create assistant_settings table: {}", e))
+            })?;
+
+            // Create words table
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS words (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    readings TEXT NOT NULL DEFAULT '[]'
+                )",
+                [],
+            )
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to create words table: {}", e))
+            })?;
+
+            // Create cards table
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS cards (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    card_type TEXT NOT NULL CHECK(card_type IN ('straight', 'reverse')),
+                    word_id INTEGER NOT NULL,
+                    streak INTEGER NOT NULL DEFAULT 0,
+                    created_at INTEGER NOT NULL,
+                    FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
+                )",
+                [],
+            )
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to create cards table: {}", e))
+            })?;
+
+            // Create meanings table
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS meanings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    card_id INTEGER NOT NULL,
+                    definition TEXT NOT NULL,
+                    translated_definition TEXT NOT NULL,
+                    word_translations TEXT NOT NULL DEFAULT '[]',
+                    FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE
+                )",
+                [],
+            )
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to create meanings table: {}", e))
+            })?;
+
+            // Create index on cards for better query performance
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cards_streak ON cards(streak)",
+                [],
+            )
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to create index on cards: {}", e))
             })?;
 
             // Insert initial schema version
@@ -302,5 +356,260 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
         })
         .await
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
+    }
+
+    async fn create_card(&self, db_path: PathBuf, card: Card) -> Result<i64, Self::Error> {
+        tokio::task::spawn_blocking(move || {
+            let conn = Connection::open(&db_path).map_err(|e| {
+                PersistenceError::database_error(format!(
+                    "Failed to open database at {:?}: {}",
+                    db_path, e
+                ))
+            })?;
+
+            // Start transaction
+            let tx = conn.unchecked_transaction().map_err(|e| {
+                PersistenceError::database_error(format!("Failed to start transaction: {}", e))
+            })?;
+
+            // Insert word
+            let word_entity = WordEntity::from_domain(&card.word)?;
+            tx.execute(
+                "INSERT INTO words (name, readings) VALUES (?1, ?2)",
+                params![word_entity.name, word_entity.readings],
+            ).map_err(|e| {
+                PersistenceError::database_error(format!("Failed to insert word: {}", e))
+            })?;
+            let word_id = tx.last_insert_rowid();
+
+            // Insert card
+            tx.execute(
+                "INSERT INTO cards (card_type, word_id, streak, created_at) VALUES (?1, ?2, ?3, ?4)",
+                params![card.card_type.as_str(), word_id, card.streak, card.created_at],
+            ).map_err(|e| {
+                PersistenceError::database_error(format!("Failed to insert card: {}", e))
+            })?;
+            let card_id = tx.last_insert_rowid();
+
+            // Insert meanings
+            for meaning in &card.meanings {
+                let meaning_entity = MeaningEntity::from_domain(card_id, meaning)?;
+                tx.execute(
+                    "INSERT INTO meanings (card_id, definition, translated_definition, word_translations) VALUES (?1, ?2, ?3, ?4)",
+                    params![
+                        meaning_entity.card_id,
+                        meaning_entity.definition,
+                        meaning_entity.translated_definition,
+                        meaning_entity.word_translations
+                    ],
+                ).map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to insert meaning: {}", e))
+                })?;
+            }
+
+            // Commit transaction
+            tx.commit().map_err(|e| {
+                PersistenceError::database_error(format!("Failed to commit transaction: {}", e))
+            })?;
+
+            Ok(card_id)
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
+    }
+
+    async fn get_all_cards(&self, db_path: PathBuf) -> Result<Vec<Card>, Self::Error> {
+        tokio::task::spawn_blocking(move || {
+            let conn = Connection::open(&db_path).map_err(|e| {
+                PersistenceError::database_error(format!(
+                    "Failed to open database at {:?}: {}",
+                    db_path, e
+                ))
+            })?;
+
+            Self::fetch_cards(&conn, "SELECT id, card_type, word_id, streak, created_at FROM cards", &[])
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
+    }
+
+    async fn get_cards_by_learned_status(
+        &self,
+        db_path: PathBuf,
+        streak_threshold: i32,
+        learned: bool,
+    ) -> Result<Vec<Card>, Self::Error> {
+        tokio::task::spawn_blocking(move || {
+            let conn = Connection::open(&db_path).map_err(|e| {
+                PersistenceError::database_error(format!(
+                    "Failed to open database at {:?}: {}",
+                    db_path, e
+                ))
+            })?;
+
+            let query = if learned {
+                "SELECT id, card_type, word_id, streak, created_at FROM cards WHERE streak >= ?1"
+            } else {
+                "SELECT id, card_type, word_id, streak, created_at FROM cards WHERE streak < ?1"
+            };
+
+            Self::fetch_cards(&conn, query, &[&streak_threshold])
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
+    }
+
+    async fn get_card_by_id(&self, db_path: PathBuf, card_id: i64) -> Result<Card, Self::Error> {
+        tokio::task::spawn_blocking(move || {
+            let conn = Connection::open(&db_path).map_err(|e| {
+                PersistenceError::database_error(format!(
+                    "Failed to open database at {:?}: {}",
+                    db_path, e
+                ))
+            })?;
+
+            let mut cards = Self::fetch_cards(
+                &conn,
+                "SELECT id, card_type, word_id, streak, created_at FROM cards WHERE id = ?1",
+                &[&card_id],
+            )?;
+
+            cards.into_iter().next().ok_or_else(|| {
+                PersistenceError::not_found(format!("Card with id {} not found", card_id))
+            })
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
+    }
+
+    async fn update_card_streak(&self, db_path: PathBuf, card_id: i64, streak: i32) -> Result<(), Self::Error> {
+        tokio::task::spawn_blocking(move || {
+            let conn = Connection::open(&db_path).map_err(|e| {
+                PersistenceError::database_error(format!(
+                    "Failed to open database at {:?}: {}",
+                    db_path, e
+                ))
+            })?;
+
+            let rows_affected = conn.execute(
+                "UPDATE cards SET streak = ?1 WHERE id = ?2",
+                params![streak, card_id],
+            ).map_err(|e| {
+                PersistenceError::database_error(format!("Failed to update card streak: {}", e))
+            })?;
+
+            if rows_affected == 0 {
+                return Err(PersistenceError::not_found(format!("Card with id {} not found", card_id)));
+            }
+
+            Ok(())
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
+    }
+
+    async fn delete_card(&self, db_path: PathBuf, card_id: i64) -> Result<bool, Self::Error> {
+        tokio::task::spawn_blocking(move || {
+            let conn = Connection::open(&db_path).map_err(|e| {
+                PersistenceError::database_error(format!(
+                    "Failed to open database at {:?}: {}",
+                    db_path, e
+                ))
+            })?;
+
+            let rows_affected = conn.execute(
+                "DELETE FROM cards WHERE id = ?1",
+                params![card_id],
+            ).map_err(|e| {
+                PersistenceError::database_error(format!("Failed to delete card: {}", e))
+            })?;
+
+            Ok(rows_affected > 0)
+        })
+        .await
+        .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
+    }
+}
+
+impl SqliteProfileDbRepository {
+    /// Helper function to fetch cards with their related data.
+    fn fetch_cards(
+        conn: &Connection,
+        query: &str,
+        params: &[&dyn rusqlite::ToSql],
+    ) -> Result<Vec<Card>, PersistenceError> {
+        let mut stmt = conn.prepare(query).map_err(|e| {
+            PersistenceError::database_error(format!("Failed to prepare query: {}", e))
+        })?;
+
+        let card_entities: Vec<CardEntity> = stmt
+            .query_map(params, |row| {
+                Ok(CardEntity::with_fields(
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            })
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to query cards: {}", e))
+            })?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to collect cards: {}", e))
+            })?;
+
+        let mut cards = Vec::new();
+
+        for card_entity in card_entities {
+            // Fetch word
+            let word_entity = conn
+                .query_row(
+                    "SELECT id, name, readings FROM words WHERE id = ?1",
+                    [card_entity.word_id],
+                    |row| {
+                        Ok(WordEntity::with_fields(row.get(0)?, row.get(1)?, row.get(2)?))
+                    },
+                )
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to fetch word: {}", e))
+                })?;
+
+            // Fetch meanings
+            let mut meaning_stmt = conn
+                .prepare("SELECT id, card_id, definition, translated_definition, word_translations FROM meanings WHERE card_id = ?1")
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to prepare meanings query: {}", e))
+                })?;
+
+            let meaning_entities: Vec<MeaningEntity> = meaning_stmt
+                .query_map([card_entity.id], |row| {
+                    Ok(MeaningEntity::with_fields(
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                })
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to query meanings: {}", e))
+                })?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to collect meanings: {}", e))
+                })?;
+
+            let card_with_relations = CardWithRelations {
+                card: card_entity,
+                word: word_entity,
+                meanings: meaning_entities,
+            };
+
+            cards.push(card_with_relations.to_domain()?);
+        }
+
+        Ok(cards)
     }
 }
