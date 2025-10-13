@@ -139,6 +139,13 @@ add-card-inverse-manually = Manually
 add-card-inverse-with-assistant = With Assistant
 add-card-inverse-no = No
 
+## Inverse Cards Review Screen
+inverse-cards-review-title = Review Inverse Cards
+inverse-cards-no-pending = No pending inverse cards
+inverse-cards-show = Show
+inverse-cards-save-all = Save All
+inverse-cards-cancel = Cancel
+
 ## Error Messages
 error-username-empty = Username cannot be empty
 error-user-not-found = User not found

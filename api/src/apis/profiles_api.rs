@@ -62,4 +62,13 @@ pub trait ProfilesApi: Send + Sync {
 
     /// Deletes a card from the database.
     async fn delete_card(&self, username: &str, target_language: &str, word_name: &str) -> Result<bool, ApiError>;
+
+    /// Generates inverted cards from an original card.
+    ///
+    /// For each translation in the original card:
+    /// - If a card exists with word_name == translation, add new meaning to it
+    /// - If not, create a new inverse card
+    /// - Swap definition and translated_definition
+    /// - Set card_type to opposite (Straight ↔ Reverse)
+    async fn get_inverted_cards(&self, username: &str, target_language: &str, card: CardDto) -> Result<Vec<CardDto>, ApiError>;
 }

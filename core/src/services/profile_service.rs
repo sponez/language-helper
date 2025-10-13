@@ -5,7 +5,7 @@
 //! Each profile gets its own database file at `data/{username}/{target_language}_profile.db`.
 
 use crate::errors::CoreError;
-use crate::models::{AssistantSettings, Card, CardSettings};
+use crate::models::{AssistantSettings, Card, CardSettings, CardType};
 use crate::repositories::profile_repository::ProfileRepository;
 use std::path::PathBuf;
 
@@ -382,5 +382,94 @@ impl<R: ProfileRepository> ProfileService<R> {
     ) -> Result<bool, CoreError> {
         let db_path = self.get_db_path(username, target_language);
         self.repository.delete_card(db_path, word_name.to_string()).await
+    }
+
+    /// Generates inverted cards from an original card.
+    ///
+    /// For each translation in the original card's meanings:
+    /// - If a card with that word_name exists, add a new meaning to it
+    /// - If no card exists, create a new inverse card
+    /// - Swap definition and translated_definition
+    /// - Set card_type to opposite (Straight ↔ Reverse)
+    /// - Set word_readings to empty, streak to 0
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `target_language` - The target language
+    /// * `original_card` - The card to generate inverses from
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Vec<Card>)` - List of generated inverse cards
+    /// * `Err(CoreError)` - If an error occurs
+    pub async fn get_inverted_cards(
+        &self,
+        username: &str,
+        target_language: &str,
+        original_card: &Card,
+    ) -> Result<Vec<Card>, CoreError> {
+        use std::collections::HashMap;
+
+        let db_path = self.get_db_path(username, target_language);
+
+        // Collect all translations from all meanings
+        let mut translations_with_meanings: Vec<(String, &crate::models::card::Meaning)> = Vec::new();
+        for meaning in &original_card.meanings {
+            for translation in &meaning.word_translations {
+                translations_with_meanings.push((translation.clone(), meaning));
+            }
+        }
+
+        // Group by translation to handle duplicates
+        let mut translation_map: HashMap<String, Vec<&crate::models::card::Meaning>> = HashMap::new();
+        for (translation, meaning) in translations_with_meanings {
+            translation_map.entry(translation).or_insert_with(Vec::new).push(meaning);
+        }
+
+        // Generate inverse cards
+        let mut inverse_cards = Vec::new();
+        let inverse_card_type = match original_card.card_type {
+            CardType::Straight => CardType::Reverse,
+            CardType::Reverse => CardType::Straight,
+        };
+
+        for (translation, meanings) in translation_map {
+            // Try to get existing card with this word_name
+            let existing_card_result = self.repository
+                .get_card_by_word_name(db_path.clone(), translation.clone())
+                .await;
+
+            let mut inverse_card = if let Ok(existing_card) = existing_card_result {
+                // Card exists - we'll add new meanings to it
+                existing_card
+            } else {
+                // Card doesn't exist - create new one
+                let word = crate::models::card::Word::new_unchecked(translation.clone(), vec![]);
+                crate::models::card::Card::new_unchecked(
+                    None,
+                    inverse_card_type.clone(),
+                    word,
+                    vec![],
+                    0,
+                    chrono::Utc::now().timestamp(),
+                )
+            };
+
+            // Add inverted meanings (one for each occurrence of this translation)
+            for meaning in meanings {
+                // Swap definition and translated_definition
+                let inverted_meaning = crate::models::card::Meaning::new_unchecked(
+                    meaning.translated_definition.clone(),
+                    meaning.definition.clone(),
+                    vec![original_card.word.name.clone()],
+                );
+                inverse_card.meanings.push(inverted_meaning);
+            }
+
+            inverse_cards.push(inverse_card);
+        }
+
+        Ok(inverse_cards)
     }
 }

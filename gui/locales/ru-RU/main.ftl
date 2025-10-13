@@ -106,3 +106,10 @@ add-card-inverse-modal-title = Обновить обратные карточк�
 add-card-inverse-manually = Вручную
 add-card-inverse-with-assistant = С помощью ассистента
 add-card-inverse-no = Нет
+
+## Экран просмотра обратных карточек
+inverse-cards-review-title = Просмотр обратных карточек
+inverse-cards-no-pending = Нет ожидающих обратных карточек
+inverse-cards-show = Показать
+inverse-cards-save-all = Сохранить все
+inverse-cards-cancel = Отмена

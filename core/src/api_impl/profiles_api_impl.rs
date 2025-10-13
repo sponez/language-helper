@@ -256,4 +256,18 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
             .await
             .map_err(map_core_error_to_api_error)
     }
+
+    async fn get_inverted_cards(&self, username: &str, target_language: &str, card: CardDto) -> Result<Vec<CardDto>, ApiError> {
+        // Convert DTO to domain Card
+        let domain_card = dto_to_card(card)?;
+
+        // Get inverted cards from service
+        let inverted_cards = self.profile_service
+            .get_inverted_cards(username, target_language, &domain_card)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Convert domain Cards to DTOs
+        Ok(inverted_cards.into_iter().map(card_to_dto).collect())
+    }
 }

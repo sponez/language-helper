@@ -125,6 +125,10 @@ pub struct AddCardRouter {
     ai_available: bool,
     /// Whether the inverse card update modal is shown
     show_inverse_modal: bool,
+    /// The just-saved card (for generating inverse cards)
+    saved_card: Option<CardDto>,
+    /// Whether this is editing an inverse card (skip inverse modal on save)
+    is_inverse_card_edit: bool,
 }
 
 impl AddCardRouter {
@@ -166,6 +170,8 @@ impl AddCardRouter {
             error_message: None,
             ai_available,
             show_inverse_modal: false,
+            saved_card: None,
+            is_inverse_card_edit: false,
         }
     }
 
@@ -176,6 +182,18 @@ impl AddCardRouter {
         app_api: Rc<dyn AppApi>,
         app_state: AppState,
         card: CardDto,
+    ) -> Self {
+        Self::new_edit_with_flags(user_view, profile, app_api, app_state, card, false)
+    }
+
+    /// Create a new AddCardRouter for editing an existing card with custom flags
+    pub fn new_edit_with_flags(
+        user_view: UserView,
+        profile: ProfileView,
+        app_api: Rc<dyn AppApi>,
+        app_state: AppState,
+        card: CardDto,
+        is_inverse_card_edit: bool,
     ) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
@@ -225,6 +243,8 @@ impl AddCardRouter {
             error_message: None,
             ai_available,
             show_inverse_modal: false,
+            saved_card: None,
+            is_inverse_card_edit,
         }
     }
 
@@ -305,21 +325,64 @@ impl AddCardRouter {
                 None
             }
             Message::Save => {
-                if let Some(error) = self.validate_and_save() {
-                    self.error_message = Some(error);
-                    None
-                } else {
-                    // Show modal after successful save
-                    self.show_inverse_modal = true;
-                    None
+                match self.validate_and_save() {
+                    Ok(saved_card) => {
+                        if self.is_inverse_card_edit {
+                            // If editing an inverse card, just pop back without showing modal
+                            Some(RouterEvent::Pop)
+                        } else {
+                            // Store the saved card for inverse generation
+                            self.saved_card = Some(saved_card);
+                            // Show modal after successful save
+                            self.show_inverse_modal = true;
+                            None
+                        }
+                    }
+                    Err(error) => {
+                        self.error_message = Some(error);
+                        None
+                    }
                 }
             }
             Message::Cancel => Some(RouterEvent::Pop),
             Message::InverseManually => {
-                // TODO: Implement manual inverse card update
                 self.show_inverse_modal = false;
-                eprintln!("Manual inverse card update not yet implemented");
-                Some(RouterEvent::Pop)
+
+                // Get the saved card
+                if let Some(saved_card) = self.saved_card.clone() {
+                    let username = self.user_view.username.clone();
+                    let target_language = self.profile.target_language.clone();
+                    let api = Rc::clone(&self.app_api);
+
+                    // Generate inverse cards
+                    let runtime = tokio::runtime::Runtime::new().unwrap();
+                    let inverted_cards_result = runtime.block_on(async {
+                        api.profile_api().get_inverted_cards(&username, &target_language, saved_card).await
+                    });
+
+                    match inverted_cards_result {
+                        Ok(inverted_cards) => {
+                            // Push InverseCardsReviewRouter with generated cards
+                            let review_router: Box<dyn RouterNode> = Box::new(
+                                super::inverse_cards_review_router::InverseCardsReviewRouter::new(
+                                    self.user_view.clone(),
+                                    self.profile.clone(),
+                                    Rc::clone(&self.app_api),
+                                    self.app_state.clone(),
+                                    inverted_cards,
+                                )
+                            );
+                            Some(RouterEvent::Push(review_router))
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to generate inverse cards: {:?}", e);
+                            Some(RouterEvent::Pop)
+                        }
+                    }
+                } else {
+                    eprintln!("No saved card available for inverse generation");
+                    Some(RouterEvent::Pop)
+                }
             }
             Message::InverseWithAssistant => {
                 // TODO: Implement AI-assisted inverse card update
@@ -330,48 +393,48 @@ impl AddCardRouter {
             Message::InverseNo => {
                 // Close modal and return to card manager
                 self.show_inverse_modal = false;
-                Some(RouterEvent::Pop)
+                Some(RouterEvent::PopTo(Some(router::RouterTarget::ManageCards)))
             }
         }
     }
 
     /// Validates the form and saves the card
-    fn validate_and_save(&self) -> Option<String> {
+    fn validate_and_save(&self) -> Result<CardDto, String> {
         // Validate word name (required)
         if self.word_name.trim().is_empty() {
-            return Some("Word name cannot be empty".to_string());
+            return Err("Word name cannot be empty".to_string());
         }
 
         // Validate readings (optional, but if present must be non-empty)
         for (i, reading) in self.readings.iter().enumerate() {
             if reading.value.trim().is_empty() {
-                return Some(format!("Reading {} cannot be empty", i + 1));
+                return Err(format!("Reading {} cannot be empty", i + 1));
             }
         }
 
         // Validate meanings (must have at least one)
         if self.meanings.is_empty() {
-            return Some("Card must have at least one meaning".to_string());
+            return Err("Card must have at least one meaning".to_string());
         }
 
         // Validate each meaning
         for (i, meaning) in self.meanings.iter().enumerate() {
             // Definition is required
             if meaning.definition.trim().is_empty() {
-                return Some(format!("Definition {} cannot be empty", i + 1));
+                return Err(format!("Definition {} cannot be empty", i + 1));
             }
 
             // Translated definition is optional - no validation needed
 
             // Must have at least one translation
             if meaning.translations.is_empty() {
-                return Some(format!("Meaning {} must have at least one translation", i + 1));
+                return Err(format!("Meaning {} must have at least one translation", i + 1));
             }
 
             // Validate translations (all must be non-empty)
             for (j, translation) in meaning.translations.iter().enumerate() {
                 if translation.value.trim().is_empty() {
-                    return Some(format!("Translation {} of meaning {} cannot be empty", j + 1, i + 1));
+                    return Err(format!("Translation {} of meaning {} cannot be empty", j + 1, i + 1));
                 }
             }
         }
@@ -412,11 +475,11 @@ impl AddCardRouter {
         match runtime.block_on(async {
             app_api
                 .profile_api()
-                .save_card(&username, &target_language, card_dto)
+                .save_card(&username, &target_language, card_dto.clone())
                 .await
         }) {
-            Ok(_) => None,
-            Err(e) => Some(format!("Failed to save card: {}", e)),
+            Ok(_) => Ok(card_dto),
+            Err(e) => Err(format!("Failed to save card: {}", e)),
         }
     }
 
