@@ -3,6 +3,7 @@
 //! Each module in this directory represents a self-contained screen/router
 //! that handles its own logic and navigation to child screens.
 
+pub mod add_card_router;
 pub mod assistant_settings_router;
 pub mod card_settings_router;
 pub mod cards_menu_router;

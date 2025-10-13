@@ -330,7 +330,7 @@ impl<R: ProfileRepository> ProfileService<R> {
         // Get streak threshold from card settings
         let settings = self.repository.get_card_settings(db_path.clone()).await?;
         self.repository
-            .get_cards_by_learned_status(db_path, settings.streak_length, false)
+            .get_cards_by_learned_status(db_path, settings.streak_length as i32, false)
             .await
     }
 
@@ -344,7 +344,7 @@ impl<R: ProfileRepository> ProfileService<R> {
         // Get streak threshold from card settings
         let settings = self.repository.get_card_settings(db_path.clone()).await?;
         self.repository
-            .get_cards_by_learned_status(db_path, settings.streak_length, true)
+            .get_cards_by_learned_status(db_path, settings.streak_length as i32, true)
             .await
     }
 

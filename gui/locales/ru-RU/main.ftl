@@ -78,3 +78,24 @@ manage-cards-no-unlearned = Пока нет неизученных карточ�
 manage-cards-no-learned = Пока нет изученных карточек
 manage-cards-add-new = Добавить
 manage-cards-back = Назад
+
+## Экран добавления карточки
+add-card-title = Добавить карточку
+add-card-fill-ai = Заполнить с ИИ
+add-card-word-label = Слово:
+add-card-word-placeholder = Введите слово...
+add-card-readings-label = Чтения:
+add-card-reading-placeholder = Введите чтение...
+add-card-add-reading = Добавить чтение
+add-card-meanings-label = Значения:
+add-card-definition-label = Определение:
+add-card-definition-placeholder = Введите определение...
+add-card-translated-def-label = Перевод определения:
+add-card-translated-def-placeholder = Введите перевод определения...
+add-card-translations-label = Переводы:
+add-card-translation-placeholder = Введите перевод...
+add-card-add-translation = Добавить перевод
+add-card-add-meaning = Добавить значение
+add-card-remove-meaning = Удалить значение
+add-card-save = Сохранить
+add-card-cancel = Отмена

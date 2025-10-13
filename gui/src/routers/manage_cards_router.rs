@@ -5,6 +5,7 @@ use std::rc::Rc;
 use iced::widget::{button, column, container, row, Container};
 use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
+use lh_api::models::card::CardType;
 
 use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
@@ -34,13 +35,10 @@ pub enum Message {
 /// Manage Cards router state
 pub struct ManageCardsRouter {
     /// User view with all user data
-    #[allow(dead_code)]
     user_view: UserView,
     /// Currently selected profile
-    #[allow(dead_code)]
     profile: ProfileView,
     /// API instance for backend communication
-    #[allow(dead_code)]
     app_api: Rc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
@@ -75,9 +73,17 @@ impl ManageCardsRouter {
                 None
             }
             Message::AddNew => {
-                // TODO: Navigate to add card view
-                eprintln!("Add New Card feature not yet implemented");
-                None
+                // Navigate to add card view (Straight type by default)
+                let add_card_router: Box<dyn RouterNode> = Box::new(
+                    super::add_card_router::AddCardRouter::new(
+                        self.user_view.clone(),
+                        self.profile.clone(),
+                        Rc::clone(&self.app_api),
+                        self.app_state.clone(),
+                        CardType::Straight,
+                    )
+                );
+                Some(RouterEvent::Push(add_card_router))
             }
             Message::Back => {
                 Some(RouterEvent::Pop)

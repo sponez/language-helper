@@ -2220,6 +2220,7 @@ dependencies = [
  "chrono",
  "lh_core",
  "rusqlite",
+ "serde_json",
  "tempfile",
  "thiserror",
  "tokio",

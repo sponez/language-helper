@@ -98,7 +98,7 @@ impl WordEntity {
     /// Converts entity to domain Word.
     pub fn to_domain(&self) -> Result<Word, PersistenceError> {
         let readings: Vec<String> = serde_json::from_str(&self.readings)
-            .map_err(|e| PersistenceError::deserialization_error(format!(
+            .map_err(|e| PersistenceError::serialization_error(format!(
                 "Failed to deserialize readings: {}", e
             )))?;
 
@@ -176,7 +176,7 @@ impl MeaningEntity {
     /// Converts entity to domain Meaning.
     pub fn to_domain(&self) -> Result<Meaning, PersistenceError> {
         let word_translations: Vec<String> = serde_json::from_str(&self.word_translations)
-            .map_err(|e| PersistenceError::deserialization_error(format!(
+            .map_err(|e| PersistenceError::serialization_error(format!(
                 "Failed to deserialize word translations: {}", e
             )))?;
 
@@ -199,7 +199,7 @@ impl CardWithRelations {
     /// Converts to domain Card.
     pub fn to_domain(&self) -> Result<Card, PersistenceError> {
         let card_type = CardType::from_str(&self.card.card_type)
-            .map_err(|e| PersistenceError::deserialization_error(e.to_string()))?;
+            .map_err(|e| PersistenceError::serialization_error(e.to_string()))?;
 
         let word = self.word.to_domain()?;
 

@@ -111,6 +111,27 @@ manage-cards-no-learned = No learned cards yet
 manage-cards-add-new = Add New
 manage-cards-back = Back
 
+## Add Card Screen
+add-card-title = Add New Card
+add-card-fill-ai = Fill with AI
+add-card-word-label = Word:
+add-card-word-placeholder = Enter word...
+add-card-readings-label = Readings:
+add-card-reading-placeholder = Enter reading...
+add-card-add-reading = Add Reading
+add-card-meanings-label = Meanings:
+add-card-definition-label = Definition:
+add-card-definition-placeholder = Enter definition...
+add-card-translated-def-label = Translated Definition:
+add-card-translated-def-placeholder = Enter translated definition...
+add-card-translations-label = Translations:
+add-card-translation-placeholder = Enter translation...
+add-card-add-translation = Add Translation
+add-card-add-meaning = Add Meaning
+add-card-remove-meaning = Remove Meaning
+add-card-save = Save
+add-card-cancel = Cancel
+
 ## Error Messages
 error-username-empty = Username cannot be empty
 error-user-not-found = User not found

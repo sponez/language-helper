@@ -475,7 +475,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
             )?;
 
             cards.into_iter().next().ok_or_else(|| {
-                PersistenceError::not_found(format!("Card with id {} not found", card_id))
+                PersistenceError::database_error(format!("Card with id {} not found", card_id))
             })
         })
         .await
@@ -499,7 +499,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
             })?;
 
             if rows_affected == 0 {
-                return Err(PersistenceError::not_found(format!("Card with id {} not found", card_id)));
+                return Err(PersistenceError::database_error(format!("Card with id {} not found", card_id)));
             }
 
             Ok(())
