@@ -247,14 +247,22 @@ Instructions:
             .await
             .map_err(|e| ApiError::internal_error(format!("Failed to parse response: {}", e)))?;
 
-        // Extract text from nested structure: output[0].content[0].text
-        let text = api_response
+        // Find the first message in the output array (skip reasoning items)
+        let message = api_response
             .output
+            .iter()
+            .find(|output| output.output_type == "message")
+            .ok_or_else(|| {
+                ApiError::internal_error("Response does not contain a message in output array")
+            })?;
+
+        // Extract text from content[0].text
+        let text = message
+            .content
             .first()
-            .and_then(|output| output.content.first())
             .map(|content| content.text.clone())
             .ok_or_else(|| {
-                ApiError::internal_error("Response does not contain expected text content")
+                ApiError::internal_error("Message does not contain expected text content")
             })?;
 
         Ok(text)

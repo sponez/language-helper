@@ -16,7 +16,7 @@ use crate::router::{self, RouterEvent, RouterNode};
 pub enum Message {
     /// Input text changed
     InputChanged(String),
-    /// Send button pressed
+    /// Send button pressed - this will temporarily block UI but show loading message first
     Send,
     /// Back button pressed
     Back,
@@ -70,6 +70,9 @@ impl ExplainAIRouter {
                 if self.input_text.trim().is_empty() {
                     return None;
                 }
+
+                // Temporarily show loading message (will be visible briefly before blocking call completes)
+                self.response_text = "Response is being generated...".to_string();
 
                 // Get assistant settings and call explain API using blocking runtime
                 let username = self.user_view.username.clone();
@@ -279,5 +282,9 @@ impl RouterNode for ExplainAIRouter {
 
     fn refresh(&mut self) {
         self.refresh_data();
+    }
+
+    fn subscription(&self) -> iced::Subscription<router::Message> {
+        iced::Subscription::none()
     }
 }

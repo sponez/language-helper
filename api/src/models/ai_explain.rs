@@ -73,34 +73,37 @@ pub struct ExternalApiResponse {
     pub id: String,
     /// Object type (usually "response")
     pub object: String,
-    /// Unix timestamp when the response was created
-    pub created_at: i64,
     /// Status of the response
     pub status: String,
-    /// Error information if any
-    pub error: Option<serde_json::Value>,
-    /// Model that generated the response
-    pub model: String,
     /// Array of output messages
     pub output: Vec<ExternalApiOutput>,
-    /// Usage statistics
-    pub usage: ExternalApiUsage,
+    // All other fields are ignored using flatten + default
+    #[serde(flatten)]
+    #[serde(default)]
+    pub _ignored: serde_json::Value,
 }
 
 /// Output message from external API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExternalApiOutput {
-    /// Type of output (usually "message")
-    #[serde(rename = "type")]
-    pub output_type: String,
     /// Message ID
     pub id: String,
-    /// Status of the message
-    pub status: String,
-    /// Role (usually "assistant")
-    pub role: String,
-    /// Array of content items
+    /// Type of output (usually "message" or "reasoning")
+    #[serde(rename = "type")]
+    pub output_type: String,
+    /// Status of the message (optional, not present in reasoning objects)
+    #[serde(default)]
+    pub status: Option<String>,
+    /// Array of content items (optional, not present in reasoning objects)
+    #[serde(default)]
     pub content: Vec<ExternalApiContent>,
+    /// Role (optional, usually "assistant" in messages)
+    #[serde(default)]
+    pub role: Option<String>,
+    // All other fields are ignored
+    #[serde(flatten)]
+    #[serde(default)]
+    pub _ignored: serde_json::Value,
 }
 
 /// Content item from external API output
@@ -114,15 +117,8 @@ pub struct ExternalApiContent {
     /// Annotations (can be ignored)
     #[serde(default)]
     pub annotations: Vec<serde_json::Value>,
-}
-
-/// Usage statistics from external API
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExternalApiUsage {
-    /// Number of input tokens
-    pub input_tokens: i32,
-    /// Number of output tokens
-    pub output_tokens: i32,
-    /// Total tokens used
-    pub total_tokens: i32,
+    // All other fields are ignored
+    #[serde(flatten)]
+    #[serde(default)]
+    pub _ignored: serde_json::Value,
 }
