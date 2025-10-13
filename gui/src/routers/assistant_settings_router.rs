@@ -152,13 +152,13 @@ impl AssistantSettingsRouter {
 
             (
                 selected,
-                settings_dto.api_endpoint.unwrap_or_default(),
+                settings_dto.api_endpoint.unwrap_or_else(|| "https://api.openai.com/v1/responses".to_string()),
                 settings_dto.api_key.unwrap_or_default(),
                 settings_dto.api_model_name.unwrap_or_default(),
             )
         } else {
-            // No settings found - use defaults
-            ("API".to_string(), String::new(), String::new(), String::new())
+            // No settings found - use defaults with OpenAI endpoint
+            ("API".to_string(), "https://api.openai.com/v1/responses".to_string(), String::new(), String::new())
         };
 
         let router = Self {
@@ -262,8 +262,8 @@ impl AssistantSettingsRouter {
                 self.selected_model = model;
                 None
             }
-            Message::ApiEndpointChanged(value) => {
-                self.api_endpoint = value;
+            Message::ApiEndpointChanged(_value) => {
+                // API endpoint is now read-only, ignore changes
                 None
             }
             Message::ApiKeyChanged(value) => {
@@ -980,11 +980,18 @@ impl AssistantSettingsRouter {
                     16,
                 );
 
+                // Hardcode OpenAI API endpoint (read-only)
+                let display_endpoint = if self.api_endpoint.is_empty() {
+                    "https://api.openai.com/v1/responses"
+                } else {
+                    &self.api_endpoint
+                };
+
                 let endpoint_input = text_input(
-                    "https://api.example.com/v1",
-                    &self.api_endpoint,
+                    "https://api.openai.com/v1/responses",
+                    display_endpoint,
                 )
-                .on_input(Message::ApiEndpointChanged)
+                // No on_input handler - field is read-only
                 .padding(10)
                 .width(Length::Fixed(300.0));
 
