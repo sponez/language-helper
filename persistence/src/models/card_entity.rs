@@ -2,20 +2,21 @@
 //!
 //! This module defines the entities for storing flashcards in the database.
 
-use lh_core::models::{Card, CardType, Meaning, Word};
+use lh_core::models::{Card, CardType, Meaning};
 use crate::errors::PersistenceError;
 
 /// Persistence entity for a flashcard.
 ///
 /// This struct represents a card as stored in the database.
+/// The word_name serves as the primary key.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CardEntity {
-    /// Unique identifier for the card.
-    pub id: i64,
+    /// The word text itself (PRIMARY KEY).
+    pub word_name: String,
     /// Card type ("straight" or "reverse").
     pub card_type: String,
-    /// Foreign key to words table.
-    pub word_id: i64,
+    /// Pronunciation readings as JSON array string.
+    pub word_readings: String,
     /// Current streak of correct answers.
     pub streak: i32,
     /// Unix timestamp of creation.
@@ -23,86 +24,20 @@ pub struct CardEntity {
 }
 
 impl CardEntity {
-    /// Creates a new CardEntity.
-    pub fn new(card_type: String, word_id: i64, streak: i32) -> Self {
-        let now = chrono::Utc::now().timestamp();
-        Self {
-            id: 0, // Will be set by database
-            card_type,
-            word_id,
-            streak,
-            created_at: now,
-        }
-    }
-
-    /// Creates a CardEntity with all fields.
-    pub fn with_fields(
-        id: i64,
-        card_type: String,
-        word_id: i64,
-        streak: i32,
-        created_at: i64,
-    ) -> Self {
-        Self {
-            id,
-            card_type,
-            word_id,
-            streak,
-            created_at,
-        }
-    }
-}
-
-/// Persistence entity for a word.
-///
-/// This struct represents a word as stored in the database.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WordEntity {
-    /// Unique identifier for the word.
-    pub id: i64,
-    /// The word text itself.
-    pub name: String,
-    /// Pronunciation readings as JSON array string.
-    pub readings: String,
-}
-
-impl WordEntity {
-    /// Creates a new WordEntity.
-    pub fn new(name: String, readings: String) -> Self {
-        Self {
-            id: 0, // Will be set by database
-            name,
-            readings,
-        }
-    }
-
-    /// Creates a WordEntity with all fields.
-    pub fn with_fields(id: i64, name: String, readings: String) -> Self {
-        Self { id, name, readings }
-    }
-
-    /// Converts domain Word to entity.
-    pub fn from_domain(word: &Word) -> Result<Self, PersistenceError> {
-        let readings_json = serde_json::to_string(&word.readings)
+    /// Creates a new CardEntity from domain Card.
+    pub fn from_domain(card: &Card) -> Result<Self, PersistenceError> {
+        let readings_json = serde_json::to_string(&card.word.readings)
             .map_err(|e| PersistenceError::serialization_error(format!(
                 "Failed to serialize readings: {}", e
             )))?;
 
         Ok(Self {
-            id: 0,
-            name: word.name.clone(),
-            readings: readings_json,
+            word_name: card.word.name.clone(),
+            card_type: card.card_type.as_str().to_string(),
+            word_readings: readings_json,
+            streak: card.streak,
+            created_at: card.created_at,
         })
-    }
-
-    /// Converts entity to domain Word.
-    pub fn to_domain(&self) -> Result<Word, PersistenceError> {
-        let readings: Vec<String> = serde_json::from_str(&self.readings)
-            .map_err(|e| PersistenceError::serialization_error(format!(
-                "Failed to deserialize readings: {}", e
-            )))?;
-
-        Ok(Word::new_unchecked(self.name.clone(), readings))
     }
 }
 
@@ -113,8 +48,8 @@ impl WordEntity {
 pub struct MeaningEntity {
     /// Unique identifier for the meaning.
     pub id: i64,
-    /// Foreign key to cards table.
-    pub card_id: i64,
+    /// Foreign key to cards table (word_name).
+    pub word_name: String,
     /// Definition of the word.
     pub definition: String,
     /// Translated definition.
@@ -124,49 +59,16 @@ pub struct MeaningEntity {
 }
 
 impl MeaningEntity {
-    /// Creates a new MeaningEntity.
-    pub fn new(
-        card_id: i64,
-        definition: String,
-        translated_definition: String,
-        word_translations: String,
-    ) -> Self {
-        Self {
-            id: 0, // Will be set by database
-            card_id,
-            definition,
-            translated_definition,
-            word_translations,
-        }
-    }
-
-    /// Creates a MeaningEntity with all fields.
-    pub fn with_fields(
-        id: i64,
-        card_id: i64,
-        definition: String,
-        translated_definition: String,
-        word_translations: String,
-    ) -> Self {
-        Self {
-            id,
-            card_id,
-            definition,
-            translated_definition,
-            word_translations,
-        }
-    }
-
     /// Converts domain Meaning to entity.
-    pub fn from_domain(card_id: i64, meaning: &Meaning) -> Result<Self, PersistenceError> {
+    pub fn from_domain(word_name: &str, meaning: &Meaning) -> Result<Self, PersistenceError> {
         let word_translations_json = serde_json::to_string(&meaning.word_translations)
             .map_err(|e| PersistenceError::serialization_error(format!(
                 "Failed to serialize word translations: {}", e
             )))?;
 
         Ok(Self {
-            id: 0,
-            card_id,
+            id: 0, // Will be set by database
+            word_name: word_name.to_string(),
             definition: meaning.definition.clone(),
             translated_definition: meaning.translated_definition.clone(),
             word_translations: word_translations_json,
@@ -188,10 +90,9 @@ impl MeaningEntity {
     }
 }
 
-/// Complete card data with word and meanings.
+/// Complete card data with meanings.
 pub struct CardWithRelations {
     pub card: CardEntity,
-    pub word: WordEntity,
     pub meanings: Vec<MeaningEntity>,
 }
 
@@ -201,7 +102,15 @@ impl CardWithRelations {
         let card_type = CardType::from_str(&self.card.card_type)
             .map_err(|e| PersistenceError::serialization_error(e.to_string()))?;
 
-        let word = self.word.to_domain()?;
+        let word_readings: Vec<String> = serde_json::from_str(&self.card.word_readings)
+            .map_err(|e| PersistenceError::serialization_error(format!(
+                "Failed to deserialize word readings: {}", e
+            )))?;
+
+        let word = lh_core::models::Word::new_unchecked(
+            self.card.word_name.clone(),
+            word_readings,
+        );
 
         let meanings: Result<Vec<Meaning>, PersistenceError> = self
             .meanings
@@ -210,7 +119,7 @@ impl CardWithRelations {
             .collect();
 
         Ok(Card::new_unchecked(
-            Some(self.card.id),
+            None, // No separate ID anymore, word_name is the key
             card_type,
             word,
             meanings?,
@@ -223,30 +132,23 @@ impl CardWithRelations {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lh_core::models::Word;
 
     #[test]
-    fn test_card_entity_creation() {
-        let entity = CardEntity::new("straight".to_string(), 1, 5);
-        assert_eq!(entity.card_type, "straight");
-        assert_eq!(entity.word_id, 1);
-        assert_eq!(entity.streak, 5);
-    }
-
-    #[test]
-    fn test_word_entity_from_domain() {
+    fn test_card_entity_from_domain() {
         let word = Word::new_unchecked("test", vec!["reading1".to_string()]);
-        let entity = WordEntity::from_domain(&word).unwrap();
-        assert_eq!(entity.name, "test");
-        assert!(entity.readings.contains("reading1"));
-    }
+        let meanings = vec![Meaning::new_unchecked(
+            "definition",
+            "traducción",
+            vec!["trans1".to_string()],
+        )];
+        let card = Card::new_unchecked(None, CardType::Straight, word, meanings, 5, 0);
 
-    #[test]
-    fn test_word_entity_to_domain() {
-        let entity = WordEntity::with_fields(1, "test".to_string(), r#"["reading1"]"#.to_string());
-        let word = entity.to_domain().unwrap();
-        assert_eq!(word.name, "test");
-        assert_eq!(word.readings.len(), 1);
-        assert_eq!(word.readings[0], "reading1");
+        let entity = CardEntity::from_domain(&card).unwrap();
+        assert_eq!(entity.word_name, "test");
+        assert_eq!(entity.card_type, "straight");
+        assert_eq!(entity.streak, 5);
+        assert!(entity.word_readings.contains("reading1"));
     }
 
     #[test]
@@ -256,20 +158,21 @@ mod tests {
             "traducción",
             vec!["trans1".to_string()],
         );
-        let entity = MeaningEntity::from_domain(1, &meaning).unwrap();
+        let entity = MeaningEntity::from_domain("test_word", &meaning).unwrap();
+        assert_eq!(entity.word_name, "test_word");
         assert_eq!(entity.definition, "definition");
         assert_eq!(entity.translated_definition, "traducción");
     }
 
     #[test]
     fn test_meaning_entity_to_domain() {
-        let entity = MeaningEntity::with_fields(
-            1,
-            1,
-            "def".to_string(),
-            "trad".to_string(),
-            r#"["trans1"]"#.to_string(),
-        );
+        let entity = MeaningEntity {
+            id: 1,
+            word_name: "test".to_string(),
+            definition: "def".to_string(),
+            translated_definition: "trad".to_string(),
+            word_translations: r#"["trans1"]"#.to_string(),
+        };
         let meaning = entity.to_domain().unwrap();
         assert_eq!(meaning.definition, "def");
         assert_eq!(meaning.word_translations.len(), 1);

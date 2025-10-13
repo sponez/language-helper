@@ -17,6 +17,8 @@ use crate::router::{self, RouterEvent, RouterNode};
 pub enum Message {
     /// Word name input changed
     WordNameChanged(String),
+    /// Card type changed
+    CardTypeChanged(CardType),
     /// Add new reading field
     AddReading,
     /// Remove reading at index
@@ -101,6 +103,8 @@ pub struct AddCardRouter {
     app_api: Rc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
+    /// Card ID if editing existing card
+    card_id: Option<i64>,
     /// Card type (Straight or Reverse)
     card_type: CardType,
     /// Word name input
@@ -116,7 +120,8 @@ pub struct AddCardRouter {
 }
 
 impl AddCardRouter {
-    pub fn new(
+    /// Create a new AddCardRouter for creating a new card
+    pub fn new_create(
         user_view: UserView,
         profile: ProfileView,
         app_api: Rc<dyn AppApi>,
@@ -133,10 +138,57 @@ impl AddCardRouter {
             profile,
             app_api,
             app_state,
+            card_id: None,
             card_type,
             word_name: String::new(),
             readings: vec![],
             meanings: vec![],
+            error_message: None,
+            ai_available: false, // TODO: Check AI availability
+        }
+    }
+
+    /// Create a new AddCardRouter for editing an existing card
+    pub fn new_edit(
+        user_view: UserView,
+        profile: ProfileView,
+        app_api: Rc<dyn AppApi>,
+        app_state: AppState,
+        card: CardDto,
+    ) -> Self {
+        // Update app_state with user's settings if available
+        if let Some(ref settings) = user_view.settings {
+            app_state.update_settings(settings.theme.clone(), settings.language.clone());
+        }
+
+        // Convert CardDto fields to internal structures
+        let readings: Vec<ReadingField> = card.word.readings
+            .iter()
+            .map(|r| ReadingField { value: r.clone() })
+            .collect();
+
+        let meanings: Vec<MeaningFields> = card.meanings
+            .iter()
+            .map(|m| MeaningFields {
+                definition: m.definition.clone(),
+                translated_definition: m.translated_definition.clone(),
+                translations: m.word_translations
+                    .iter()
+                    .map(|t| TranslationField { value: t.clone() })
+                    .collect(),
+            })
+            .collect();
+
+        Self {
+            user_view,
+            profile,
+            app_api,
+            app_state,
+            card_id: card.id,
+            card_type: card.card_type,
+            word_name: card.word.name,
+            readings,
+            meanings,
             error_message: None,
             ai_available: false, // TODO: Check AI availability
         }
@@ -147,6 +199,10 @@ impl AddCardRouter {
             Message::WordNameChanged(value) => {
                 self.word_name = value;
                 self.error_message = None;
+                None
+            }
+            Message::CardTypeChanged(card_type) => {
+                self.card_type = card_type;
                 None
             }
             Message::AddReading => {
@@ -284,11 +340,11 @@ impl AddCardRouter {
             .collect();
 
         let card_dto = CardDto {
-            id: None,
+            id: self.card_id,
             card_type: self.card_type.clone(),
             word: word_dto,
             meanings: meanings_dto,
-            streak: 0,
+            streak: 0, // Always reset streak to 0 when saving (both create and edit)
             created_at: chrono::Utc::now().timestamp(),
         };
 
@@ -298,10 +354,12 @@ impl AddCardRouter {
         let target_language = self.profile.target_language.clone();
 
         let runtime = tokio::runtime::Runtime::new().unwrap();
+
+        // Use single save_card method (automatically creates or updates based on word_name)
         match runtime.block_on(async {
             app_api
                 .profile_api()
-                .create_card(&username, &target_language, card_dto)
+                .save_card(&username, &target_language, card_dto)
                 .await
         }) {
             Ok(_) => None,
@@ -335,6 +393,37 @@ impl AddCardRouter {
                 .spacing(10)
                 .align_y(Alignment::Center)
         };
+
+        // Card type selector
+        let card_type_label = localized_text(&i18n, "add-card-type-label", current_font, 14);
+
+        let straight_button = button(
+            localized_text(&i18n, "add-card-type-straight", current_font, 14)
+        )
+        .on_press(Message::CardTypeChanged(CardType::Straight))
+        .padding(10)
+        .width(Length::Fixed(150.0))
+        .style(if self.card_type == CardType::Straight {
+            button::primary
+        } else {
+            button::secondary
+        });
+
+        let reverse_button = button(
+            localized_text(&i18n, "add-card-type-reverse", current_font, 14)
+        )
+        .on_press(Message::CardTypeChanged(CardType::Reverse))
+        .padding(10)
+        .width(Length::Fixed(150.0))
+        .style(if self.card_type == CardType::Reverse {
+            button::primary
+        } else {
+            button::secondary
+        });
+
+        let card_type_row = row![straight_button, reverse_button]
+            .spacing(10)
+            .align_y(Alignment::Center);
 
         // Word name input
         let word_label = localized_text(&i18n, "add-card-word-label", current_font, 14);
@@ -479,6 +568,8 @@ impl AddCardRouter {
         // Error message
         let mut content_column = column![
             title_row,
+            card_type_label,
+            card_type_row,
             word_label,
             word_input,
             readings_label,

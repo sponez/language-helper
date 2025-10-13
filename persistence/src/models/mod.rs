@@ -20,7 +20,7 @@ pub mod user_settings_entity;
 
 pub use app_settings_entity::AppSettingsEntity;
 pub use assistant_settings_entity::AssistantSettingsEntity;
-pub use card_entity::{CardEntity, CardWithRelations, MeaningEntity, WordEntity};
+pub use card_entity::{CardEntity, CardWithRelations, MeaningEntity};
 pub use card_settings_entity::CardSettingsEntity;
 pub use profile_entity::ProfileEntity;
 pub use user_entity::UserEntity;

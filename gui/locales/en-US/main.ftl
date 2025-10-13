@@ -114,6 +114,9 @@ manage-cards-back = Back
 ## Add Card Screen
 add-card-title = Add New Card
 add-card-fill-ai = Fill with AI
+add-card-type-label = Card Type:
+add-card-type-straight = Straight
+add-card-type-reverse = Reverse
 add-card-word-label = Word:
 add-card-word-placeholder = Enter word...
 add-card-readings-label = Readings:

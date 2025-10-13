@@ -199,10 +199,10 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
             .map_err(map_core_error_to_api_error)
     }
 
-    async fn create_card(&self, username: &str, target_language: &str, card: CardDto) -> Result<i64, ApiError> {
+    async fn save_card(&self, username: &str, target_language: &str, card: CardDto) -> Result<(), ApiError> {
         let domain_card = dto_to_card(card)?;
         self.profile_service
-            .create_card(username, target_language, domain_card)
+            .save_card(username, target_language, domain_card)
             .await
             .map_err(map_core_error_to_api_error)
     }
@@ -234,25 +234,25 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         Ok(cards.into_iter().map(card_to_dto).collect())
     }
 
-    async fn get_card_by_id(&self, username: &str, target_language: &str, card_id: i64) -> Result<CardDto, ApiError> {
+    async fn get_card_by_word_name(&self, username: &str, target_language: &str, word_name: &str) -> Result<CardDto, ApiError> {
         let card = self.profile_service
-            .get_card_by_id(username, target_language, card_id)
+            .get_card_by_word_name(username, target_language, word_name)
             .await
             .map_err(map_core_error_to_api_error)?;
 
         Ok(card_to_dto(card))
     }
 
-    async fn update_card_streak(&self, username: &str, target_language: &str, card_id: i64, streak: i32) -> Result<(), ApiError> {
+    async fn update_card_streak(&self, username: &str, target_language: &str, word_name: &str, streak: i32) -> Result<(), ApiError> {
         self.profile_service
-            .update_card_streak(username, target_language, card_id, streak)
+            .update_card_streak(username, target_language, word_name, streak)
             .await
             .map_err(map_core_error_to_api_error)
     }
 
-    async fn delete_card(&self, username: &str, target_language: &str, card_id: i64) -> Result<bool, ApiError> {
+    async fn delete_card(&self, username: &str, target_language: &str, word_name: &str) -> Result<bool, ApiError> {
         self.profile_service
-            .delete_card(username, target_language, card_id)
+            .delete_card(username, target_language, word_name)
             .await
             .map_err(map_core_error_to_api_error)
     }

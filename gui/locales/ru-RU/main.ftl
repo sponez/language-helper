@@ -82,6 +82,9 @@ manage-cards-back = Назад
 ## Экран добавления карточки
 add-card-title = Добавить карточку
 add-card-fill-ai = Заполнить с ИИ
+add-card-type-label = Тип карточки:
+add-card-type-straight = Прямая
+add-card-type-reverse = Обратная
 add-card-word-label = Слово:
 add-card-word-placeholder = Введите слово...
 add-card-readings-label = Чтения:

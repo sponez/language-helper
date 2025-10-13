@@ -107,18 +107,18 @@ pub trait ProfileRepository: Send + Sync {
     /// * `Err(CoreError)` - If an error occurs
     async fn clear_assistant_settings(&self, db_path: PathBuf) -> Result<(), CoreError>;
 
-    /// Creates a new card in the profile database.
+    /// Saves a card to the profile database (creates or updates based on word_name).
     ///
     /// # Arguments
     ///
     /// * `db_path` - The full path to the profile database
-    /// * `card` - The card to create
+    /// * `card` - The card to save
     ///
     /// # Returns
     ///
-    /// * `Ok(i64)` - The ID of the newly created card
+    /// * `Ok(())` - If the save was successful
     /// * `Err(CoreError)` - If an error occurs
-    async fn create_card(&self, db_path: PathBuf, card: Card) -> Result<i64, CoreError>;
+    async fn save_card(&self, db_path: PathBuf, card: Card) -> Result<(), CoreError>;
 
     /// Gets all cards from the profile database.
     ///
@@ -151,43 +151,43 @@ pub trait ProfileRepository: Send + Sync {
         learned: bool,
     ) -> Result<Vec<Card>, CoreError>;
 
-    /// Gets a single card by ID.
+    /// Gets a single card by word name.
     ///
     /// # Arguments
     ///
     /// * `db_path` - The full path to the profile database
-    /// * `card_id` - The card ID
+    /// * `word_name` - The word name
     ///
     /// # Returns
     ///
     /// * `Ok(Card)` - The card
     /// * `Err(CoreError)` - If card not found or error occurs
-    async fn get_card_by_id(&self, db_path: PathBuf, card_id: i64) -> Result<Card, CoreError>;
+    async fn get_card_by_word_name(&self, db_path: PathBuf, word_name: String) -> Result<Card, CoreError>;
 
     /// Updates a card's streak.
     ///
     /// # Arguments
     ///
     /// * `db_path` - The full path to the profile database
-    /// * `card_id` - The card ID
+    /// * `word_name` - The word name
     /// * `streak` - The new streak value
     ///
     /// # Returns
     ///
     /// * `Ok(())` - If the update was successful
     /// * `Err(CoreError)` - If an error occurs
-    async fn update_card_streak(&self, db_path: PathBuf, card_id: i64, streak: i32) -> Result<(), CoreError>;
+    async fn update_card_streak(&self, db_path: PathBuf, word_name: String, streak: i32) -> Result<(), CoreError>;
 
     /// Deletes a card from the database.
     ///
     /// # Arguments
     ///
     /// * `db_path` - The full path to the profile database
-    /// * `card_id` - The card ID
+    /// * `word_name` - The word name
     ///
     /// # Returns
     ///
     /// * `Ok(bool)` - True if the card was deleted, false if not found
     /// * `Err(CoreError)` - If an error occurs
-    async fn delete_card(&self, db_path: PathBuf, card_id: i64) -> Result<bool, CoreError>;
+    async fn delete_card(&self, db_path: PathBuf, word_name: String) -> Result<bool, CoreError>;
 }

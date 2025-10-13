@@ -40,8 +40,8 @@ pub trait PersistenceProfileDbRepository: Send + Sync {
     /// Clears assistant settings in a profile database.
     async fn clear_assistant_settings(&self, db_path: PathBuf) -> Result<(), Self::Error>;
 
-    /// Creates a new card in the profile database.
-    async fn create_card(&self, db_path: PathBuf, card: Card) -> Result<i64, Self::Error>;
+    /// Saves a card to the profile database (creates or updates based on word_name).
+    async fn save_card(&self, db_path: PathBuf, card: Card) -> Result<(), Self::Error>;
 
     /// Gets all cards from the profile database.
     async fn get_all_cards(&self, db_path: PathBuf) -> Result<Vec<Card>, Self::Error>;
@@ -54,14 +54,14 @@ pub trait PersistenceProfileDbRepository: Send + Sync {
         learned: bool,
     ) -> Result<Vec<Card>, Self::Error>;
 
-    /// Gets a single card by ID.
-    async fn get_card_by_id(&self, db_path: PathBuf, card_id: i64) -> Result<Card, Self::Error>;
+    /// Gets a single card by word name.
+    async fn get_card_by_word_name(&self, db_path: PathBuf, word_name: String) -> Result<Card, Self::Error>;
 
     /// Updates a card's streak.
-    async fn update_card_streak(&self, db_path: PathBuf, card_id: i64, streak: i32) -> Result<(), Self::Error>;
+    async fn update_card_streak(&self, db_path: PathBuf, word_name: String, streak: i32) -> Result<(), Self::Error>;
 
     /// Deletes a card from the database.
-    async fn delete_card(&self, db_path: PathBuf, card_id: i64) -> Result<bool, Self::Error>;
+    async fn delete_card(&self, db_path: PathBuf, word_name: String) -> Result<bool, Self::Error>;
 }
 
 /// Adapter that wraps a persistence repository and converts errors to CoreError.
@@ -134,9 +134,9 @@ impl<R: PersistenceProfileDbRepository> ProfileRepository for ProfileDbRepositor
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    async fn create_card(&self, db_path: PathBuf, card: Card) -> Result<i64, CoreError> {
+    async fn save_card(&self, db_path: PathBuf, card: Card) -> Result<(), CoreError> {
         self.repository
-            .create_card(db_path, card)
+            .save_card(db_path, card)
             .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
@@ -160,23 +160,23 @@ impl<R: PersistenceProfileDbRepository> ProfileRepository for ProfileDbRepositor
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    async fn get_card_by_id(&self, db_path: PathBuf, card_id: i64) -> Result<Card, CoreError> {
+    async fn get_card_by_word_name(&self, db_path: PathBuf, word_name: String) -> Result<Card, CoreError> {
         self.repository
-            .get_card_by_id(db_path, card_id)
+            .get_card_by_word_name(db_path, word_name)
             .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    async fn update_card_streak(&self, db_path: PathBuf, card_id: i64, streak: i32) -> Result<(), CoreError> {
+    async fn update_card_streak(&self, db_path: PathBuf, word_name: String, streak: i32) -> Result<(), CoreError> {
         self.repository
-            .update_card_streak(db_path, card_id, streak)
+            .update_card_streak(db_path, word_name, streak)
             .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    async fn delete_card(&self, db_path: PathBuf, card_id: i64) -> Result<bool, CoreError> {
+    async fn delete_card(&self, db_path: PathBuf, word_name: String) -> Result<bool, CoreError> {
         self.repository
-            .delete_card(db_path, card_id)
+            .delete_card(db_path, word_name)
             .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }

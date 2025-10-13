@@ -42,8 +42,8 @@ pub trait ProfilesApi: Send + Sync {
     /// Clears assistant settings in a profile database (sets all AI fields to None).
     async fn clear_assistant_settings(&self, username: &str, target_language: &str) -> Result<(), ApiError>;
 
-    /// Creates a new card in the profile database.
-    async fn create_card(&self, username: &str, target_language: &str, card: CardDto) -> Result<i64, ApiError>;
+    /// Saves a card to the profile database (creates or updates based on word_name).
+    async fn save_card(&self, username: &str, target_language: &str, card: CardDto) -> Result<(), ApiError>;
 
     /// Gets all cards from the profile database.
     async fn get_all_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError>;
@@ -54,12 +54,12 @@ pub trait ProfilesApi: Send + Sync {
     /// Gets learned cards (streak at or above threshold).
     async fn get_learned_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError>;
 
-    /// Gets a single card by ID.
-    async fn get_card_by_id(&self, username: &str, target_language: &str, card_id: i64) -> Result<CardDto, ApiError>;
+    /// Gets a single card by word name.
+    async fn get_card_by_word_name(&self, username: &str, target_language: &str, word_name: &str) -> Result<CardDto, ApiError>;
 
     /// Updates a card's streak.
-    async fn update_card_streak(&self, username: &str, target_language: &str, card_id: i64, streak: i32) -> Result<(), ApiError>;
+    async fn update_card_streak(&self, username: &str, target_language: &str, word_name: &str, streak: i32) -> Result<(), ApiError>;
 
     /// Deletes a card from the database.
-    async fn delete_card(&self, username: &str, target_language: &str, card_id: i64) -> Result<bool, ApiError>;
+    async fn delete_card(&self, username: &str, target_language: &str, word_name: &str) -> Result<bool, ApiError>;
 }

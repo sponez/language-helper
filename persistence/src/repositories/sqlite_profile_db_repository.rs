@@ -5,7 +5,7 @@
 //! for storing learning content (vocabulary cards, progress, etc.).
 
 use crate::errors::PersistenceError;
-use crate::models::{AssistantSettingsEntity, CardEntity, CardSettingsEntity, CardWithRelations, MeaningEntity, WordEntity};
+use crate::models::{AssistantSettingsEntity, CardEntity, CardSettingsEntity, CardWithRelations, MeaningEntity};
 use lh_core::models::{AssistantSettings, Card, CardSettings};
 use lh_core::repositories::adapters::PersistenceProfileDbRepository;
 use rusqlite::{Connection, params};
@@ -96,28 +96,14 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                 PersistenceError::database_error(format!("Failed to create assistant_settings table: {}", e))
             })?;
 
-            // Create words table
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS words (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    readings TEXT NOT NULL DEFAULT '[]'
-                )",
-                [],
-            )
-            .map_err(|e| {
-                PersistenceError::database_error(format!("Failed to create words table: {}", e))
-            })?;
-
-            // Create cards table
+            // Create cards table with word_name as primary key
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS cards (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    word_name TEXT PRIMARY KEY,
                     card_type TEXT NOT NULL CHECK(card_type IN ('straight', 'reverse')),
-                    word_id INTEGER NOT NULL,
+                    word_readings TEXT NOT NULL DEFAULT '[]',
                     streak INTEGER NOT NULL DEFAULT 0,
-                    created_at INTEGER NOT NULL,
-                    FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
+                    created_at INTEGER NOT NULL
                 )",
                 [],
             )
@@ -125,15 +111,15 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                 PersistenceError::database_error(format!("Failed to create cards table: {}", e))
             })?;
 
-            // Create meanings table
+            // Create meanings table with word_name foreign key
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS meanings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    card_id INTEGER NOT NULL,
+                    word_name TEXT NOT NULL,
                     definition TEXT NOT NULL,
                     translated_definition TEXT NOT NULL,
                     word_translations TEXT NOT NULL DEFAULT '[]',
-                    FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE
+                    FOREIGN KEY (word_name) REFERENCES cards(word_name) ON DELETE CASCADE
                 )",
                 [],
             )
@@ -358,7 +344,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    async fn create_card(&self, db_path: PathBuf, card: Card) -> Result<i64, Self::Error> {
+    async fn save_card(&self, db_path: PathBuf, card: Card) -> Result<(), Self::Error> {
         tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path).map_err(|e| {
                 PersistenceError::database_error(format!(
@@ -372,32 +358,40 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                 PersistenceError::database_error(format!("Failed to start transaction: {}", e))
             })?;
 
-            // Insert word
-            let word_entity = WordEntity::from_domain(&card.word)?;
-            tx.execute(
-                "INSERT INTO words (name, readings) VALUES (?1, ?2)",
-                params![word_entity.name, word_entity.readings],
-            ).map_err(|e| {
-                PersistenceError::database_error(format!("Failed to insert word: {}", e))
-            })?;
-            let word_id = tx.last_insert_rowid();
+            // Convert card to entity
+            let card_entity = CardEntity::from_domain(&card)?;
 
-            // Insert card
+            // Upsert card (INSERT OR REPLACE)
             tx.execute(
-                "INSERT INTO cards (card_type, word_id, streak, created_at) VALUES (?1, ?2, ?3, ?4)",
-                params![card.card_type.as_str(), word_id, card.streak, card.created_at],
+                "INSERT OR REPLACE INTO cards (word_name, card_type, word_readings, streak, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    card_entity.word_name,
+                    card_entity.card_type,
+                    card_entity.word_readings,
+                    card_entity.streak,
+                    card_entity.created_at
+                ],
             ).map_err(|e| {
-                PersistenceError::database_error(format!("Failed to insert card: {}", e))
+                PersistenceError::database_error(format!("Failed to upsert card: {}", e))
             })?;
-            let card_id = tx.last_insert_rowid();
 
-            // Insert meanings
+            // Delete old meanings (if any)
+            tx.execute(
+                "DELETE FROM meanings WHERE word_name = ?1",
+                [&card_entity.word_name],
+            ).map_err(|e| {
+                PersistenceError::database_error(format!("Failed to delete old meanings: {}", e))
+            })?;
+
+            // Insert new meanings
             for meaning in &card.meanings {
-                let meaning_entity = MeaningEntity::from_domain(card_id, meaning)?;
+                let meaning_entity = MeaningEntity::from_domain(&card_entity.word_name, meaning)?;
                 tx.execute(
-                    "INSERT INTO meanings (card_id, definition, translated_definition, word_translations) VALUES (?1, ?2, ?3, ?4)",
+                    "INSERT INTO meanings (word_name, definition, translated_definition, word_translations)
+                     VALUES (?1, ?2, ?3, ?4)",
                     params![
-                        meaning_entity.card_id,
+                        meaning_entity.word_name,
                         meaning_entity.definition,
                         meaning_entity.translated_definition,
                         meaning_entity.word_translations
@@ -412,7 +406,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                 PersistenceError::database_error(format!("Failed to commit transaction: {}", e))
             })?;
 
-            Ok(card_id)
+            Ok(())
         })
         .await
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
@@ -427,7 +421,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                 ))
             })?;
 
-            Self::fetch_cards(&conn, "SELECT id, card_type, word_id, streak, created_at FROM cards", &[])
+            Self::fetch_cards(&conn, "SELECT word_name, card_type, word_readings, streak, created_at FROM cards", &[])
         })
         .await
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
@@ -448,9 +442,9 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
             })?;
 
             let query = if learned {
-                "SELECT id, card_type, word_id, streak, created_at FROM cards WHERE streak >= ?1"
+                "SELECT word_name, card_type, word_readings, streak, created_at FROM cards WHERE streak >= ?1"
             } else {
-                "SELECT id, card_type, word_id, streak, created_at FROM cards WHERE streak < ?1"
+                "SELECT word_name, card_type, word_readings, streak, created_at FROM cards WHERE streak < ?1"
             };
 
             Self::fetch_cards(&conn, query, &[&streak_threshold])
@@ -459,7 +453,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    async fn get_card_by_id(&self, db_path: PathBuf, card_id: i64) -> Result<Card, Self::Error> {
+    async fn get_card_by_word_name(&self, db_path: PathBuf, word_name: String) -> Result<Card, Self::Error> {
         tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path).map_err(|e| {
                 PersistenceError::database_error(format!(
@@ -470,19 +464,19 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
 
             let mut cards = Self::fetch_cards(
                 &conn,
-                "SELECT id, card_type, word_id, streak, created_at FROM cards WHERE id = ?1",
-                &[&card_id],
+                "SELECT word_name, card_type, word_readings, streak, created_at FROM cards WHERE word_name = ?1",
+                &[&word_name],
             )?;
 
             cards.into_iter().next().ok_or_else(|| {
-                PersistenceError::database_error(format!("Card with id {} not found", card_id))
+                PersistenceError::database_error(format!("Card with word_name '{}' not found", word_name))
             })
         })
         .await
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    async fn update_card_streak(&self, db_path: PathBuf, card_id: i64, streak: i32) -> Result<(), Self::Error> {
+    async fn update_card_streak(&self, db_path: PathBuf, word_name: String, streak: i32) -> Result<(), Self::Error> {
         tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path).map_err(|e| {
                 PersistenceError::database_error(format!(
@@ -492,14 +486,14 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
             })?;
 
             let rows_affected = conn.execute(
-                "UPDATE cards SET streak = ?1 WHERE id = ?2",
-                params![streak, card_id],
+                "UPDATE cards SET streak = ?1 WHERE word_name = ?2",
+                params![streak, word_name],
             ).map_err(|e| {
                 PersistenceError::database_error(format!("Failed to update card streak: {}", e))
             })?;
 
             if rows_affected == 0 {
-                return Err(PersistenceError::database_error(format!("Card with id {} not found", card_id)));
+                return Err(PersistenceError::database_error(format!("Card with word_name '{}' not found", word_name)));
             }
 
             Ok(())
@@ -508,7 +502,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    async fn delete_card(&self, db_path: PathBuf, card_id: i64) -> Result<bool, Self::Error> {
+    async fn delete_card(&self, db_path: PathBuf, word_name: String) -> Result<bool, Self::Error> {
         tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path).map_err(|e| {
                 PersistenceError::database_error(format!(
@@ -518,8 +512,8 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
             })?;
 
             let rows_affected = conn.execute(
-                "DELETE FROM cards WHERE id = ?1",
-                params![card_id],
+                "DELETE FROM cards WHERE word_name = ?1",
+                params![word_name],
             ).map_err(|e| {
                 PersistenceError::database_error(format!("Failed to delete card: {}", e))
             })?;
@@ -544,13 +538,13 @@ impl SqliteProfileDbRepository {
 
         let card_entities: Vec<CardEntity> = stmt
             .query_map(params, |row| {
-                Ok(CardEntity::with_fields(
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                ))
+                Ok(CardEntity {
+                    word_name: row.get(0)?,
+                    card_type: row.get(1)?,
+                    word_readings: row.get(2)?,
+                    streak: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
             })
             .map_err(|e| {
                 PersistenceError::database_error(format!("Failed to query cards: {}", e))
@@ -563,35 +557,22 @@ impl SqliteProfileDbRepository {
         let mut cards = Vec::new();
 
         for card_entity in card_entities {
-            // Fetch word
-            let word_entity = conn
-                .query_row(
-                    "SELECT id, name, readings FROM words WHERE id = ?1",
-                    [card_entity.word_id],
-                    |row| {
-                        Ok(WordEntity::with_fields(row.get(0)?, row.get(1)?, row.get(2)?))
-                    },
-                )
-                .map_err(|e| {
-                    PersistenceError::database_error(format!("Failed to fetch word: {}", e))
-                })?;
-
             // Fetch meanings
             let mut meaning_stmt = conn
-                .prepare("SELECT id, card_id, definition, translated_definition, word_translations FROM meanings WHERE card_id = ?1")
+                .prepare("SELECT id, word_name, definition, translated_definition, word_translations FROM meanings WHERE word_name = ?1")
                 .map_err(|e| {
                     PersistenceError::database_error(format!("Failed to prepare meanings query: {}", e))
                 })?;
 
             let meaning_entities: Vec<MeaningEntity> = meaning_stmt
-                .query_map([card_entity.id], |row| {
-                    Ok(MeaningEntity::with_fields(
-                        row.get(0)?,
-                        row.get(1)?,
-                        row.get(2)?,
-                        row.get(3)?,
-                        row.get(4)?,
-                    ))
+                .query_map([&card_entity.word_name], |row| {
+                    Ok(MeaningEntity {
+                        id: row.get(0)?,
+                        word_name: row.get(1)?,
+                        definition: row.get(2)?,
+                        translated_definition: row.get(3)?,
+                        word_translations: row.get(4)?,
+                    })
                 })
                 .map_err(|e| {
                     PersistenceError::database_error(format!("Failed to query meanings: {}", e))
@@ -603,7 +584,6 @@ impl SqliteProfileDbRepository {
 
             let card_with_relations = CardWithRelations {
                 card: card_entity,
-                word: word_entity,
                 meanings: meaning_entities,
             };
 

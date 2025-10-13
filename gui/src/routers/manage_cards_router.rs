@@ -2,16 +2,17 @@
 
 use std::rc::Rc;
 
-use iced::widget::{button, column, container, row, Container};
+use iced::widget::{button, column, container, row, scrollable, text, Container};
 use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
-use lh_api::models::card::CardType;
+use lh_api::models::card::{CardDto, CardType};
 
 use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
 use crate::iced_params::THEMES;
 use crate::models::{ProfileView, UserView};
 use crate::router::{self, RouterEvent, RouterNode};
+use crate::runtime_util::block_on;
 
 /// Which tab is currently selected
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,6 +29,10 @@ pub enum Message {
     SelectLearned,
     /// Add new card button pressed
     AddNew,
+    /// Edit card button pressed
+    EditCard(String),
+    /// Delete card button pressed
+    DeleteCard(String),
     /// Back button pressed
     Back,
 }
@@ -44,6 +49,10 @@ pub struct ManageCardsRouter {
     app_state: AppState,
     /// Currently selected tab
     selected_tab: SelectedTab,
+    /// Unlearned cards (cached)
+    unlearned_cards: Vec<CardDto>,
+    /// Learned cards (cached)
+    learned_cards: Vec<CardDto>,
 }
 
 impl ManageCardsRouter {
@@ -53,13 +62,17 @@ impl ManageCardsRouter {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
         }
 
-        Self {
+        let mut router = Self {
             user_view,
             profile,
             app_api,
             app_state,
             selected_tab: SelectedTab::Unlearned,
-        }
+            unlearned_cards: Vec::new(),
+            learned_cards: Vec::new(),
+        };
+        router.refresh_data();
+        router
     }
 
     pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
@@ -75,7 +88,7 @@ impl ManageCardsRouter {
             Message::AddNew => {
                 // Navigate to add card view (Straight type by default)
                 let add_card_router: Box<dyn RouterNode> = Box::new(
-                    super::add_card_router::AddCardRouter::new(
+                    super::add_card_router::AddCardRouter::new_create(
                         self.user_view.clone(),
                         self.profile.clone(),
                         Rc::clone(&self.app_api),
@@ -84,6 +97,55 @@ impl ManageCardsRouter {
                     )
                 );
                 Some(RouterEvent::Push(add_card_router))
+            }
+            Message::EditCard(word_name) => {
+                // Find the card in either unlearned or learned lists
+                let card = self.unlearned_cards.iter()
+                    .chain(self.learned_cards.iter())
+                    .find(|c| c.word.name == word_name)
+                    .cloned();
+
+                if let Some(card) = card {
+                    // Navigate to edit card view
+                    let add_card_router: Box<dyn RouterNode> = Box::new(
+                        super::add_card_router::AddCardRouter::new_edit(
+                            self.user_view.clone(),
+                            self.profile.clone(),
+                            Rc::clone(&self.app_api),
+                            self.app_state.clone(),
+                            card,
+                        )
+                    );
+                    Some(RouterEvent::Push(add_card_router))
+                } else {
+                    eprintln!("Card with word_name '{}' not found", word_name);
+                    None
+                }
+            }
+            Message::DeleteCard(word_name) => {
+                // Delete the card via API
+                let result = block_on(
+                    self.app_api.profile_api().delete_card(
+                        &self.user_view.username,
+                        &self.profile.target_language,
+                        &word_name
+                    )
+                );
+
+                match result {
+                    Ok(deleted) => {
+                        if deleted {
+                            // Refresh cards after deletion
+                            self.refresh_data();
+                        } else {
+                            eprintln!("Card with word_name '{}' not found", word_name);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to delete card: {:?}", e);
+                    }
+                }
+                None
             }
             Message::Back => {
                 Some(RouterEvent::Pop)
@@ -145,24 +207,70 @@ impl ManageCardsRouter {
         .spacing(10)
         .align_y(Alignment::Center);
 
-        // Cards content area (placeholder for now)
-        let cards_content = container(
-            localized_text(
-                &i18n,
-                if self.selected_tab == SelectedTab::Unlearned {
-                    "manage-cards-no-unlearned"
-                } else {
-                    "manage-cards-no-learned"
-                },
-                current_font,
-                14,
+        // Cards content area
+        let cards = if self.selected_tab == SelectedTab::Unlearned {
+            &self.unlearned_cards
+        } else {
+            &self.learned_cards
+        };
+
+        let cards_content = if cards.is_empty() {
+            container(
+                localized_text(
+                    &i18n,
+                    if self.selected_tab == SelectedTab::Unlearned {
+                        "manage-cards-no-unlearned"
+                    } else {
+                        "manage-cards-no-learned"
+                    },
+                    current_font,
+                    14,
+                )
             )
-        )
-        .padding(20)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .center_x(Length::Fill)
-        .center_y(Length::Fill);
+            .padding(20)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+        } else {
+            // Build column of card containers
+            let mut cards_column = column![].spacing(10).padding(10);
+
+            for card in cards {
+                // Card container with word name and buttons
+                let word_name_text = text(&card.word.name).size(16);
+                let word_name_clone = card.word.name.clone();
+                let word_name_clone2 = card.word.name.clone();
+
+                let edit_button = button(text("Edit").size(12))
+                    .on_press(Message::EditCard(word_name_clone))
+                    .padding(6);
+
+                let delete_button = button(text("Delete").size(12))
+                    .on_press(Message::DeleteCard(word_name_clone2))
+                    .padding(6);
+
+                let card_row = row![
+                    word_name_text,
+                    iced::widget::Space::with_width(Length::Fill),
+                    edit_button,
+                    delete_button,
+                ]
+                .spacing(10)
+                .align_y(Alignment::Center)
+                .padding(10);
+
+                let card_container = container(card_row)
+                    .width(Length::Fill)
+                    .style(container::rounded_box);
+
+                cards_column = cards_column.push(card_container);
+            }
+
+            container(scrollable(cards_column))
+                .width(Length::Fill)
+                .height(Length::Fill)
+        };
 
         // Bottom buttons
         let add_new_text = localized_text(
@@ -217,7 +325,37 @@ impl ManageCardsRouter {
 impl ManageCardsRouter {
     /// Refresh data from the API
     fn refresh_data(&mut self) {
-        // TODO: Load cards from API
+        // Load unlearned cards
+        match block_on(
+            self.app_api.profile_api().get_unlearned_cards(
+                &self.user_view.username,
+                &self.profile.target_language
+            )
+        ) {
+            Ok(cards) => {
+                self.unlearned_cards = cards;
+            }
+            Err(e) => {
+                eprintln!("Failed to load unlearned cards: {:?}", e);
+                self.unlearned_cards = Vec::new();
+            }
+        }
+
+        // Load learned cards
+        match block_on(
+            self.app_api.profile_api().get_learned_cards(
+                &self.user_view.username,
+                &self.profile.target_language
+            )
+        ) {
+            Ok(cards) => {
+                self.learned_cards = cards;
+            }
+            Err(e) => {
+                eprintln!("Failed to load learned cards: {:?}", e);
+                self.learned_cards = Vec::new();
+            }
+        }
     }
 }
 

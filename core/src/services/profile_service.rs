@@ -299,15 +299,15 @@ impl<R: ProfileRepository> ProfileService<R> {
         self.repository.clear_assistant_settings(db_path).await
     }
 
-    /// Creates a new card in the profile database.
-    pub async fn create_card(
+    /// Saves a card to the profile database (creates or updates based on word_name).
+    pub async fn save_card(
         &self,
         username: &str,
         target_language: &str,
         card: Card,
-    ) -> Result<i64, CoreError> {
+    ) -> Result<(), CoreError> {
         let db_path = self.get_db_path(username, target_language);
-        self.repository.create_card(db_path, card).await
+        self.repository.save_card(db_path, card).await
     }
 
     /// Gets all cards from the profile database.
@@ -348,15 +348,15 @@ impl<R: ProfileRepository> ProfileService<R> {
             .await
     }
 
-    /// Gets a single card by ID.
-    pub async fn get_card_by_id(
+    /// Gets a single card by word name.
+    pub async fn get_card_by_word_name(
         &self,
         username: &str,
         target_language: &str,
-        card_id: i64,
+        word_name: &str,
     ) -> Result<Card, CoreError> {
         let db_path = self.get_db_path(username, target_language);
-        self.repository.get_card_by_id(db_path, card_id).await
+        self.repository.get_card_by_word_name(db_path, word_name.to_string()).await
     }
 
     /// Updates a card's streak.
@@ -364,12 +364,12 @@ impl<R: ProfileRepository> ProfileService<R> {
         &self,
         username: &str,
         target_language: &str,
-        card_id: i64,
+        word_name: &str,
         streak: i32,
     ) -> Result<(), CoreError> {
         let db_path = self.get_db_path(username, target_language);
         self.repository
-            .update_card_streak(db_path, card_id, streak)
+            .update_card_streak(db_path, word_name.to_string(), streak)
             .await
     }
 
@@ -378,9 +378,9 @@ impl<R: ProfileRepository> ProfileService<R> {
         &self,
         username: &str,
         target_language: &str,
-        card_id: i64,
+        word_name: &str,
     ) -> Result<bool, CoreError> {
         let db_path = self.get_db_path(username, target_language);
-        self.repository.delete_card(db_path, card_id).await
+        self.repository.delete_card(db_path, word_name.to_string()).await
     }
 }
