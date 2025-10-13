@@ -87,6 +87,13 @@ assistant-settings-change-assistant = Change Assistant
 assistant-settings-save-api = Save API Config
 assistant-settings-back = Back
 
+## Explain AI Screen
+explain-ai-title = Explain with AI
+explain-ai-input-label = Enter a phrase or word to explain:
+explain-ai-send = Send
+explain-ai-response-label = AI Response:
+explain-ai-back = Back
+
 ## Error Messages
 error-username-empty = Username cannot be empty
 error-user-not-found = User not found

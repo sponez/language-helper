@@ -222,9 +222,16 @@ impl ProfileRouter {
                 None
             }
             Message::ExplainWithAI => {
-                // TODO: Navigate to AI explanation view
-                eprintln!("Explain with AI feature not yet implemented");
-                None
+                // Navigate to AI explanation view
+                let explain_router: Box<dyn RouterNode> = Box::new(
+                    super::explain_ai_router::ExplainAIRouter::new(
+                        self.user_view.clone(),
+                        self.profile.clone(),
+                        Rc::clone(&self.app_api),
+                        self.app_state.clone(),
+                    )
+                );
+                Some(RouterEvent::Push(explain_router))
             }
             Message::ChatWithAI => {
                 // TODO: Navigate to AI chat view

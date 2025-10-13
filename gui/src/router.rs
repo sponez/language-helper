@@ -29,7 +29,7 @@
 
 use iced::{Element, Subscription};
 
-use crate::routers::{assistant_settings_router, card_settings_router, profile_list_router, profile_router, profile_settings_router, user_list_router, user_router, user_settings_router};
+use crate::routers::{assistant_settings_router, card_settings_router, explain_ai_router, profile_list_router, profile_router, profile_settings_router, user_list_router, user_router, user_settings_router};
 
 /// Identifies a specific router type for navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,6 +105,8 @@ pub enum Message {
     CardSettings(card_settings_router::Message),
     /// Message for the assistant settings router
     AssistantSettings(assistant_settings_router::Message),
+    /// Message for the explain AI router
+    ExplainAI(explain_ai_router::Message),
 }
 
 /// Type-erased router node that can be stored in the stack.

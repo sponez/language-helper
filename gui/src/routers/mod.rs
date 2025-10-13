@@ -5,6 +5,7 @@
 
 pub mod assistant_settings_router;
 pub mod card_settings_router;
+pub mod explain_ai_router;
 pub mod profile_list_router;
 pub mod profile_router;
 pub mod profile_settings_router;
