@@ -41,6 +41,31 @@ impl AiAssistantApi for AiAssistantApiImpl {
         ollama_client::stop_model(model_name)
             .map_err(|e| ApiError::internal_error(e))
     }
+
+    fn check_server_status(&self) -> Result<bool, ApiError> {
+        ollama_client::check_server_status()
+            .map_err(|e| ApiError::internal_error(e))
+    }
+
+    fn start_server_and_wait(&self) -> Result<(), ApiError> {
+        ollama_client::start_server_and_wait()
+            .map_err(|e| ApiError::internal_error(e))
+    }
+
+    fn get_available_models(&self) -> Result<Vec<String>, ApiError> {
+        let models = ollama_client::get_available_models();
+        Ok(models)
+    }
+
+    fn pull_model(&self, model_name: &str) -> Result<(), ApiError> {
+        ollama_client::pull_model(model_name)
+            .map_err(|e| ApiError::internal_error(e))
+    }
+
+    fn run_model(&self, model_name: &str) -> Result<(), ApiError> {
+        ollama_client::run_model(model_name)
+            .map_err(|e| ApiError::internal_error(e))
+    }
 }
 
 #[cfg(test)]

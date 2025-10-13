@@ -4,8 +4,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use iced::widget::{button, column, pick_list, row, text, text_input, Container};
-use iced::{Alignment, Color, Element, Length};
+use futures::stream;
+use iced::widget::{button, column, container, pick_list, row, text, text_input, Container};
+use iced::{Alignment, Background, Color, Element, Length, Subscription};
 use lh_api::app_api::AppApi;
 use lh_api::models::system_requirements::{OllamaStatusDto, SystemCompatibilityDto};
 
@@ -14,6 +15,29 @@ use crate::i18n_widgets::localized_text;
 use crate::iced_params::THEMES;
 use crate::models::{ProfileView, UserView};
 use crate::router::{self, RouterEvent, RouterNode};
+
+/// Async operation being performed
+#[derive(Debug, Clone, PartialEq)]
+enum AsyncOperation {
+    None,
+    StartingServer,
+    PullingModel(String),
+    LaunchingModel(String),
+}
+
+/// Status of the assistant launch process
+#[derive(Debug, Clone, PartialEq)]
+enum LaunchStatus {
+    Idle,
+    CheckingServer,
+    StartingServer,
+    CheckingModels,
+    PromptingPull,
+    PullingModel,
+    LaunchingModel,
+    Complete,
+    Error,
+}
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -37,6 +61,18 @@ pub enum Message {
     OpenUrl(String),
     /// Refresh running models state (internal message)
     RefreshState,
+    /// Confirm model pull/download
+    ConfirmPull,
+    /// Cancel launch operation
+    CancelLaunch,
+    /// Close launch modal
+    CloseModal,
+    /// Server started successfully
+    ServerStarted(Result<(), String>),
+    /// Model pulled successfully
+    ModelPulled(Result<(), String>),
+    /// Model launched successfully
+    ModelLaunched(Result<(), String>),
     /// Back button pressed
     Back,
 }
@@ -69,6 +105,16 @@ pub struct AssistantSettingsRouter {
     ollama_status: RefCell<Option<OllamaStatusDto>>,
     /// List of running model names from Ollama (wrapped for interior mutability)
     running_models: RefCell<Vec<String>>,
+    /// Whether to show the launch modal
+    show_launch_modal: RefCell<bool>,
+    /// Current status of the launch process
+    launch_status: RefCell<LaunchStatus>,
+    /// Progress message to display in modal
+    launch_progress_message: RefCell<String>,
+    /// Error message if launch fails
+    launch_error_message: RefCell<Option<String>>,
+    /// Current async operation being performed
+    async_operation: RefCell<AsyncOperation>,
 }
 
 impl AssistantSettingsRouter {
@@ -92,6 +138,11 @@ impl AssistantSettingsRouter {
             system_check_done: RefCell::new(false),
             ollama_status: RefCell::new(None),
             running_models: RefCell::new(Vec::new()),
+            show_launch_modal: RefCell::new(false),
+            launch_status: RefCell::new(LaunchStatus::Idle),
+            launch_progress_message: RefCell::new(String::new()),
+            launch_error_message: RefCell::new(None),
+            async_operation: RefCell::new(AsyncOperation::None),
         };
 
         // Don't perform checks in constructor to avoid blocking runtime issues
@@ -188,8 +239,34 @@ impl AssistantSettingsRouter {
                 None
             }
             Message::StartAssistant => {
-                // TODO: Implement assistant start logic
-                eprintln!("TODO: Start assistant");
+                // Show modal and begin launch sequence
+                *self.show_launch_modal.borrow_mut() = true;
+                *self.launch_status.borrow_mut() = LaunchStatus::CheckingServer;
+                *self.launch_progress_message.borrow_mut() = "Checking Ollama server status...".to_string();
+                *self.launch_error_message.borrow_mut() = None;
+
+                // Get the model name we want to launch
+                let model_name = self.get_ollama_model_name(&self.selected_model);
+
+                // Step 1: Check if server is running (quick check, non-blocking)
+                match self.app_api.ai_assistant_api().check_server_status() {
+                    Ok(is_running) => {
+                        if !is_running {
+                            // Server not running - start it asynchronously
+                            *self.launch_status.borrow_mut() = LaunchStatus::StartingServer;
+                            *self.launch_progress_message.borrow_mut() = "Starting Ollama server, please wait...".to_string();
+                            *self.async_operation.borrow_mut() = AsyncOperation::StartingServer;
+                        } else {
+                            // Server running - check models
+                            self.check_models_and_launch(model_name);
+                        }
+                    }
+                    Err(e) => {
+                        *self.launch_status.borrow_mut() = LaunchStatus::Error;
+                        *self.launch_error_message.borrow_mut() = Some(format!("Failed to check server status: {:?}", e));
+                    }
+                }
+
                 None
             }
             Message::StopAssistant => {
@@ -227,6 +304,85 @@ impl AssistantSettingsRouter {
                 // TODO: Save API config to profile settings
                 eprintln!("TODO: Save API config - endpoint: {}, key: {}, model: {}",
                     self.api_endpoint, self.api_key, self.api_model_name);
+                None
+            }
+            Message::ConfirmPull => {
+                // User confirmed to download the model - start async pull
+                let model_name = self.get_ollama_model_name(&self.selected_model);
+
+                *self.launch_status.borrow_mut() = LaunchStatus::PullingModel;
+                *self.launch_progress_message.borrow_mut() = "Pull in progress, please wait...".to_string();
+                *self.async_operation.borrow_mut() = AsyncOperation::PullingModel(model_name);
+
+                None
+            }
+            Message::CancelLaunch => {
+                // User cancelled the launch operation
+                *self.show_launch_modal.borrow_mut() = false;
+                *self.launch_status.borrow_mut() = LaunchStatus::Idle;
+                *self.launch_progress_message.borrow_mut() = String::new();
+                *self.launch_error_message.borrow_mut() = None;
+                *self.async_operation.borrow_mut() = AsyncOperation::None;
+                None
+            }
+            Message::CloseModal => {
+                // Close the modal after completion or error
+                *self.show_launch_modal.borrow_mut() = false;
+                *self.launch_status.borrow_mut() = LaunchStatus::Idle;
+                *self.launch_progress_message.borrow_mut() = String::new();
+                *self.launch_error_message.borrow_mut() = None;
+                *self.async_operation.borrow_mut() = AsyncOperation::None;
+                None
+            }
+            Message::ServerStarted(result) => {
+                *self.async_operation.borrow_mut() = AsyncOperation::None;
+
+                match result {
+                    Ok(_) => {
+                        let model_name = self.get_ollama_model_name(&self.selected_model);
+                        self.check_models_and_launch(model_name);
+                    }
+                    Err(e) => {
+                        *self.launch_status.borrow_mut() = LaunchStatus::Error;
+                        *self.launch_error_message.borrow_mut() = Some(format!("Failed to start server: {}", e));
+                    }
+                }
+                None
+            }
+            Message::ModelPulled(result) => {
+                *self.async_operation.borrow_mut() = AsyncOperation::None;
+
+                match result {
+                    Ok(_) => {
+                        // Model pulled successfully, now launch it
+                        let model_name = self.get_ollama_model_name(&self.selected_model);
+                        *self.launch_status.borrow_mut() = LaunchStatus::LaunchingModel;
+                        *self.launch_progress_message.borrow_mut() = format!("Launching model '{}'...", model_name);
+                        *self.async_operation.borrow_mut() = AsyncOperation::LaunchingModel(model_name);
+                    }
+                    Err(e) => {
+                        *self.launch_status.borrow_mut() = LaunchStatus::Error;
+                        *self.launch_error_message.borrow_mut() = Some(format!("Failed to download model: {}", e));
+                    }
+                }
+                None
+            }
+            Message::ModelLaunched(result) => {
+                *self.async_operation.borrow_mut() = AsyncOperation::None;
+
+                match result {
+                    Ok(_) => {
+                        *self.launch_status.borrow_mut() = LaunchStatus::Complete;
+                        *self.launch_progress_message.borrow_mut() = "Model launched successfully!".to_string();
+
+                        // Refresh running models
+                        self.check_running_models();
+                    }
+                    Err(e) => {
+                        *self.launch_status.borrow_mut() = LaunchStatus::Error;
+                        *self.launch_error_message.borrow_mut() = Some(format!("Failed to launch model: {}", e));
+                    }
+                }
                 None
             }
             Message::OpenUrl(url) => {
@@ -267,36 +423,55 @@ impl AssistantSettingsRouter {
 
                 // Determine which button to show based on running models
                 let running_models = self.running_models.borrow();
-                println!("DEBUG: Running models: {:?}", *running_models);
 
                 if running_models.is_empty() {
                     // No models running - show Start button
-                    println!("DEBUG: No models running, showing Start button");
                     Some((Message::StartAssistant, button_enabled))
                 } else {
                     // Get the expected model name for the selected model
                     let expected_model_name = self.get_ollama_model_name(&self.selected_model);
-                    println!("DEBUG: Expected model name: {}", expected_model_name);
 
                     // Check if the expected model is running
                     let is_selected_running = running_models.iter()
-                        .any(|m| {
-                            println!("DEBUG: Comparing '{}' with '{}'", m, expected_model_name);
-                            m.contains(&expected_model_name)
-                        });
+                        .any(|m| m.contains(&expected_model_name));
 
                     if is_selected_running {
                         // Selected model is running - show Stop button
-                        println!("DEBUG: Selected model is running, showing Stop button");
                         Some((Message::StopAssistant, button_enabled))
                     } else {
                         // Different model is running - show Change button
-                        println!("DEBUG: Different model is running, showing Change button");
                         Some((Message::ChangeAssistant, button_enabled))
                     }
                 }
             }
             _ => None,
+        }
+    }
+
+    /// Check if model is available and launch it or prompt for download
+    fn check_models_and_launch(&self, model_name: String) {
+        *self.launch_status.borrow_mut() = LaunchStatus::CheckingModels;
+        *self.launch_progress_message.borrow_mut() = "Checking available models...".to_string();
+
+        match self.app_api.ai_assistant_api().get_available_models() {
+            Ok(available_models) => {
+                let model_available = available_models.iter().any(|m| m.contains(&model_name));
+
+                if !model_available {
+                    // Model not available - prompt user to download
+                    *self.launch_status.borrow_mut() = LaunchStatus::PromptingPull;
+                    *self.launch_progress_message.borrow_mut() = format!("Model '{}' is not installed. Do you want to download it?", model_name);
+                } else {
+                    // Model is available, launch it asynchronously
+                    *self.launch_status.borrow_mut() = LaunchStatus::LaunchingModel;
+                    *self.launch_progress_message.borrow_mut() = format!("Launching model '{}'...", model_name);
+                    *self.async_operation.borrow_mut() = AsyncOperation::LaunchingModel(model_name);
+                }
+            }
+            Err(e) => {
+                *self.launch_status.borrow_mut() = LaunchStatus::Error;
+                *self.launch_error_message.borrow_mut() = Some(format!("Failed to check models: {:?}", e));
+            }
         }
     }
 
@@ -309,6 +484,68 @@ impl AssistantSettingsRouter {
             "Medium" => "qwen2.5:7b-instruct-q5_K_M".to_string(),
             "Strong" => "qwen2.5:14b-instruct-q4_K_M".to_string(),
             _ => model.to_string(),
+        }
+    }
+
+    pub fn subscription(&self) -> Subscription<Message> {
+        let async_op = self.async_operation.borrow().clone();
+
+        match async_op {
+            AsyncOperation::None => Subscription::none(),
+            AsyncOperation::StartingServer => {
+                Subscription::run_with_id(
+                    "start_server",
+                    stream::once(async move {
+                        // Call the blocking operation directly - the ollama commands will block
+                        // but we're running in an async context so other UI operations can continue
+                        let result = tokio::task::spawn_blocking(|| {
+                            // Use the ollama_client directly instead of going through app_api
+                            use lh_core::services::ollama_client;
+                            ollama_client::start_server_and_wait()
+                        }).await;
+
+                        match result {
+                            Ok(Ok(_)) => Message::ServerStarted(Ok(())),
+                            Ok(Err(e)) => Message::ServerStarted(Err(e)),
+                            Err(e) => Message::ServerStarted(Err(format!("Task panicked: {}", e))),
+                        }
+                    })
+                )
+            }
+            AsyncOperation::PullingModel(model_name) => {
+                Subscription::run_with_id(
+                    format!("pull_model_{}", model_name),
+                    stream::once(async move {
+                        let result = tokio::task::spawn_blocking(move || {
+                            use lh_core::services::ollama_client;
+                            ollama_client::pull_model(&model_name)
+                        }).await;
+
+                        match result {
+                            Ok(Ok(_)) => Message::ModelPulled(Ok(())),
+                            Ok(Err(e)) => Message::ModelPulled(Err(e)),
+                            Err(e) => Message::ModelPulled(Err(format!("Task panicked: {}", e))),
+                        }
+                    })
+                )
+            }
+            AsyncOperation::LaunchingModel(model_name) => {
+                Subscription::run_with_id(
+                    format!("launch_model_{}", model_name),
+                    stream::once(async move {
+                        let result = tokio::task::spawn_blocking(move || {
+                            use lh_core::services::ollama_client;
+                            ollama_client::run_model(&model_name)
+                        }).await;
+
+                        match result {
+                            Ok(Ok(_)) => Message::ModelLaunched(Ok(())),
+                            Ok(Err(e)) => Message::ModelLaunched(Err(e)),
+                            Err(e) => Message::ModelLaunched(Err(format!("Task panicked: {}", e))),
+                        }
+                    })
+                )
+            }
         }
     }
 
@@ -736,12 +973,136 @@ impl AssistantSettingsRouter {
         .padding(30)
         .align_x(Alignment::Center);
 
-        Container::new(main_content)
+        let base = Container::new(main_content)
             .width(Length::Fill)
             .height(Length::Fill)
             .align_x(Alignment::Center)
-            .align_y(Alignment::Center)
-            .into()
+            .align_y(Alignment::Center);
+
+        // Show modal if launch is in progress
+        if *self.show_launch_modal.borrow() {
+            let launch_status = self.launch_status.borrow().clone();
+            let progress_message = self.launch_progress_message.borrow().clone();
+            let error_message = self.launch_error_message.borrow().clone();
+
+            // Build modal content based on status
+            let mut modal_content = column![]
+                .spacing(20)
+                .padding(30)
+                .align_x(Alignment::Center);
+
+            // Progress message
+            let mut progress_text = text(progress_message.clone())
+                .size(16);
+
+            if let Some(font) = current_font {
+                progress_text = progress_text.font(font);
+            }
+
+            modal_content = modal_content.push(progress_text);
+
+            // Error message if present
+            if let Some(error_msg) = error_message.clone() {
+                let mut error_text = text(error_msg)
+                    .size(14)
+                    .color(Color::from_rgb(0.8, 0.0, 0.0));
+
+                if let Some(font) = current_font {
+                    error_text = error_text.font(font);
+                }
+
+                modal_content = modal_content.push(error_text);
+            }
+
+            // Buttons based on status
+            let button_row = match launch_status {
+                LaunchStatus::PromptingPull => {
+                    // Show confirm and cancel buttons
+                    let confirm_btn = button(text("Download"))
+                        .on_press(Message::ConfirmPull)
+                        .padding(10)
+                        .width(Length::Fixed(120.0));
+
+                    let cancel_btn = button(text("Cancel"))
+                        .on_press(Message::CancelLaunch)
+                        .padding(10)
+                        .width(Length::Fixed(120.0));
+
+                    row![confirm_btn, cancel_btn]
+                        .spacing(15)
+                        .align_y(Alignment::Center)
+                }
+                LaunchStatus::Complete => {
+                    // Show close button
+                    let close_btn = button(text("Close"))
+                        .on_press(Message::CloseModal)
+                        .padding(10)
+                        .width(Length::Fixed(120.0));
+
+                    row![close_btn]
+                        .spacing(15)
+                        .align_y(Alignment::Center)
+                }
+                LaunchStatus::Error => {
+                    // Show close button
+                    let close_btn = button(text("Close"))
+                        .on_press(Message::CloseModal)
+                        .padding(10)
+                        .width(Length::Fixed(120.0));
+
+                    row![close_btn]
+                        .spacing(15)
+                        .align_y(Alignment::Center)
+                }
+                _ => {
+                    // Show cancel button for in-progress operations
+                    let cancel_btn = button(text("Cancel"))
+                        .on_press(Message::CancelLaunch)
+                        .padding(10)
+                        .width(Length::Fixed(120.0));
+
+                    row![cancel_btn]
+                        .spacing(15)
+                        .align_y(Alignment::Center)
+                }
+            };
+
+            modal_content = modal_content.push(button_row);
+
+            // Style modal card
+            let modal_card = container(modal_content)
+                .style(|_theme| container::Style {
+                    background: Some(Background::Color(Color::from_rgb(0.15, 0.15, 0.15))),
+                    border: iced::Border {
+                        color: Color::from_rgb(0.3, 0.3, 0.3),
+                        width: 2.0,
+                        radius: 10.0.into(),
+                    },
+                    ..Default::default()
+                })
+                .padding(20)
+                .width(Length::Fixed(500.0));
+
+            // Create overlay with semi-transparent background
+            let overlay = container(
+                Container::new(modal_card)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_x(Alignment::Center)
+                    .align_y(Alignment::Center)
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(|_theme| container::Style {
+                background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.7))),
+                ..Default::default()
+            });
+
+            // Stack base content with overlay
+            iced::widget::stack![base, overlay].into()
+        } else {
+            base.into()
+        }
     }
 }
 
@@ -786,5 +1147,10 @@ impl RouterNode for AssistantSettingsRouter {
 
     fn refresh(&mut self) {
         self.refresh_data();
+    }
+
+    fn subscription(&self) -> iced::Subscription<router::Message> {
+        AssistantSettingsRouter::subscription(self)
+            .map(router::Message::AssistantSettings)
     }
 }

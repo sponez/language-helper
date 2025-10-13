@@ -5,7 +5,7 @@
 
 use std::rc::Rc;
 
-use iced::{window, Element, Task};
+use iced::{window, Element, Subscription, Task};
 
 use lh_core::api_impl::{AiAssistantApiImpl, AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl, SystemRequirementsApiImpl, UsersApiImpl};
 use lh_core::repositories::adapters::{
@@ -108,6 +108,18 @@ impl LanguageHelperApp {
 
     fn theme(&self) -> iced::Theme {
         self.router_stack.theme()
+    }
+
+    /// Returns subscriptions for the current router.
+    ///
+    /// This method delegates to the router stack to get subscriptions from
+    /// the currently active router.
+    ///
+    /// # Returns
+    ///
+    /// A `Subscription` that produces messages for the current router
+    fn subscription(&self) -> Subscription<Message> {
+        self.router_stack.subscription()
     }
 }
 
@@ -241,6 +253,7 @@ fn main() -> iced::Result {
         LanguageHelperApp::view,
     )
     .theme(LanguageHelperApp::theme)
+    .subscription(LanguageHelperApp::subscription)
     .font(fonts[0]) // Noto Sans (default)
     .font(fonts[1]) // Arabic
     .font(fonts[2]) // Devanagari
