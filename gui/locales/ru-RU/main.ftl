@@ -102,3 +102,7 @@ add-card-add-meaning = Добавить значение
 add-card-remove-meaning = Удалить значение
 add-card-save = Сохранить
 add-card-cancel = Отмена
+add-card-inverse-modal-title = Обновить обратные карточки?
+add-card-inverse-manually = Вручную
+add-card-inverse-with-assistant = С помощью ассистента
+add-card-inverse-no = Нет

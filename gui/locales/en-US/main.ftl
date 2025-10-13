@@ -134,6 +134,10 @@ add-card-add-meaning = Add Meaning
 add-card-remove-meaning = Remove Meaning
 add-card-save = Save
 add-card-cancel = Cancel
+add-card-inverse-modal-title = Update inverse cards?
+add-card-inverse-manually = Manually
+add-card-inverse-with-assistant = With Assistant
+add-card-inverse-no = No
 
 ## Error Messages
 error-username-empty = Username cannot be empty

@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 
-use iced::widget::{button, column, container, row, scrollable, text, text_input, Column, Container};
+use iced::widget::{button, column, container, row, scrollable, text, text_input, Column, Container, Space, stack};
 use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
 use lh_api::models::card::{CardDto, CardType, MeaningDto, WordDto};
@@ -45,6 +45,12 @@ pub enum Message {
     Save,
     /// Cancel button pressed
     Cancel,
+    /// Update inverse cards manually
+    InverseManually,
+    /// Update inverse cards with assistant
+    InverseWithAssistant,
+    /// Don't update inverse cards
+    InverseNo,
 }
 
 /// Single reading field
@@ -117,6 +123,8 @@ pub struct AddCardRouter {
     error_message: Option<String>,
     /// Whether AI is available
     ai_available: bool,
+    /// Whether the inverse card update modal is shown
+    show_inverse_modal: bool,
 }
 
 impl AddCardRouter {
@@ -145,6 +153,7 @@ impl AddCardRouter {
             meanings: vec![],
             error_message: None,
             ai_available: false, // TODO: Check AI availability
+            show_inverse_modal: false,
         }
     }
 
@@ -191,6 +200,7 @@ impl AddCardRouter {
             meanings,
             error_message: None,
             ai_available: false, // TODO: Check AI availability
+            show_inverse_modal: false,
         }
     }
 
@@ -275,10 +285,29 @@ impl AddCardRouter {
                     self.error_message = Some(error);
                     None
                 } else {
-                    Some(RouterEvent::Pop)
+                    // Show modal after successful save
+                    self.show_inverse_modal = true;
+                    None
                 }
             }
             Message::Cancel => Some(RouterEvent::Pop),
+            Message::InverseManually => {
+                // TODO: Implement manual inverse card update
+                self.show_inverse_modal = false;
+                eprintln!("Manual inverse card update not yet implemented");
+                Some(RouterEvent::Pop)
+            }
+            Message::InverseWithAssistant => {
+                // TODO: Implement AI-assisted inverse card update
+                self.show_inverse_modal = false;
+                eprintln!("AI-assisted inverse card update not yet implemented");
+                Some(RouterEvent::Pop)
+            }
+            Message::InverseNo => {
+                // Close modal and return to card manager
+                self.show_inverse_modal = false;
+                Some(RouterEvent::Pop)
+            }
         }
     }
 
@@ -608,11 +637,112 @@ impl AddCardRouter {
 
         let scrollable_content = scrollable(content_column);
 
-        Container::new(scrollable_content)
+        let main_content = Container::new(scrollable_content)
             .width(Length::Fill)
             .height(Length::Fill)
-            .center_x(Length::Fill)
+            .center_x(Length::Fill);
+
+        // If modal is shown, overlay it on top of the main content using stack
+        if self.show_inverse_modal {
+            let modal_overlay = self.inverse_modal_view();
+
+            // Stack the main content with the modal overlay on top
+            stack![
+                main_content,
+                modal_overlay,
+            ]
             .into()
+        } else {
+            main_content.into()
+        }
+    }
+
+    /// Renders the inverse card update modal dialog
+    fn inverse_modal_view(&self) -> Element<'_, Message> {
+        let i18n = self.app_state.i18n();
+        let current_font = self.app_state.current_font();
+
+        // Modal title/question
+        let modal_title = localized_text(
+            &i18n,
+            "add-card-inverse-modal-title",
+            current_font,
+            18,
+        );
+
+        // Three buttons
+        let manually_button = button(
+            localized_text(&i18n, "add-card-inverse-manually", current_font, 14)
+        )
+        .on_press(Message::InverseManually)
+        .padding(10)
+        .width(Length::Fixed(150.0));
+
+        let with_assistant_button = button(
+            localized_text(&i18n, "add-card-inverse-with-assistant", current_font, 14)
+        )
+        .padding(10)
+        .width(Length::Fixed(150.0))
+        .style(if self.ai_available {
+            button::primary
+        } else {
+            button::secondary
+        });
+
+        // Only enable "With assistant" button if AI is available
+        let with_assistant_button = if self.ai_available {
+            with_assistant_button.on_press(Message::InverseWithAssistant)
+        } else {
+            with_assistant_button
+        };
+
+        let no_button = button(
+            localized_text(&i18n, "add-card-inverse-no", current_font, 14)
+        )
+        .on_press(Message::InverseNo)
+        .padding(10)
+        .width(Length::Fixed(150.0));
+
+        let buttons_row = row![
+            manually_button,
+            with_assistant_button,
+            no_button,
+        ]
+        .spacing(15)
+        .align_y(Alignment::Center);
+
+        // Modal content
+        let modal_inner = column![
+            modal_title,
+            Space::with_height(20),
+            buttons_row,
+        ]
+        .spacing(20)
+        .padding(30)
+        .align_x(Alignment::Center);
+
+        let modal_container = container(modal_inner)
+            .style(container::rounded_box)
+            .padding(20);
+
+        // Semi-transparent overlay background + centered modal
+        let overlay = container(
+            container(modal_container)
+                .width(Length::Shrink)
+                .height(Length::Shrink)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .style(|_theme| container::Style {
+            background: Some(iced::Background::Color(iced::Color::from_rgba(0.0, 0.0, 0.0, 0.5))),
+            ..Default::default()
+        });
+
+        overlay.into()
     }
 }
 
