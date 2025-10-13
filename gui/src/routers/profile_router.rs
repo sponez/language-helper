@@ -215,9 +215,16 @@ impl ProfileRouter {
     pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
         match message {
             Message::Cards => {
-                // TODO: Navigate to cards view
-                eprintln!("Cards feature not yet implemented");
-                None
+                // Navigate to cards menu
+                let cards_menu_router: Box<dyn RouterNode> = Box::new(
+                    super::cards_menu_router::CardsMenuRouter::new(
+                        self.user_view.clone(),
+                        self.profile.clone(),
+                        Rc::clone(&self.app_api),
+                        self.app_state.clone(),
+                    )
+                );
+                Some(RouterEvent::Push(cards_menu_router))
             }
             Message::ExplainWithAI => {
                 // Navigate to AI explanation view

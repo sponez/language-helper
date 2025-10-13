@@ -61,3 +61,11 @@ welcome = Добро пожаловать в Language Helper
 loading = Загрузка...
 success = Успешно
 failed = Ошибка
+
+## Меню карточек
+cards-menu-title = Карточки
+cards-menu-manage = Управление карточками
+cards-menu-learn = Изучить
+cards-menu-test = Тест
+cards-menu-repeat = Повторить
+cards-menu-back = Назад

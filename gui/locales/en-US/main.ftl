@@ -94,6 +94,14 @@ explain-ai-send = Send
 explain-ai-response-label = AI Response:
 explain-ai-back = Back
 
+## Cards Menu Screen
+cards-menu-title = Cards
+cards-menu-manage = Manage Cards
+cards-menu-learn = Learn
+cards-menu-test = Test
+cards-menu-repeat = Repeat
+cards-menu-back = Back
+
 ## Error Messages
 error-username-empty = Username cannot be empty
 error-user-not-found = User not found
