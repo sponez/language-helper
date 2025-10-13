@@ -13,7 +13,7 @@ use lh_api::app_api::AppApi;
 use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
 use crate::iced_params::THEMES;
-use crate::models::{ProfileView, UserView};
+use crate::models::{CardSettingsView, ProfileView, UserView};
 use crate::router::{self, RouterEvent, RouterNode};
 
 #[derive(Debug, Clone)]
@@ -36,6 +36,8 @@ pub struct CardSettingsRouter {
     user_view: UserView,
     /// Currently selected profile
     profile: ProfileView,
+    /// Card settings view model
+    settings: CardSettingsView,
     /// API instance for backend communication
     app_api: Rc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
@@ -63,13 +65,15 @@ impl CardSettingsRouter {
 
         // TODO: Load settings from API once persistence is implemented
         // For now, use default values
-        let cards_per_set_input = "10".to_string();
-        let test_answer_method = "manual".to_string();
-        let streak_length_input = "5".to_string();
+        let settings = CardSettingsView::default();
+        let cards_per_set_input = settings.cards_per_set.to_string();
+        let test_answer_method = settings.test_answer_method.clone();
+        let streak_length_input = settings.streak_length.to_string();
 
         Self {
             user_view,
             profile,
+            settings,
             app_api,
             app_state,
             target_language,

@@ -5,6 +5,7 @@
 
 use async_trait::async_trait;
 use crate::errors::CoreError;
+use crate::models::{AssistantSettings, CardSettings};
 use crate::repositories::profile_repository::ProfileRepository;
 use std::fmt::Display;
 use std::path::PathBuf;
@@ -23,6 +24,21 @@ pub trait PersistenceProfileDbRepository: Send + Sync {
 
     /// Deletes a profile database file.
     async fn delete_database(&self, db_path: PathBuf) -> Result<bool, Self::Error>;
+
+    /// Gets card settings from a profile database.
+    async fn get_card_settings(&self, db_path: PathBuf) -> Result<CardSettings, Self::Error>;
+
+    /// Updates card settings in a profile database.
+    async fn update_card_settings(&self, db_path: PathBuf, settings: CardSettings) -> Result<(), Self::Error>;
+
+    /// Gets assistant settings from a profile database.
+    async fn get_assistant_settings(&self, db_path: PathBuf) -> Result<AssistantSettings, Self::Error>;
+
+    /// Updates assistant settings in a profile database.
+    async fn update_assistant_settings(&self, db_path: PathBuf, settings: AssistantSettings) -> Result<(), Self::Error>;
+
+    /// Clears assistant settings in a profile database.
+    async fn clear_assistant_settings(&self, db_path: PathBuf) -> Result<(), Self::Error>;
 }
 
 /// Adapter that wraps a persistence repository and converts errors to CoreError.
@@ -56,6 +72,41 @@ impl<R: PersistenceProfileDbRepository> ProfileRepository for ProfileDbRepositor
     async fn delete_database(&self, db_path: PathBuf) -> Result<bool, CoreError> {
         self.repository
             .delete_database(db_path)
+            .await
+            .map_err(|e| CoreError::repository_error(e.to_string()))
+    }
+
+    async fn get_card_settings(&self, db_path: PathBuf) -> Result<CardSettings, CoreError> {
+        self.repository
+            .get_card_settings(db_path)
+            .await
+            .map_err(|e| CoreError::repository_error(e.to_string()))
+    }
+
+    async fn update_card_settings(&self, db_path: PathBuf, settings: CardSettings) -> Result<(), CoreError> {
+        self.repository
+            .update_card_settings(db_path, settings)
+            .await
+            .map_err(|e| CoreError::repository_error(e.to_string()))
+    }
+
+    async fn get_assistant_settings(&self, db_path: PathBuf) -> Result<AssistantSettings, CoreError> {
+        self.repository
+            .get_assistant_settings(db_path)
+            .await
+            .map_err(|e| CoreError::repository_error(e.to_string()))
+    }
+
+    async fn update_assistant_settings(&self, db_path: PathBuf, settings: AssistantSettings) -> Result<(), CoreError> {
+        self.repository
+            .update_assistant_settings(db_path, settings)
+            .await
+            .map_err(|e| CoreError::repository_error(e.to_string()))
+    }
+
+    async fn clear_assistant_settings(&self, db_path: PathBuf) -> Result<(), CoreError> {
+        self.repository
+            .clear_assistant_settings(db_path)
             .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }

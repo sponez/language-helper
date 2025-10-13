@@ -48,6 +48,7 @@ profile-settings-test-method = Test answer method:
 profile-settings-test-method-manual = Manual text entry
 profile-settings-test-method-self = Self review
 profile-settings-streak-length = Streak length for remembering:
+profile-settings-card-settings-button = Card settings
 profile-settings-assistant-settings-button = Assistant settings
 profile-settings-save = Save
 profile-settings-delete-profile = Delete profile
@@ -56,6 +57,11 @@ profile-settings-delete-confirm = Yes, delete
 profile-settings-delete-cancel = No, keep it
 profile-settings-back = Back
 profile-settings-saved = Settings saved successfully
+
+## Card Settings Screen
+card-settings-title = Card Settings
+card-settings-save = Save
+card-settings-back = Back
 
 ## Assistant Settings Screen
 assistant-settings-title = Assistant Settings
