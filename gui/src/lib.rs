@@ -67,7 +67,6 @@
 //! ```
 
 pub mod app_state;
-pub mod fonts;
 pub mod i18n;
 pub mod i18n_widgets;
 pub mod iced_params;

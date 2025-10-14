@@ -245,21 +245,21 @@ fn main() -> iced::Result {
     // 6. Load embedded fonts
     let fonts = vec![
         // Noto Sans for Latin/Cyrillic
-        include_bytes!("../../gui/assets/fonts/NotoSans-Regular.ttf").as_slice(),
+        include_bytes!("assets/fonts/NotoSans-Regular.ttf").as_slice(),
         // Noto Sans Arabic
-        include_bytes!("../../gui/assets/fonts/NotoSansArabic-Regular.ttf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansArabic-Regular.ttf").as_slice(),
         // Noto Sans Devanagari (Hindi)
-        include_bytes!("../../gui/assets/fonts/NotoSansDevanagari-Regular.ttf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansDevanagari-Regular.ttf").as_slice(),
         // Noto Sans Bengali
-        include_bytes!("../../gui/assets/fonts/NotoSansBengali-Regular.ttf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansBengali-Regular.ttf").as_slice(),
         // Noto Sans SC (Chinese Simplified)
-        include_bytes!("../../gui/assets/fonts/NotoSansSC-Regular.otf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansSC-Regular.otf").as_slice(),
         // Noto Sans JP (Japanese)
-        include_bytes!("../../gui/assets/fonts/NotoSansJP-Regular.otf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansJP-Regular.otf").as_slice(),
         // Noto Sans KR (Korean)
-        include_bytes!("../../gui/assets/fonts/NotoSansKR-Regular.otf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansKR-Regular.otf").as_slice(),
         // Noto Sans Thai
-        include_bytes!("../../gui/assets/fonts/NotoSansThai-Regular.ttf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansThai-Regular.ttf").as_slice(),
     ];
 
     // 7. Run the iced application with the injected dependencies and fonts
