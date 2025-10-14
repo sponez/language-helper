@@ -136,23 +136,12 @@ impl ProfileSettingsRouter {
 
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Title
-        let title = localized_text(
-            &i18n,
-            "profile-settings-title",
-            current_font,
-            24,
-        );
+        let title = localized_text(&i18n, "profile-settings-title", 24);
 
         // Card Settings button
-        let card_settings_text = localized_text(
-            &i18n,
-            "profile-settings-card-settings-button",
-            current_font,
-            14,
-        );
+        let card_settings_text = localized_text(&i18n, "profile-settings-card-settings-button", 14);
 
         let card_settings_button = button(card_settings_text)
             .on_press(Message::CardSettings)
@@ -160,12 +149,7 @@ impl ProfileSettingsRouter {
             .padding(10);
 
         // Assistant Settings button
-        let assistant_settings_text = localized_text(
-            &i18n,
-            "profile-settings-assistant-settings-button",
-            current_font,
-            14,
-        );
+        let assistant_settings_text = localized_text(&i18n, "profile-settings-assistant-settings-button", 14);
 
         let assistant_settings_button = button(assistant_settings_text)
             .on_press(Message::AssistantSettings)
@@ -173,12 +157,7 @@ impl ProfileSettingsRouter {
             .padding(10);
 
         // Delete Profile button
-        let delete_text = localized_text(
-            &i18n,
-            "profile-settings-delete-profile",
-            current_font,
-            14,
-        );
+        let delete_text = localized_text(&i18n, "profile-settings-delete-profile", 14);
 
         let delete_button = button(delete_text)
             .on_press(Message::ShowDeleteConfirmation)
@@ -186,12 +165,7 @@ impl ProfileSettingsRouter {
             .padding(10);
 
         // Back button
-        let back_text = localized_text(
-            &i18n,
-            "profile-settings-back",
-            current_font,
-            14,
-        );
+        let back_text = localized_text(&i18n, "profile-settings-back", 14);
 
         let back_button = button(back_text)
             .on_press(Message::Back)
@@ -218,31 +192,16 @@ impl ProfileSettingsRouter {
 
         // If delete confirmation is showing, overlay modal
         if self.show_delete_confirmation {
-            let warning_text = localized_text(
-                &i18n,
-                "profile-settings-delete-warning",
-                current_font,
-                16,
-            );
+            let warning_text = localized_text(&i18n, "profile-settings-delete-warning", 16);
 
-            let confirm_text = localized_text(
-                &i18n,
-                "profile-settings-delete-confirm",
-                current_font,
-                14,
-            );
+            let confirm_text = localized_text(&i18n, "profile-settings-delete-confirm", 14);
 
             let confirm_button = button(confirm_text)
                 .on_press(Message::ConfirmDelete)
                 .padding(10)
                 .width(Length::Fixed(120.0));
 
-            let cancel_text = localized_text(
-                &i18n,
-                "profile-settings-delete-cancel",
-                current_font,
-                14,
-            );
+            let cancel_text = localized_text(&i18n, "profile-settings-delete-cancel", 14);
 
             let cancel_button = button(cancel_text)
                 .on_press(Message::CancelDelete)

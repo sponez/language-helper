@@ -109,7 +109,6 @@ impl UserRouter {
     /// Returns an Element containing the UI for this router.
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Username text with font and localization
         let username_text = localized_text_with_arg(
@@ -117,41 +116,25 @@ impl UserRouter {
             "user-account-title",
             "username",
             &self.user_view.username,
-            current_font,
             24,
         );
 
         // Profiles button (first)
-        let profiles_text = localized_text(
-            &i18n,
-            "user-profiles-button",
-            current_font,
-            14,
-        );
+        let profiles_text = localized_text(&i18n, "user-profiles-button", 14);
         let profiles_button = button(profiles_text)
             .on_press(Message::ViewProfiles)
             .width(Length::Fixed(200.0))
             .padding(10);
 
         // Settings button (second)
-        let settings_text = localized_text(
-            &i18n,
-            "user-settings-button",
-            current_font,
-            14,
-        );
+        let settings_text = localized_text(&i18n, "user-settings-button", 14);
         let settings_button = button(settings_text)
             .on_press(Message::ViewSettings)
             .width(Length::Fixed(200.0))
             .padding(10);
 
         // Back button (third)
-        let back_text = localized_text(
-            &i18n,
-            "user-back-button",
-            current_font,
-            14,
-        );
+        let back_text = localized_text(&i18n, "user-back-button", 14);
         let back_button = button(back_text)
             .on_press(Message::Back)
             .width(Length::Fixed(200.0))

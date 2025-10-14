@@ -17,6 +17,8 @@ use crate::router::{self, RouterEvent, RouterNode};
 pub enum Message {
     /// Word name input changed
     WordNameChanged(String),
+    /// Word name paste
+    PasteWordName(String),
     /// Card type changed
     CardTypeChanged(CardType),
     /// Add new reading field
@@ -25,20 +27,28 @@ pub enum Message {
     RemoveReading(usize),
     /// Reading input changed
     ReadingChanged(usize, String),
+    /// Reading paste
+    PasteReading(usize, String),
     /// Add new meaning
     AddMeaning,
     /// Remove meaning at index
     RemoveMeaning(usize),
     /// Definition input changed
     DefinitionChanged(usize, String),
+    /// Definition paste
+    PasteDefinition(usize, String),
     /// Translated definition input changed
     TranslatedDefinitionChanged(usize, String),
+    /// Translated definition paste
+    PasteTranslatedDefinition(usize, String),
     /// Add translation to meaning
     AddTranslation(usize),
     /// Remove translation from meaning
     RemoveTranslation(usize, usize),
     /// Translation input changed
     TranslationChanged(usize, usize, String),
+    /// Translation paste
+    PasteTranslation(usize, usize, String),
     /// Fill with AI button pressed
     FillWithAI,
     /// Save card button pressed
@@ -251,6 +261,11 @@ impl AddCardRouter {
                 self.error_message = None;
                 None
             }
+            Message::PasteWordName(value) => {
+                self.word_name.push_str(&value);
+                self.error_message = None;
+                None
+            }
             Message::CardTypeChanged(card_type) => {
                 self.card_type = card_type;
                 None
@@ -271,6 +286,12 @@ impl AddCardRouter {
                 }
                 None
             }
+            Message::PasteReading(index, value) => {
+                if let Some(reading) = self.readings.get_mut(index) {
+                    reading.value.push_str(&value);
+                }
+                None
+            }
             Message::AddMeaning => {
                 self.meanings.push(MeaningFields::new());
                 None
@@ -287,9 +308,21 @@ impl AddCardRouter {
                 }
                 None
             }
+            Message::PasteDefinition(index, value) => {
+                if let Some(meaning) = self.meanings.get_mut(index) {
+                    meaning.definition.push_str(&value);
+                }
+                None
+            }
             Message::TranslatedDefinitionChanged(index, value) => {
                 if let Some(meaning) = self.meanings.get_mut(index) {
                     meaning.translated_definition = value;
+                }
+                None
+            }
+            Message::PasteTranslatedDefinition(index, value) => {
+                if let Some(meaning) = self.meanings.get_mut(index) {
+                    meaning.translated_definition.push_str(&value);
                 }
                 None
             }
@@ -311,6 +344,14 @@ impl AddCardRouter {
                 if let Some(meaning) = self.meanings.get_mut(meaning_index) {
                     if let Some(translation) = meaning.translations.get_mut(translation_index) {
                         translation.value = value;
+                    }
+                }
+                None
+            }
+            Message::PasteTranslation(meaning_index, translation_index, value) => {
+                if let Some(meaning) = self.meanings.get_mut(meaning_index) {
+                    if let Some(translation) = meaning.translations.get_mut(translation_index) {
+                        translation.value.push_str(&value);
                     }
                 }
                 None
@@ -716,13 +757,10 @@ impl AddCardRouter {
         let i18n = self.app_state.i18n();
         let current_font = self.app_state.current_font();
 
-        // Get font for the profile language (for card content, not UI)
-        let profile_font = self.app_state.get_font_for_locale(&self.profile.target_language);
-
         // Title with Fill with AI button in top right
-        let title_text = localized_text(&i18n, "add-card-title", current_font, 24);
+        let title_text = localized_text(&i18n, "add-card-title", 24);
 
-        let fill_ai_text = localized_text(&i18n, "add-card-fill-ai", current_font, 14);
+        let fill_ai_text = localized_text(&i18n, "add-card-fill-ai", 14);
         let mut fill_ai_button = button(fill_ai_text).padding(8);
 
         // Only enable the button if AI is available
@@ -740,10 +778,10 @@ impl AddCardRouter {
         .align_y(Alignment::Center);
 
         // Card type selector
-        let card_type_label = localized_text(&i18n, "add-card-type-label", current_font, 14);
+        let card_type_label = localized_text(&i18n, "add-card-type-label", 14);
 
         let straight_button = button(
-            localized_text(&i18n, "add-card-type-straight", current_font, 14)
+            localized_text(&i18n, "add-card-type-straight", 14)
         )
         .on_press(Message::CardTypeChanged(CardType::Straight))
         .padding(10)
@@ -755,7 +793,7 @@ impl AddCardRouter {
         });
 
         let reverse_button = button(
-            localized_text(&i18n, "add-card-type-reverse", current_font, 14)
+            localized_text(&i18n, "add-card-type-reverse", 14)
         )
         .on_press(Message::CardTypeChanged(CardType::Reverse))
         .padding(10)
@@ -771,35 +809,29 @@ impl AddCardRouter {
             .align_y(Alignment::Center);
 
         // Word name input
-        let word_label = localized_text(&i18n, "add-card-word-label", current_font, 14);
-        let mut word_input = text_input(
+        let word_label = localized_text(&i18n, "add-card-word-label", 14);
+        let word_input = text_input(
             &i18n.get("add-card-word-placeholder", None),
             &self.word_name,
         )
         .on_input(Message::WordNameChanged)
+        .on_paste(Message::PasteWordName)
         .padding(10)
         .width(Length::Fixed(400.0));
 
-        if let Some(font) = profile_font {
-            word_input = word_input.font(font);
-        }
-
         // Readings section
-        let readings_label = localized_text(&i18n, "add-card-readings-label", current_font, 14);
+        let readings_label = localized_text(&i18n, "add-card-readings-label", 14);
         let mut readings_column = Column::new().spacing(10);
 
         for (index, reading) in self.readings.iter().enumerate() {
-            let mut reading_input = text_input(
+            let reading_input = text_input(
                 &i18n.get("add-card-reading-placeholder", None),
                 &reading.value,
             )
             .on_input(move |v| Message::ReadingChanged(index, v))
+            .on_paste(move |v| Message::PasteReading(index, v))
             .padding(10)
             .width(Length::Fixed(350.0));
-
-            if let Some(font) = profile_font {
-                reading_input = reading_input.font(font);
-            }
 
             let remove_button = button(text("-").size(14))
                 .on_press(Message::RemoveReading(index))
@@ -812,7 +844,7 @@ impl AddCardRouter {
             readings_column = readings_column.push(reading_row);
         }
 
-        let add_reading_text = localized_text(&i18n, "add-card-add-reading", current_font, 14);
+        let add_reading_text = localized_text(&i18n, "add-card-add-reading", 14);
         let add_reading_button = button(add_reading_text)
             .on_press(Message::AddReading)
             .padding(8);
@@ -824,59 +856,45 @@ impl AddCardRouter {
             .style(container::rounded_box);
 
         // Meanings section
-        let meanings_label = localized_text(&i18n, "add-card-meanings-label", current_font, 14);
+        let meanings_label = localized_text(&i18n, "add-card-meanings-label", 14);
         let mut meanings_column = Column::new().spacing(15);
 
         for (meaning_index, meaning) in self.meanings.iter().enumerate() {
             // Definition input
-            let def_label = localized_text(&i18n, "add-card-definition-label", current_font, 12);
-            let mut def_input = text_input(
+            let def_label = localized_text(&i18n, "add-card-definition-label", 12);
+            let def_input = text_input(
                 &i18n.get("add-card-definition-placeholder", None),
                 &meaning.definition,
             )
             .on_input(move |v| Message::DefinitionChanged(meaning_index, v))
+            .on_paste(move |v| Message::PasteDefinition(meaning_index, v))
             .padding(10)
             .width(Length::Fixed(400.0));
 
-            if let Some(font) = profile_font {
-                def_input = def_input.font(font);
-            }
-
             // Translated definition input
-            let trans_def_label = localized_text(&i18n, "add-card-translated-def-label", current_font, 12);
-            let mut trans_def_input = text_input(
+            let trans_def_label = localized_text(&i18n, "add-card-translated-def-label", 12);
+            let trans_def_input = text_input(
                 &i18n.get("add-card-translated-def-placeholder", None),
                 &meaning.translated_definition,
             )
             .on_input(move |v| Message::TranslatedDefinitionChanged(meaning_index, v))
+            .on_paste(move |v| Message::PasteTranslatedDefinition(meaning_index, v))
             .padding(10)
             .width(Length::Fixed(400.0));
 
-            // User language font for translated definition
-            let user_font = self.user_view.settings.as_ref()
-                .and_then(|s| self.app_state.get_font_for_locale(&s.language));
-
-            if let Some(font) = user_font {
-                trans_def_input = trans_def_input.font(font);
-            }
-
             // Translations
-            let translations_label = localized_text(&i18n, "add-card-translations-label", current_font, 12);
+            let translations_label = localized_text(&i18n, "add-card-translations-label", 12);
             let mut translations_column = Column::new().spacing(8);
 
             for (trans_index, translation) in meaning.translations.iter().enumerate() {
-                let mut trans_input = text_input(
+                let trans_input = text_input(
                     &i18n.get("add-card-translation-placeholder", None),
                     &translation.value,
                 )
                 .on_input(move |v| Message::TranslationChanged(meaning_index, trans_index, v))
+                .on_paste(move |v| Message::PasteTranslation(meaning_index, trans_index, v))
                 .padding(8)
                 .width(Length::Fixed(330.0));
-
-                // User language font for word translations
-                if let Some(font) = user_font {
-                    trans_input = trans_input.font(font);
-                }
 
                 let remove_trans_button = button(text("-").size(14))
                     .on_press(Message::RemoveTranslation(meaning_index, trans_index))
@@ -889,7 +907,7 @@ impl AddCardRouter {
                 translations_column = translations_column.push(trans_row);
             }
 
-            let add_trans_text = localized_text(&i18n, "add-card-add-translation", current_font, 12);
+            let add_trans_text = localized_text(&i18n, "add-card-add-translation", 12);
             let add_trans_button = button(add_trans_text)
                 .on_press(Message::AddTranslation(meaning_index))
                 .padding(6);
@@ -901,7 +919,7 @@ impl AddCardRouter {
                 .style(container::rounded_box);
 
             // Remove meaning button
-            let remove_meaning_text = localized_text(&i18n, "add-card-remove-meaning", current_font, 12);
+            let remove_meaning_text = localized_text(&i18n, "add-card-remove-meaning", 12);
             let remove_meaning_button = button(remove_meaning_text)
                 .on_press(Message::RemoveMeaning(meaning_index))
                 .padding(8);
@@ -924,7 +942,7 @@ impl AddCardRouter {
             meanings_column = meanings_column.push(meaning_container);
         }
 
-        let add_meaning_text = localized_text(&i18n, "add-card-add-meaning", current_font, 14);
+        let add_meaning_text = localized_text(&i18n, "add-card-add-meaning", 14);
         let add_meaning_button = button(add_meaning_text)
             .on_press(Message::AddMeaning)
             .padding(8);
@@ -951,20 +969,22 @@ impl AddCardRouter {
         .padding(20);
 
         if let Some(ref error) = self.error_message {
+            // Dynamic error message - use shaping
             let error_text = text(error)
                 .size(14)
-                .color(iced::Color::from_rgb(0.8, 0.2, 0.2));
+                .color(iced::Color::from_rgb(0.8, 0.2, 0.2))
+                .shaping(iced::widget::text::Shaping::Advanced);
             content_column = content_column.push(error_text);
         }
 
         // Bottom buttons
-        let save_text = localized_text(&i18n, "add-card-save", current_font, 14);
+        let save_text = localized_text(&i18n, "add-card-save", 14);
         let save_button = button(save_text)
             .on_press(Message::Save)
             .padding(10)
             .width(Length::Fixed(120.0));
 
-        let cancel_text = localized_text(&i18n, "add-card-cancel", current_font, 14);
+        let cancel_text = localized_text(&i18n, "add-card-cancel", 14);
         let cancel_button = button(cancel_text)
             .on_press(Message::Cancel)
             .padding(10)
@@ -1001,26 +1021,24 @@ impl AddCardRouter {
     /// Renders the inverse card update modal dialog
     fn inverse_modal_view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Modal title/question
         let modal_title = localized_text(
             &i18n,
             "add-card-inverse-modal-title",
-            current_font,
             18,
         );
 
         // Three buttons
         let manually_button = button(
-            localized_text(&i18n, "add-card-inverse-manually", current_font, 14)
+            localized_text(&i18n, "add-card-inverse-manually", 14)
         )
         .on_press(Message::InverseManually)
         .padding(10)
         .width(Length::Fixed(150.0));
 
         let with_assistant_button = button(
-            localized_text(&i18n, "add-card-inverse-with-assistant", current_font, 14)
+            localized_text(&i18n, "add-card-inverse-with-assistant", 14)
         )
         .padding(10)
         .width(Length::Fixed(150.0))
@@ -1038,7 +1056,7 @@ impl AddCardRouter {
         };
 
         let no_button = button(
-            localized_text(&i18n, "add-card-inverse-no", current_font, 14)
+            localized_text(&i18n, "add-card-inverse-no", 14)
         )
         .on_press(Message::InverseNo)
         .padding(10)

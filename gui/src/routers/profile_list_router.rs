@@ -140,12 +140,7 @@ impl ProfileListRouter {
 
         if self.show_language_picker {
             // Show language picker for new profile
-            let title_text = localized_text(
-                &i18n,
-                "profile-list-select-language",
-                current_font,
-                18,
-            );
+            let title_text = localized_text(&i18n, "profile-list-select-language", 18);
 
             // Filter out user's UI language and languages that already have profiles
             let existing_profile_languages: Vec<String> = self
@@ -174,12 +169,7 @@ impl ProfileListRouter {
                 language_pick_list = language_pick_list.font(font);
             }
 
-            let create_text = localized_text(
-                &i18n,
-                "profile-list-create-button",
-                current_font,
-                14,
-            );
+            let create_text = localized_text(&i18n, "profile-list-create-button", 14);
             let create_button = button(create_text)
                 .on_press_maybe(
                     self.selected_language.as_ref().map(|_| Message::CreateProfile),
@@ -187,12 +177,7 @@ impl ProfileListRouter {
                 .width(Length::Fixed(120.0))
                 .padding(10);
 
-            let cancel_text = localized_text(
-                &i18n,
-                "profile-list-cancel-button",
-                current_font,
-                14,
-            );
+            let cancel_text = localized_text(&i18n, "profile-list-cancel-button", 14);
             let cancel_button = button(cancel_text)
                 .on_press(Message::CancelCreate)
                 .width(Length::Fixed(120.0))
@@ -216,12 +201,7 @@ impl ProfileListRouter {
         }
 
         // Main profile list view
-        let title_text = localized_text(
-            &i18n,
-            "profile-list-title",
-            current_font,
-            18,
-        );
+        let title_text = localized_text(&i18n, "profile-list-title", 18);
 
         // Build profile options list
         let mut profile_options: Vec<String> = self
@@ -246,12 +226,7 @@ impl ProfileListRouter {
             profile_pick_list = profile_pick_list.font(font);
         }
 
-        let back_text = localized_text(
-            &i18n,
-            "user-back-button",
-            current_font,
-            14,
-        );
+        let back_text = localized_text(&i18n, "user-back-button", 14);
         let back_button = button(back_text)
             .on_press(Message::Back)
             .width(Length::Fixed(120.0))

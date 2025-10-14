@@ -28,6 +28,8 @@ pub enum Message {
     OptionSelected(String),
     /// Sent when the text input for new username changes
     NewUsernameChanged(String),
+    /// Sent when text is pasted into the username input
+    Paste(String),
     /// Sent when the user confirms their selection (OK button or Enter key)
     ConfirmSelection,
     /// Sent when the Exit button is pressed
@@ -108,6 +110,11 @@ impl UserListRouter {
             }
             Message::NewUsernameChanged(input) => {
                 self.new_username_input = input;
+                self.error_message = None;
+                None
+            }
+            Message::Paste(value) => {
+                self.new_username_input.push_str(&value);
                 self.error_message = None;
                 None
             }
@@ -250,6 +257,7 @@ impl UserListRouter {
                 &self.new_username_input
             )
                 .on_input(Message::NewUsernameChanged)
+                .on_paste(Message::Paste)
                 .on_submit(Message::ConfirmSelection)
                 .padding(10)
                 .width(300);
@@ -261,14 +269,13 @@ impl UserListRouter {
             content = content.push(enter_username_text);
             content = content.push(text_input_widget);
 
-            // Show error message if present
+            // Show error message if present (dynamic content - use shaping)
             if let Some(error) = &self.error_message {
-                let mut error_text = text(error).style(|_theme| iced::widget::text::Style {
-                    color: Some(iced::Color::from_rgb(0.8, 0.0, 0.0)),
-                });
-                if let Some(font) = self.app_state.current_font() {
-                    error_text = error_text.font(font);
-                }
+                let error_text = text(error)
+                    .shaping(iced::widget::text::Shaping::Advanced)
+                    .style(|_theme| iced::widget::text::Style {
+                        color: Some(iced::Color::from_rgb(0.8, 0.0, 0.0)),
+                    });
                 content = content.push(error_text);
             }
         }

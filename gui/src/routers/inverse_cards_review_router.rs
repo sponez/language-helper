@@ -124,25 +124,14 @@ impl InverseCardsReviewRouter {
 
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Title
-        let title = localized_text(
-            &i18n,
-            "inverse-cards-review-title",
-            current_font,
-            24,
-        );
+        let title = localized_text(&i18n, "inverse-cards-review-title", 24);
 
         // Cards content area
         let cards_content = if self.pending_cards.is_empty() {
             container(
-                localized_text(
-                    &i18n,
-                    "inverse-cards-no-pending",
-                    current_font,
-                    14,
-                )
+                localized_text(&i18n, "inverse-cards-no-pending", 14)
             )
             .padding(20)
             .width(Length::Fill)
@@ -161,7 +150,7 @@ impl InverseCardsReviewRouter {
                 let word_name_clone = card.word.name.clone();
 
                 let show_button = button(
-                    localized_text(&i18n, "inverse-cards-show", current_font, 12)
+                    localized_text(&i18n, "inverse-cards-show", 12)
                 )
                 .on_press(Message::ShowCard(word_name_clone))
                 .padding(6);
@@ -189,23 +178,13 @@ impl InverseCardsReviewRouter {
         };
 
         // Bottom buttons
-        let save_all_text = localized_text(
-            &i18n,
-            "inverse-cards-save-all",
-            current_font,
-            14,
-        );
+        let save_all_text = localized_text(&i18n, "inverse-cards-save-all", 14);
         let save_all_button = button(save_all_text)
             .on_press(Message::SaveAll)
             .width(Length::Fixed(150.0))
             .padding(10);
 
-        let cancel_text = localized_text(
-            &i18n,
-            "inverse-cards-cancel",
-            current_font,
-            14,
-        );
+        let cancel_text = localized_text(&i18n, "inverse-cards-cancel", 14);
         let cancel_button = button(cancel_text)
             .on_press(Message::Cancel)
             .width(Length::Fixed(150.0))

@@ -155,23 +155,12 @@ impl ManageCardsRouter {
 
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Title
-        let title = localized_text(
-            &i18n,
-            "manage-cards-title",
-            current_font,
-            24,
-        );
+        let title = localized_text(&i18n, "manage-cards-title", 24);
 
         // Tab buttons
-        let unlearned_text = localized_text(
-            &i18n,
-            "manage-cards-unlearned-tab",
-            current_font,
-            14,
-        );
+        let unlearned_text = localized_text(&i18n, "manage-cards-unlearned-tab", 14);
 
         let unlearned_button = button(unlearned_text)
             .on_press(Message::SelectUnlearned)
@@ -183,12 +172,7 @@ impl ManageCardsRouter {
                 button::secondary
             });
 
-        let learned_text = localized_text(
-            &i18n,
-            "manage-cards-learned-tab",
-            current_font,
-            14,
-        );
+        let learned_text = localized_text(&i18n, "manage-cards-learned-tab", 14);
 
         let learned_button = button(learned_text)
             .on_press(Message::SelectLearned)
@@ -223,7 +207,6 @@ impl ManageCardsRouter {
                     } else {
                         "manage-cards-no-learned"
                     },
-                    current_font,
                     14,
                 )
             )
@@ -238,15 +221,19 @@ impl ManageCardsRouter {
 
             for card in cards {
                 // Card container with word name and buttons
-                let word_name_text = text(&card.word.name).size(16);
+                let word_name_text = text(&card.word.name)
+                    .size(16)
+                    .shaping(iced::widget::text::Shaping::Advanced);
                 let word_name_clone = card.word.name.clone();
                 let word_name_clone2 = card.word.name.clone();
 
-                let edit_button = button(text("Edit").size(12))
+                let edit_text = localized_text(&i18n, "manage-cards-edit", 12);
+                let edit_button = button(edit_text)
                     .on_press(Message::EditCard(word_name_clone))
                     .padding(6);
 
-                let delete_button = button(text("Delete").size(12))
+                let delete_text = localized_text(&i18n, "manage-cards-delete", 12);
+                let delete_button = button(delete_text)
                     .on_press(Message::DeleteCard(word_name_clone2))
                     .padding(6);
 
@@ -273,23 +260,13 @@ impl ManageCardsRouter {
         };
 
         // Bottom buttons
-        let add_new_text = localized_text(
-            &i18n,
-            "manage-cards-add-new",
-            current_font,
-            14,
-        );
+        let add_new_text = localized_text(&i18n, "manage-cards-add-new", 14);
         let add_new_button = button(add_new_text)
             .on_press(Message::AddNew)
             .width(Length::Fixed(150.0))
             .padding(10);
 
-        let back_text = localized_text(
-            &i18n,
-            "manage-cards-back",
-            current_font,
-            14,
-        );
+        let back_text = localized_text(&i18n, "manage-cards-back", 14);
         let back_button = button(back_text)
             .on_press(Message::Back)
             .width(Length::Fixed(150.0))

@@ -24,6 +24,10 @@ pub enum Message {
     TestAnswerMethodSelected(String),
     /// Streak length input changed
     StreakLengthChanged(String),
+    /// Text pasted into input fields
+    PasteCardsPerSet(String),
+    /// Text pasted into streak length field
+    PasteStreakLength(String),
     /// Save settings button pressed
     Save,
     /// Back button pressed
@@ -107,6 +111,16 @@ impl CardSettingsRouter {
                 self.error_message = None;
                 None
             }
+            Message::PasteCardsPerSet(value) => {
+                self.cards_per_set_input.push_str(&value);
+                self.error_message = None;
+                None
+            }
+            Message::PasteStreakLength(value) => {
+                self.streak_length_input.push_str(&value);
+                self.error_message = None;
+                None
+            }
             Message::Save => {
                 let i18n = self.app_state.i18n();
 
@@ -182,13 +196,11 @@ impl CardSettingsRouter {
 
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Title
         let title = localized_text(
             &i18n,
             "card-settings-title",
-            current_font,
             24,
         );
 
@@ -196,7 +208,6 @@ impl CardSettingsRouter {
         let cards_per_set_label = localized_text(
             &i18n,
             "profile-settings-cards-per-set",
-            current_font,
             16,
         );
 
@@ -205,6 +216,7 @@ impl CardSettingsRouter {
             &self.cards_per_set_input,
         )
         .on_input(Message::CardsPerSetChanged)
+        .on_paste(Message::PasteCardsPerSet)
         .padding(10)
         .width(Length::Fixed(100.0));
 
@@ -219,7 +231,6 @@ impl CardSettingsRouter {
         let test_method_label = localized_text(
             &i18n,
             "profile-settings-test-method",
-            current_font,
             16,
         );
 
@@ -259,7 +270,6 @@ impl CardSettingsRouter {
         let streak_length_label = localized_text(
             &i18n,
             "profile-settings-streak-length",
-            current_font,
             16,
         );
 
@@ -268,6 +278,7 @@ impl CardSettingsRouter {
             &self.streak_length_input,
         )
         .on_input(Message::StreakLengthChanged)
+        .on_paste(Message::PasteStreakLength)
         .padding(10)
         .width(Length::Fixed(100.0));
 
@@ -287,13 +298,12 @@ impl CardSettingsRouter {
                 Color::from_rgb(0.8, 0.0, 0.0)
             };
 
-            let mut msg_text = text(msg);
-            if let Some(font) = current_font {
-                msg_text = msg_text.font(font);
-            }
-            msg_text = msg_text.style(move |_theme| iced::widget::text::Style {
-                color: Some(color),
-            });
+            // Dynamic message - use shaping
+            let msg_text = text(msg)
+                .shaping(iced::widget::text::Shaping::Advanced)
+                .style(move |_theme| iced::widget::text::Style {
+                    color: Some(color),
+                });
 
             Some(msg_text)
         } else {
@@ -304,7 +314,6 @@ impl CardSettingsRouter {
         let save_text = localized_text(
             &i18n,
             "card-settings-save",
-            current_font,
             14,
         );
 
@@ -316,7 +325,6 @@ impl CardSettingsRouter {
         let back_text = localized_text(
             &i18n,
             "card-settings-back",
-            current_font,
             14,
         );
 

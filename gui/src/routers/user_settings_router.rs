@@ -111,26 +111,15 @@ impl UserSettingsRouter {
         let current_font = self.app_state.current_font();
 
         // Main settings view
-        let language_label = localized_text(
-            &i18n,
-            "user-settings-language-label",
-            current_font,
-            16,
-        );
+        let language_label = localized_text(&i18n, "user-settings-language-label", 16);
 
         let language_display = localized_text(
             &i18n,
             &self.app_state.language(),
-            current_font,
             16,
         );
 
-        let theme_label = localized_text(
-            &i18n,
-            "user-settings-theme-label",
-            current_font,
-            16,
-        );
+        let theme_label = localized_text(&i18n, "user-settings-theme-label", 16);
 
         let themes: Vec<String> = get_sorted_themes();
         let theme_selected: Option<String> = Some(self.app_state.theme());
@@ -145,23 +134,13 @@ impl UserSettingsRouter {
             theme_pick_list = theme_pick_list.font(font);
         }
 
-        let delete_button_text = localized_text(
-            &i18n,
-            "user-settings-delete-button",
-            current_font,
-            14,
-        );
+        let delete_button_text = localized_text(&i18n, "user-settings-delete-button", 14);
         let delete_button = button(delete_button_text)
             .on_press(Message::DeleteUser)
             .width(Length::Fixed(120.0))
             .padding(10);
 
-        let back_text = localized_text(
-            &i18n,
-            "user-back-button",
-            current_font,
-            14,
-        );
+        let back_text = localized_text(&i18n, "user-back-button", 14);
         let back_button = button(back_text)
             .on_press(Message::Back)
             .width(Length::Fixed(120.0))
@@ -189,30 +168,15 @@ impl UserSettingsRouter {
 
         // If delete confirmation is showing, overlay modal
         if self.show_delete_confirmation {
-            let warning_text = localized_text(
-                &i18n,
-                "user-settings-delete-warning",
-                current_font,
-                16,
-            );
+            let warning_text = localized_text(&i18n, "user-settings-delete-warning", 16);
 
-            let yes_text = localized_text(
-                &i18n,
-                "user-settings-delete-yes",
-                current_font,
-                14,
-            );
+            let yes_text = localized_text(&i18n, "user-settings-delete-yes", 14);
             let yes_button = button(yes_text)
                 .on_press(Message::ConfirmDelete)
                 .padding(10)
                 .width(Length::Fixed(120.0));
 
-            let no_text = localized_text(
-                &i18n,
-                "user-settings-delete-no",
-                current_font,
-                14,
-            );
+            let no_text = localized_text(&i18n, "user-settings-delete-no", 14);
             let no_button = button(no_text)
                 .on_press(Message::CancelDelete)
                 .padding(10)

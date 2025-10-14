@@ -93,71 +93,40 @@ impl CardsMenuRouter {
 
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Title
-        let title = localized_text(
-            &i18n,
-            "cards-menu-title",
-            current_font,
-            24,
-        );
+        let title = localized_text(&i18n, "cards-menu-title", 24);
 
         // Manage Cards button
-        let manage_cards_text = localized_text(
-            &i18n,
-            "cards-menu-manage",
-            current_font,
-            14,
-        );
+        let manage_cards_text = localized_text(&i18n, "cards-menu-manage", 14);
         let manage_cards_button = button(manage_cards_text)
             .on_press(Message::ManageCards)
             .width(Length::Fixed(200.0))
             .padding(10);
 
         // Learn button
-        let learn_text = localized_text(
-            &i18n,
-            "cards-menu-learn",
-            current_font,
-            14,
-        );
+        let learn_text = localized_text(&i18n, "cards-menu-learn", 14);
         let learn_button = button(learn_text)
             .on_press(Message::Learn)
             .width(Length::Fixed(200.0))
             .padding(10);
 
         // Test button
-        let test_text = localized_text(
-            &i18n,
-            "cards-menu-test",
-            current_font,
-            14,
-        );
+        let test_text = localized_text(&i18n, "cards-menu-test", 14);
         let test_button = button(test_text)
             .on_press(Message::Test)
             .width(Length::Fixed(200.0))
             .padding(10);
 
         // Repeat button
-        let repeat_text = localized_text(
-            &i18n,
-            "cards-menu-repeat",
-            current_font,
-            14,
-        );
+        let repeat_text = localized_text(&i18n, "cards-menu-repeat", 14);
         let repeat_button = button(repeat_text)
             .on_press(Message::Repeat)
             .width(Length::Fixed(200.0))
             .padding(10);
 
         // Back button
-        let back_text = localized_text(
-            &i18n,
-            "cards-menu-back",
-            current_font,
-            14,
-        );
+        let back_text = localized_text(&i18n, "cards-menu-back", 14);
         let back_button = button(back_text)
             .on_press(Message::Back)
             .width(Length::Fixed(200.0))

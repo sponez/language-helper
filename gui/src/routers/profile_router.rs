@@ -278,46 +278,26 @@ impl ProfileRouter {
         let assistant_running = self.ai_buttons_active;
 
         // Main buttons - small consistent size
-        let cards_text = localized_text(
-            &i18n,
-            "profile-cards-button",
-            current_font,
-            14,
-        );
+        let cards_text = localized_text(&i18n, "profile-cards-button", 14);
         let cards_button = button(cards_text)
             .on_press(Message::Cards)
             .width(Length::Fixed(200.0))
             .padding(10);
 
-        let explain_text = localized_text(
-            &i18n,
-            "profile-explain-ai-button",
-            current_font,
-            14,
-        );
+        let explain_text = localized_text(&i18n, "profile-explain-ai-button", 14);
         // Disable AI button when assistant is not running
         let explain_button = button(explain_text)
             .on_press_maybe(if assistant_running { Some(Message::ExplainWithAI) } else { None })
             .width(Length::Fixed(200.0))
             .padding(10);
 
-        let settings_text = localized_text(
-            &i18n,
-            "profile-settings-button",
-            current_font,
-            14,
-        );
+        let settings_text = localized_text(&i18n, "profile-settings-button", 14);
         let settings_button = button(settings_text)
             .on_press(Message::Settings)
             .width(Length::Fixed(200.0))
             .padding(10);
 
-        let back_text = localized_text(
-            &i18n,
-            "profile-back-button",
-            current_font,
-            14,
-        );
+        let back_text = localized_text(&i18n, "profile-back-button", 14);
 
         // Back button - now just a regular button that opens modal
         let back_button = button(back_text)
@@ -344,52 +324,27 @@ impl ProfileRouter {
         // If back menu is showing, overlay it with a modal
         if self.show_back_menu {
             // Modal content - navigation options
-            let modal_title = localized_text(
-                &i18n,
-                "profile-back-where",
-                current_font,
-                18,
-            );
+            let modal_title = localized_text(&i18n, "profile-back-where", 18);
 
-            let profile_selection_text = localized_text(
-                &i18n,
-                "profile-back-to-profiles",
-                current_font,
-                14,
-            );
+            let profile_selection_text = localized_text(&i18n, "profile-back-to-profiles", 14);
             let profile_selection_button = button(profile_selection_text)
                 .on_press(Message::BackToProfileSelection)
                 .width(Length::Fixed(200.0))
                 .padding(10);
 
-            let user_selection_text = localized_text(
-                &i18n,
-                "profile-back-to-user",
-                current_font,
-                14,
-            );
+            let user_selection_text = localized_text(&i18n, "profile-back-to-user", 14);
             let user_selection_button = button(user_selection_text)
                 .on_press(Message::BackToUserSelection)
                 .width(Length::Fixed(200.0))
                 .padding(10);
 
-            let exit_text = localized_text(
-                &i18n,
-                "profile-exit",
-                current_font,
-                14,
-            );
+            let exit_text = localized_text(&i18n, "profile-exit", 14);
             let exit_button = button(exit_text)
                 .on_press(Message::Exit)
                 .width(Length::Fixed(200.0))
                 .padding(10);
 
-            let cancel_text = localized_text(
-                &i18n,
-                "cancel",
-                current_font,
-                14,
-            );
+            let cancel_text = localized_text(&i18n, "cancel", 14);
             let cancel_button = button(cancel_text)
                 .on_press(Message::CloseBackModal)
                 .width(Length::Fixed(200.0))

@@ -47,8 +47,12 @@ pub enum Message {
     ApiEndpointChanged(String),
     /// API key input changed
     ApiKeyChanged(String),
+    /// API key paste
+    PasteApiKey(String),
     /// API model name input changed
     ApiModelChanged(String),
+    /// API model name paste
+    PasteApiModel(String),
     /// Start assistant (for local models)
     StartAssistant,
     /// Stop assistant (for local models)
@@ -270,8 +274,16 @@ impl AssistantSettingsRouter {
                 self.api_key = value;
                 None
             }
+            Message::PasteApiKey(value) => {
+                self.api_key.push_str(&value);
+                None
+            }
             Message::ApiModelChanged(value) => {
                 self.api_model_name = value;
+                None
+            }
+            Message::PasteApiModel(value) => {
+                self.api_model_name.push_str(&value);
                 None
             }
             Message::StartAssistant => {
@@ -714,13 +726,11 @@ impl AssistantSettingsRouter {
         }
 
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Title
         let title = localized_text(
             &i18n,
             "assistant-settings-title",
-            current_font,
             24,
         );
 
@@ -728,7 +738,6 @@ impl AssistantSettingsRouter {
         let model_label = localized_text(
             &i18n,
             "assistant-settings-model-label",
-            current_font,
             16,
         );
 
@@ -842,7 +851,6 @@ impl AssistantSettingsRouter {
                     let requirements_title = localized_text(
                         &i18n,
                         "assistant-settings-requirements-title",
-                        current_font,
                         18,
                     );
                     requirements_column = requirements_column.push(requirements_title);
@@ -879,13 +887,11 @@ impl AssistantSettingsRouter {
                             (status_symbol, status_color, req_text)
                         };
 
-                        let mut requirement_text_widget = text(requirement_text)
+                        // Dynamic content - use shaping
+                        let requirement_text_widget = text(requirement_text)
                             .size(14)
-                            .color(status_color);
-
-                        if let Some(font) = current_font {
-                            requirement_text_widget = requirement_text_widget.font(font);
-                        }
+                            .color(status_color)
+                            .shaping(iced::widget::text::Shaping::Advanced);
 
                         let requirement_row = row![requirement_text_widget]
                             .spacing(5)
@@ -899,7 +905,6 @@ impl AssistantSettingsRouter {
                         let incompatible_message = localized_text(
                             &i18n,
                             "assistant-settings-incompatible",
-                            current_font,
                             14,
                         );
                         requirements_column = requirements_column
@@ -916,41 +921,33 @@ impl AssistantSettingsRouter {
                         .unwrap_or(false);
 
                     if ollama_is_installed {
-                        // Show installed message in green
+                        // Show installed message in green (dynamic content - use shaping)
                         let ollama_message = self.ollama_status.borrow()
                             .as_ref()
                             .map(|s| s.message.clone())
                             .unwrap_or_default();
 
-                        let mut ollama_text_widget = text(ollama_message)
+                        let ollama_text_widget = text(ollama_message)
                             .size(14)
-                            .color(Color::from_rgb(0.0, 0.8, 0.0));
-
-                        if let Some(font) = current_font {
-                            ollama_text_widget = ollama_text_widget.font(font);
-                        }
+                            .color(Color::from_rgb(0.0, 0.8, 0.0))
+                            .shaping(iced::widget::text::Shaping::Advanced);
 
                         requirements_column = requirements_column.push(ollama_text_widget);
                     } else {
                         // Show "not installed" message with clickable link
-                        let mut not_installed_text = text("Ollama is not installed. To install, go to ")
+                        let not_installed_prefix = localized_text(&i18n, "assistant-settings-ollama-not-installed", 14);
+
+                        let link_text = text("ollama.com")
                             .size(14)
-                            .color(Color::from_rgb(0.8, 0.6, 0.0));
+                            .color(Color::from_rgb(0.2, 0.4, 0.8))
+                            .shaping(iced::widget::text::Shaping::Advanced);
 
-                        if let Some(font) = current_font {
-                            not_installed_text = not_installed_text.font(font);
-                        }
-
-                        let link_button = button(
-                            text("ollama.com")
-                                .size(14)
-                                .color(Color::from_rgb(0.2, 0.4, 0.8)) // Blue for link
-                        )
-                        .on_press(Message::OpenUrl("https://ollama.com".to_string()))
-                        .style(button::text);
+                        let link_button = button(link_text)
+                            .on_press(Message::OpenUrl("https://ollama.com".to_string()))
+                            .style(button::text);
 
                         let ollama_row = row![
-                            not_installed_text,
+                            not_installed_prefix,
                             link_button,
                         ]
                         .spacing(5)
@@ -963,7 +960,6 @@ impl AssistantSettingsRouter {
                     let no_data_message = localized_text(
                         &i18n,
                         "assistant-settings-no-data",
-                        current_font,
                         14,
                     );
                     requirements_column = requirements_column.push(no_data_message);
@@ -976,7 +972,6 @@ impl AssistantSettingsRouter {
                 let endpoint_label = localized_text(
                     &i18n,
                     "assistant-settings-api-endpoint",
-                    current_font,
                     16,
                 );
 
@@ -1005,7 +1000,6 @@ impl AssistantSettingsRouter {
                 let key_label = localized_text(
                     &i18n,
                     "assistant-settings-api-key",
-                    current_font,
                     16,
                 );
 
@@ -1014,6 +1008,7 @@ impl AssistantSettingsRouter {
                     &self.api_key,
                 )
                 .on_input(Message::ApiKeyChanged)
+                .on_paste(Message::PasteApiKey)
                 .padding(10)
                 .width(Length::Fixed(300.0))
                 .secure(true);
@@ -1028,7 +1023,6 @@ impl AssistantSettingsRouter {
                 let model_name_label = localized_text(
                     &i18n,
                     "assistant-settings-api-model",
-                    current_font,
                     16,
                 );
 
@@ -1037,6 +1031,7 @@ impl AssistantSettingsRouter {
                     &self.api_model_name,
                 )
                 .on_input(Message::ApiModelChanged)
+                .on_paste(Message::PasteApiModel)
                 .padding(10)
                 .width(Length::Fixed(300.0));
 
@@ -1078,7 +1073,6 @@ impl AssistantSettingsRouter {
             let button_text = localized_text(
                 &i18n,
                 button_text_key,
-                current_font,
                 14,
             );
 
@@ -1094,7 +1088,6 @@ impl AssistantSettingsRouter {
             let back_text = localized_text(
                 &i18n,
                 "assistant-settings-back",
-                current_font,
                 14,
             );
 
@@ -1111,7 +1104,6 @@ impl AssistantSettingsRouter {
             let back_text = localized_text(
                 &i18n,
                 "assistant-settings-back",
-                current_font,
                 14,
             );
 
@@ -1154,25 +1146,19 @@ impl AssistantSettingsRouter {
                 .padding(30)
                 .align_x(Alignment::Center);
 
-            // Progress message
-            let mut progress_text = text(progress_message.clone())
-                .size(16);
-
-            if let Some(font) = current_font {
-                progress_text = progress_text.font(font);
-            }
+            // Progress message (dynamic content - use shaping)
+            let progress_text = text(progress_message.clone())
+                .size(16)
+                .shaping(iced::widget::text::Shaping::Advanced);
 
             modal_content = modal_content.push(progress_text);
 
-            // Error message if present
+            // Error message if present (dynamic content - use shaping)
             if let Some(error_msg) = error_message.clone() {
-                let mut error_text = text(error_msg)
+                let error_text = text(error_msg)
                     .size(14)
-                    .color(Color::from_rgb(0.8, 0.0, 0.0));
-
-                if let Some(font) = current_font {
-                    error_text = error_text.font(font);
-                }
+                    .color(Color::from_rgb(0.8, 0.0, 0.0))
+                    .shaping(iced::widget::text::Shaping::Advanced);
 
                 modal_content = modal_content.push(error_text);
             }
@@ -1181,12 +1167,14 @@ impl AssistantSettingsRouter {
             let button_row = match launch_status {
                 LaunchStatus::PromptingPull => {
                     // Show confirm and cancel buttons
-                    let confirm_btn = button(text("Download"))
+                    let download_text = localized_text(&i18n, "assistant-settings-download", 14);
+                    let confirm_btn = button(download_text)
                         .on_press(Message::ConfirmPull)
                         .padding(10)
                         .width(Length::Fixed(120.0));
 
-                    let cancel_btn = button(text("Cancel"))
+                    let cancel_text = localized_text(&i18n, "assistant-settings-cancel", 14);
+                    let cancel_btn = button(cancel_text)
                         .on_press(Message::CancelLaunch)
                         .padding(10)
                         .width(Length::Fixed(120.0));
@@ -1197,7 +1185,8 @@ impl AssistantSettingsRouter {
                 }
                 LaunchStatus::Complete => {
                     // Show close button
-                    let close_btn = button(text("Close"))
+                    let close_text = localized_text(&i18n, "assistant-settings-close", 14);
+                    let close_btn = button(close_text)
                         .on_press(Message::CloseModal)
                         .padding(10)
                         .width(Length::Fixed(120.0));
@@ -1208,7 +1197,8 @@ impl AssistantSettingsRouter {
                 }
                 LaunchStatus::Error => {
                     // Show close button
-                    let close_btn = button(text("Close"))
+                    let close_text = localized_text(&i18n, "assistant-settings-close", 14);
+                    let close_btn = button(close_text)
                         .on_press(Message::CloseModal)
                         .padding(10)
                         .width(Length::Fixed(120.0));
@@ -1219,7 +1209,8 @@ impl AssistantSettingsRouter {
                 }
                 _ => {
                     // Show cancel button for in-progress operations
-                    let cancel_btn = button(text("Cancel"))
+                    let cancel_text = localized_text(&i18n, "assistant-settings-cancel", 14);
+                    let cancel_btn = button(cancel_text)
                         .on_press(Message::CancelLaunch)
                         .padding(10)
                         .width(Length::Fixed(120.0));

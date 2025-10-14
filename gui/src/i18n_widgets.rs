@@ -1,20 +1,18 @@
 //! Helper utilities for creating localized text widgets.
 //!
 //! This module provides convenience functions for creating text widgets
-//! with localization and font support, reducing boilerplate code.
+//! with localization, reducing boilerplate code.
 
 use iced::widget::Text;
-use iced::Font;
 
 use crate::i18n::I18n;
 
-/// Creates a localized text widget with optional font support.
+/// Creates a localized text widget with advanced shaping.
 ///
 /// # Arguments
 ///
 /// * `i18n` - The i18n instance for localization
 /// * `key` - The localization key
-/// * `font` - Optional font to apply
 /// * `size` - Text size in pixels
 ///
 /// # Returns
@@ -28,23 +26,17 @@ use crate::i18n::I18n;
 /// use gui::i18n::I18n;
 ///
 /// let i18n = I18n::new("en-US");
-/// let font = Some(iced::Font::default());
-/// let text_widget = localized_text(&i18n, "user-back-button", font, 14);
+/// let text_widget = localized_text(&i18n, "user-back-button", 14);
 /// ```
 pub fn localized_text<'a>(
     i18n: &I18n,
     key: &str,
-    font: Option<Font>,
     size: u16,
 ) -> Text<'a> {
     let label = i18n.get(key, None);
-    let mut text_widget = iced::widget::text(label).size(size);
-
-    if let Some(f) = font {
-        text_widget = text_widget.font(f);
-    }
-
-    text_widget
+    iced::widget::text(label)
+        .size(size)
+        .shaping(iced::widget::text::Shaping::Advanced)
 }
 
 /// Creates a localized text widget with a single string argument.
@@ -55,7 +47,6 @@ pub fn localized_text<'a>(
 /// * `key` - The localization key
 /// * `arg_name` - The argument name in the localization string
 /// * `arg_value` - The argument value to substitute
-/// * `font` - Optional font to apply
 /// * `size` - Text size in pixels
 ///
 /// # Returns
@@ -69,13 +60,11 @@ pub fn localized_text<'a>(
 /// use gui::i18n::I18n;
 ///
 /// let i18n = I18n::new("en-US");
-/// let font = Some(iced::Font::default());
 /// let text_widget = localized_text_with_arg(
 ///     &i18n,
 ///     "user-account-title",
 ///     "username",
 ///     "john_doe",
-///     font,
 ///     24
 /// );
 /// ```
@@ -84,17 +73,12 @@ pub fn localized_text_with_arg<'a>(
     key: &str,
     arg_name: &str,
     arg_value: &str,
-    font: Option<Font>,
     size: u16,
 ) -> Text<'a> {
     let label = i18n.get_with_arg(key, arg_name, arg_value);
-    let mut text_widget = iced::widget::text(label).size(size);
-
-    if let Some(f) = font {
-        text_widget = text_widget.font(f);
-    }
-
-    text_widget
+    iced::widget::text(label)
+        .size(size)
+        .shaping(iced::widget::text::Shaping::Advanced)
 }
 
 /// Creates a localized text widget with a count for pluralization.
@@ -104,7 +88,6 @@ pub fn localized_text_with_arg<'a>(
 /// * `i18n` - The i18n instance for localization
 /// * `key` - The localization key
 /// * `count` - The count for plural handling
-/// * `font` - Optional font to apply
 /// * `size` - Text size in pixels
 ///
 /// # Returns
@@ -118,24 +101,18 @@ pub fn localized_text_with_arg<'a>(
 /// use gui::i18n::I18n;
 ///
 /// let i18n = I18n::new("en-US");
-/// let font = Some(iced::Font::default());
-/// let text_widget = localized_text_with_count(&i18n, "users-count", 5, font, 14);
+/// let text_widget = localized_text_with_count(&i18n, "users-count", 5, 14);
 /// ```
 pub fn localized_text_with_count<'a>(
     i18n: &I18n,
     key: &str,
     count: i32,
-    font: Option<Font>,
     size: u16,
 ) -> Text<'a> {
     let label = i18n.get_with_count(key, count);
-    let mut text_widget = iced::widget::text(label).size(size);
-
-    if let Some(f) = font {
-        text_widget = text_widget.font(f);
-    }
-
-    text_widget
+    iced::widget::text(label)
+        .size(size)
+        .shaping(iced::widget::text::Shaping::Advanced)
 }
 
 #[cfg(test)]
@@ -145,7 +122,7 @@ mod tests {
     #[test]
     fn test_localized_text_creation() {
         let i18n = I18n::new("en-US");
-        let text_widget = localized_text(&i18n, "ok", None, 14);
+        let text_widget = localized_text(&i18n, "ok", 14);
         // Just verify it compiles and creates a widget
         let _ = text_widget;
     }
@@ -158,7 +135,6 @@ mod tests {
             "error-create-user",
             "error",
             "Test",
-            None,
             14
         );
         let _ = text_widget;
@@ -167,7 +143,7 @@ mod tests {
     #[test]
     fn test_localized_text_with_count_creation() {
         let i18n = I18n::new("en-US");
-        let text_widget = localized_text_with_count(&i18n, "users-count", 5, None, 14);
+        let text_widget = localized_text_with_count(&i18n, "users-count", 5, 14);
         let _ = text_widget;
     }
 }

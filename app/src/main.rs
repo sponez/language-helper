@@ -3,6 +3,8 @@
 //! This is the main entry point for the Language Helper application.
 //! It sets up the dependency injection, initializes all layers, and runs the GUI.
 
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::rc::Rc;
 
 use iced::{window, Element, Subscription, Task};
