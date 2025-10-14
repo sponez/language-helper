@@ -158,7 +158,7 @@ impl InverseCardsReviewRouter {
                 let card_row = row![
                     word_name_text,
                     meaning_count_text,
-                    iced::widget::Space::with_width(Length::Fill),
+                    iced::widget::Space::new().width(Length::Fill),
                     show_button,
                 ]
                 .spacing(10)

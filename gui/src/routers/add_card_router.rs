@@ -17,8 +17,6 @@ use crate::router::{self, RouterEvent, RouterNode};
 pub enum Message {
     /// Word name input changed
     WordNameChanged(String),
-    /// Word name paste
-    PasteWordName(String),
     /// Card type changed
     CardTypeChanged(CardType),
     /// Add new reading field
@@ -27,28 +25,20 @@ pub enum Message {
     RemoveReading(usize),
     /// Reading input changed
     ReadingChanged(usize, String),
-    /// Reading paste
-    PasteReading(usize, String),
     /// Add new meaning
     AddMeaning,
     /// Remove meaning at index
     RemoveMeaning(usize),
     /// Definition input changed
     DefinitionChanged(usize, String),
-    /// Definition paste
-    PasteDefinition(usize, String),
     /// Translated definition input changed
     TranslatedDefinitionChanged(usize, String),
-    /// Translated definition paste
-    PasteTranslatedDefinition(usize, String),
     /// Add translation to meaning
     AddTranslation(usize),
     /// Remove translation from meaning
     RemoveTranslation(usize, usize),
     /// Translation input changed
     TranslationChanged(usize, usize, String),
-    /// Translation paste
-    PasteTranslation(usize, usize, String),
     /// Fill with AI button pressed
     FillWithAI,
     /// Save card button pressed
@@ -261,11 +251,6 @@ impl AddCardRouter {
                 self.error_message = None;
                 None
             }
-            Message::PasteWordName(value) => {
-                self.word_name.push_str(&value);
-                self.error_message = None;
-                None
-            }
             Message::CardTypeChanged(card_type) => {
                 self.card_type = card_type;
                 None
@@ -286,12 +271,6 @@ impl AddCardRouter {
                 }
                 None
             }
-            Message::PasteReading(index, value) => {
-                if let Some(reading) = self.readings.get_mut(index) {
-                    reading.value.push_str(&value);
-                }
-                None
-            }
             Message::AddMeaning => {
                 self.meanings.push(MeaningFields::new());
                 None
@@ -308,21 +287,9 @@ impl AddCardRouter {
                 }
                 None
             }
-            Message::PasteDefinition(index, value) => {
-                if let Some(meaning) = self.meanings.get_mut(index) {
-                    meaning.definition.push_str(&value);
-                }
-                None
-            }
             Message::TranslatedDefinitionChanged(index, value) => {
                 if let Some(meaning) = self.meanings.get_mut(index) {
                     meaning.translated_definition = value;
-                }
-                None
-            }
-            Message::PasteTranslatedDefinition(index, value) => {
-                if let Some(meaning) = self.meanings.get_mut(index) {
-                    meaning.translated_definition.push_str(&value);
                 }
                 None
             }
@@ -344,14 +311,6 @@ impl AddCardRouter {
                 if let Some(meaning) = self.meanings.get_mut(meaning_index) {
                     if let Some(translation) = meaning.translations.get_mut(translation_index) {
                         translation.value = value;
-                    }
-                }
-                None
-            }
-            Message::PasteTranslation(meaning_index, translation_index, value) => {
-                if let Some(meaning) = self.meanings.get_mut(meaning_index) {
-                    if let Some(translation) = meaning.translations.get_mut(translation_index) {
-                        translation.value.push_str(&value);
                     }
                 }
                 None
@@ -771,7 +730,7 @@ impl AddCardRouter {
         // Create a row with title on left and button on right
         let title_row = row![
             title_text,
-            iced::widget::Space::with_width(Length::Fill),
+            iced::widget::Space::new().width(Length::Fill),
             fill_ai_button
         ]
         .spacing(10)
@@ -815,7 +774,6 @@ impl AddCardRouter {
             &self.word_name,
         )
         .on_input(Message::WordNameChanged)
-        .on_paste(Message::PasteWordName)
         .padding(10)
         .width(Length::Fixed(400.0));
 
@@ -829,7 +787,6 @@ impl AddCardRouter {
                 &reading.value,
             )
             .on_input(move |v| Message::ReadingChanged(index, v))
-            .on_paste(move |v| Message::PasteReading(index, v))
             .padding(10)
             .width(Length::Fixed(350.0));
 
@@ -867,7 +824,6 @@ impl AddCardRouter {
                 &meaning.definition,
             )
             .on_input(move |v| Message::DefinitionChanged(meaning_index, v))
-            .on_paste(move |v| Message::PasteDefinition(meaning_index, v))
             .padding(10)
             .width(Length::Fixed(400.0));
 
@@ -878,7 +834,6 @@ impl AddCardRouter {
                 &meaning.translated_definition,
             )
             .on_input(move |v| Message::TranslatedDefinitionChanged(meaning_index, v))
-            .on_paste(move |v| Message::PasteTranslatedDefinition(meaning_index, v))
             .padding(10)
             .width(Length::Fixed(400.0));
 
@@ -892,7 +847,6 @@ impl AddCardRouter {
                     &translation.value,
                 )
                 .on_input(move |v| Message::TranslationChanged(meaning_index, trans_index, v))
-                .on_paste(move |v| Message::PasteTranslation(meaning_index, trans_index, v))
                 .padding(8)
                 .width(Length::Fixed(330.0));
 
@@ -1073,7 +1027,7 @@ impl AddCardRouter {
         // Modal content
         let modal_inner = column![
             modal_title,
-            Space::with_height(20),
+            Space::new().height(20),
             buttons_row,
         ]
         .spacing(20)

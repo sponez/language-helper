@@ -7,7 +7,7 @@
 
 use std::rc::Rc;
 
-use iced::{window, Element, Subscription, Task};
+use iced::{Element, Subscription, Task};
 
 use lh_core::api_impl::{AiAssistantApiImpl, AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl, SystemRequirementsApiImpl, UsersApiImpl};
 use lh_core::repositories::adapters::{
@@ -46,15 +46,14 @@ impl LanguageHelperApp {
     ///
     /// # Arguments
     ///
-    /// * `app_api` - The application API providing access to business logic
+    /// * `app_api_rc` - The application API providing access to business logic (wrapped in Rc for cloning)
     ///
     /// # Returns
     ///
     /// A tuple containing:
     /// - The new `LanguageHelperApp` instance
     /// - An initial task (currently none)
-    fn new(app_api: Box<dyn lh_api::app_api::AppApi>) -> (Self, Task<Message>) {
-        let app_api_rc: Rc<dyn lh_api::app_api::AppApi> = Rc::from(app_api);
+    fn new(app_api_rc: Rc<dyn lh_api::app_api::AppApi>) -> (Self, Task<Message>) {
 
         // Load initial app settings to create AppState
         let app_settings = block_on(app_api_rc.app_settings_api().get_app_settings())
@@ -89,8 +88,8 @@ impl LanguageHelperApp {
         let should_exit = self.router_stack.update(message).unwrap_or(false);
 
         if should_exit {
-            // Close the window to exit the application
-            window::get_latest().and_then(|id| window::close(id))
+            // Exit the application
+            iced::exit()
         } else {
             Task::none()
         }
@@ -110,6 +109,15 @@ impl LanguageHelperApp {
 
     fn theme(&self) -> iced::Theme {
         self.router_stack.theme()
+    }
+
+    /// Returns the application window title.
+    ///
+    /// # Returns
+    ///
+    /// The title string for the application window
+    fn title(&self) -> String {
+        String::from("Language Helper")
     }
 
     /// Returns subscriptions for the current router.
@@ -225,8 +233,8 @@ fn main() -> iced::Result {
     let ai_assistant_api = AiAssistantApiImpl::new();
     let app_api = AppApiImpl::new(users_api, app_settings_api, profiles_api, system_requirements_api, ai_assistant_api);
 
-    // 5. Box the AppApi for trait object usage
-    let app_api_boxed: Box<dyn lh_api::app_api::AppApi> = Box::new(app_api);
+    // 5. Wrap the AppApi in Rc for cloning in the boot closure
+    let app_api_rc: Rc<dyn lh_api::app_api::AppApi> = Rc::new(app_api);
 
     // 6. Load embedded fonts
     let fonts = vec![
@@ -250,10 +258,11 @@ fn main() -> iced::Result {
 
     // 7. Run the iced application with the injected dependencies and fonts
     iced::application(
-        "Language Helper",
+        move || LanguageHelperApp::new(app_api_rc.clone()),
         LanguageHelperApp::update,
-        LanguageHelperApp::view,
+        LanguageHelperApp::view
     )
+    .title(LanguageHelperApp::title)
     .theme(LanguageHelperApp::theme)
     .subscription(LanguageHelperApp::subscription)
     .font(fonts[0]) // Noto Sans (default)
@@ -264,5 +273,5 @@ fn main() -> iced::Result {
     .font(fonts[5]) // Japanese (JP)
     .font(fonts[6]) // Korean (KR)
     .font(fonts[7]) // Thai
-    .run_with(|| LanguageHelperApp::new(app_api_boxed))
+    .run()
 }

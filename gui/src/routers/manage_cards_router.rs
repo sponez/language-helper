@@ -239,7 +239,7 @@ impl ManageCardsRouter {
 
                 let card_row = row![
                     word_name_text,
-                    iced::widget::Space::with_width(Length::Fill),
+                    iced::widget::Space::new().width(Length::Fill),
                     edit_button,
                     delete_button,
                 ]

@@ -35,7 +35,7 @@ pub fn localized_text<'a>(
 ) -> Text<'a> {
     let label = i18n.get(key, None);
     iced::widget::text(label)
-        .size(size)
+        .size(iced::Pixels(size as f32))
         .shaping(iced::widget::text::Shaping::Advanced)
 }
 
@@ -77,7 +77,7 @@ pub fn localized_text_with_arg<'a>(
 ) -> Text<'a> {
     let label = i18n.get_with_arg(key, arg_name, arg_value);
     iced::widget::text(label)
-        .size(size)
+        .size(iced::Pixels(size as f32))
         .shaping(iced::widget::text::Shaping::Advanced)
 }
 
@@ -111,7 +111,7 @@ pub fn localized_text_with_count<'a>(
 ) -> Text<'a> {
     let label = i18n.get_with_count(key, count);
     iced::widget::text(label)
-        .size(size)
+        .size(iced::Pixels(size as f32))
         .shaping(iced::widget::text::Shaping::Advanced)
 }
 

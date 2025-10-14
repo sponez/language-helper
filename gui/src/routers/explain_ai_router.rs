@@ -16,8 +16,6 @@ use crate::router::{self, RouterEvent, RouterNode};
 pub enum Message {
     /// Input text changed
     InputChanged(String),
-    /// Text pasted into input
-    Paste(String),
     /// Send button pressed - this will temporarily block UI but show loading message first
     Send,
     /// Back button pressed
@@ -71,10 +69,6 @@ impl ExplainAIRouter {
         match message {
             Message::InputChanged(value) => {
                 self.input_text = value;
-                None
-            }
-            Message::Paste(value) => {
-                self.input_text.push_str(&value);
                 None
             }
             Message::Send => {
@@ -142,7 +136,6 @@ impl ExplainAIRouter {
 
         let phrase_input = text_input("Enter a phrase to explain...", &self.input_text)
             .on_input(Message::InputChanged)
-            .on_paste(Message::Paste)
             .padding(10)
             .width(Length::Fill);
 

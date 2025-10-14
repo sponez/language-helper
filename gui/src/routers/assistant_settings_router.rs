@@ -47,12 +47,8 @@ pub enum Message {
     ApiEndpointChanged(String),
     /// API key input changed
     ApiKeyChanged(String),
-    /// API key paste
-    PasteApiKey(String),
     /// API model name input changed
     ApiModelChanged(String),
-    /// API model name paste
-    PasteApiModel(String),
     /// Start assistant (for local models)
     StartAssistant,
     /// Stop assistant (for local models)
@@ -274,16 +270,8 @@ impl AssistantSettingsRouter {
                 self.api_key = value;
                 None
             }
-            Message::PasteApiKey(value) => {
-                self.api_key.push_str(&value);
-                None
-            }
             Message::ApiModelChanged(value) => {
                 self.api_model_name = value;
-                None
-            }
-            Message::PasteApiModel(value) => {
-                self.api_model_name.push_str(&value);
                 None
             }
             Message::StartAssistant => {
@@ -656,65 +644,10 @@ impl AssistantSettingsRouter {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let async_op = self.async_operation.borrow().clone();
-
-        match async_op {
-            AsyncOperation::None => Subscription::none(),
-            AsyncOperation::StartingServer => {
-                Subscription::run_with_id(
-                    "start_server",
-                    stream::once(async move {
-                        // Call the blocking operation directly - the ollama commands will block
-                        // but we're running in an async context so other UI operations can continue
-                        let result = tokio::task::spawn_blocking(|| {
-                            // Use the ollama_client directly instead of going through app_api
-                            use lh_core::services::ollama_client;
-                            ollama_client::start_server_and_wait()
-                        }).await;
-
-                        match result {
-                            Ok(Ok(_)) => Message::ServerStarted(Ok(())),
-                            Ok(Err(e)) => Message::ServerStarted(Err(e)),
-                            Err(e) => Message::ServerStarted(Err(format!("Task panicked: {}", e))),
-                        }
-                    })
-                )
-            }
-            AsyncOperation::PullingModel(model_name) => {
-                Subscription::run_with_id(
-                    format!("pull_model_{}", model_name),
-                    stream::once(async move {
-                        let result = tokio::task::spawn_blocking(move || {
-                            use lh_core::services::ollama_client;
-                            ollama_client::pull_model(&model_name)
-                        }).await;
-
-                        match result {
-                            Ok(Ok(_)) => Message::ModelPulled(Ok(())),
-                            Ok(Err(e)) => Message::ModelPulled(Err(e)),
-                            Err(e) => Message::ModelPulled(Err(format!("Task panicked: {}", e))),
-                        }
-                    })
-                )
-            }
-            AsyncOperation::LaunchingModel(model_name) => {
-                Subscription::run_with_id(
-                    format!("launch_model_{}", model_name),
-                    stream::once(async move {
-                        let result = tokio::task::spawn_blocking(move || {
-                            use lh_core::services::ollama_client;
-                            ollama_client::run_model(&model_name)
-                        }).await;
-
-                        match result {
-                            Ok(Ok(_)) => Message::ModelLaunched(Ok(())),
-                            Ok(Err(e)) => Message::ModelLaunched(Err(e)),
-                            Err(e) => Message::ModelLaunched(Err(format!("Task panicked: {}", e))),
-                        }
-                    })
-                )
-            }
-        }
+        // TODO: Fix subscription API for Iced 0.14
+        // The async model launching functionality is temporarily disabled
+        // due to API changes in Iced 0.14-dev that require pure functions for subscriptions
+        Subscription::none()
     }
 
     pub fn view(&self) -> Element<'_, Message> {
@@ -1008,7 +941,6 @@ impl AssistantSettingsRouter {
                     &self.api_key,
                 )
                 .on_input(Message::ApiKeyChanged)
-                .on_paste(Message::PasteApiKey)
                 .padding(10)
                 .width(Length::Fixed(300.0))
                 .secure(true);
@@ -1031,7 +963,6 @@ impl AssistantSettingsRouter {
                     &self.api_model_name,
                 )
                 .on_input(Message::ApiModelChanged)
-                .on_paste(Message::PasteApiModel)
                 .padding(10)
                 .width(Length::Fixed(300.0));
 
