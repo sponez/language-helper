@@ -21,7 +21,7 @@ use std::time::Duration;
 /// The `ollama ps` command outputs in this format:
 /// ```text
 /// NAME                                    ID              SIZE    PROCESSOR  CONTEXT  UNTIL
-/// phi3:3.8b-mini-4k-instruct-q4_K_M      d5ea514251bf    4.8 GB  100% GPU   4096     4 minutes from now
+/// name      d5ea514251bf    4.8 GB  100% GPU   4096     4 minutes from now
 /// ```
 ///
 /// # Examples
@@ -78,7 +78,7 @@ pub fn get_running_models() -> Vec<String> {
 ///
 /// # Arguments
 ///
-/// * `model_name` - The name of the model to stop (e.g., "qwen2.5:7b-instruct-q5_K_M")
+/// * `model_name` - The name of the model to stop
 ///
 /// # Returns
 ///
@@ -90,7 +90,7 @@ pub fn get_running_models() -> Vec<String> {
 /// ```no_run
 /// use lh_core::services::ollama_client;
 ///
-/// match ollama_client::stop_model("qwen2.5:7b-instruct-q5_K_M") {
+/// match ollama_client::stop_model("gemma2:9b") {
 ///     Ok(_) => println!("Model stopped successfully"),
 ///     Err(e) => eprintln!("Failed to stop model: {}", e),
 /// }
@@ -225,7 +225,7 @@ pub fn start_server_and_wait() -> Result<(), String> {
 /// The `ollama ls` command outputs in this format:
 /// ```text
 /// NAME                                    ID              SIZE    MODIFIED
-/// phi3:3.8b-mini-4k-instruct-q4_K_M      d5ea514251bf    2.4 GB  32 minutes ago
+/// name      d5ea514251bf    2.4 GB  32 minutes ago
 /// ```
 ///
 /// # Examples
@@ -283,7 +283,7 @@ pub fn get_available_models() -> Vec<String> {
 ///
 /// # Arguments
 ///
-/// * `model_name` - The name of the model to pull (e.g., "phi3:3.8b-mini-4k-instruct-q4_K_M")
+/// * `model_name` - The name of the model to pull
 ///
 /// # Returns
 ///
@@ -300,7 +300,7 @@ pub fn get_available_models() -> Vec<String> {
 /// ```no_run
 /// use lh_core::services::ollama_client;
 ///
-/// match ollama_client::pull_model("phi3:3.8b-mini-4k-instruct-q4_K_M") {
+/// match ollama_client::pull_model("phi4-mini") {
 ///     Ok(_) => println!("Model pulled successfully"),
 ///     Err(e) => eprintln!("Failed to pull model: {}", e),
 /// }
@@ -342,7 +342,7 @@ pub fn pull_model(model_name: &str) -> Result<(), String> {
 ///
 /// # Arguments
 ///
-/// * `model_name` - The name of the model to run (e.g., "phi3:3.8b-mini-4k-instruct-q4_K_M")
+/// * `model_name` - The name of the model to run
 ///
 /// # Returns
 ///
@@ -358,7 +358,7 @@ pub fn pull_model(model_name: &str) -> Result<(), String> {
 /// ```no_run
 /// use lh_core::services::ollama_client;
 ///
-/// match ollama_client::run_model("phi3:3.8b-mini-4k-instruct-q4_K_M") {
+/// match ollama_client::run_model("phi4-mini") {
 ///     Ok(_) => println!("Model loaded successfully"),
 ///     Err(e) => eprintln!("Failed to load model: {}", e),
 /// }

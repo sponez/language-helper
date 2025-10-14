@@ -74,38 +74,37 @@ pub fn get_total_vram_gb() -> Option<f32> {
 }
 
 /// Get model requirements by model name
-/// RAM requirements include 50% reserve (minimum * 1.5)
 fn get_model_requirements(model_name: &str) -> Option<ModelRequirements> {
     match model_name {
         "Tiny" => Some(ModelRequirements {
             cpu_cores: 4,
-            ram_gb: 6.0, // 4GB + 50% = 6GB
-            min_gpu: None,
-            total_memory_gb: 2.0,
-        }),
-        "Light" => Some(ModelRequirements {
-            cpu_cores: 4,
-            ram_gb: 9.0, // 6GB + 50% = 9GB
-            min_gpu: None,
-            total_memory_gb: 4.0,
-        }),
-        "Weak" => Some(ModelRequirements {
-            cpu_cores: 4,
-            ram_gb: 12.0, // 8GB + 50% = 12GB
+            ram_gb: 8.0,
             min_gpu: None,
             total_memory_gb: 8.0,
         }),
-        "Medium" => Some(ModelRequirements {
+        "Light" => Some(ModelRequirements {
             cpu_cores: 4,
-            ram_gb: 24.0, // 16GB + 50% = 24GB
-            min_gpu: Some("GPU with 8GB VRAM (e.g., RTX 3060 12GB, RX 6600 XT)".to_string()),
-            total_memory_gb: 12.0,
+            ram_gb: 16.0,
+            min_gpu: None,
+            total_memory_gb: 16.0,
+        }),
+        "Weak" => Some(ModelRequirements {
+            cpu_cores: 6,
+            ram_gb: 16.0,
+            min_gpu: Some("GPU with 8GB VRAM".to_string()),
+            total_memory_gb: 24.0, // 16GB RAM + 8GB GPU
+        }),
+        "Medium" => Some(ModelRequirements {
+            cpu_cores: 6,
+            ram_gb: 32.0,
+            min_gpu: Some("GPU with 12GB VRAM".to_string()),
+            total_memory_gb: 44.0, // 32GB RAM + 12GB GPU
         }),
         "Strong" => Some(ModelRequirements {
             cpu_cores: 6,
-            ram_gb: 48.0, // 32GB + 50% = 48GB
-            min_gpu: Some("GPU with 16GB VRAM (e.g., RTX 4060 Ti 16GB, RX 7800 XT)".to_string()),
-            total_memory_gb: 18.0,
+            ram_gb: 32.0,
+            min_gpu: Some("GPU with 16GB VRAM".to_string()),
+            total_memory_gb: 48.0, // 32GB RAM + 16GB GPU
         }),
         _ => None,
     }

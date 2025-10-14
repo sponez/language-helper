@@ -72,6 +72,14 @@ impl AppState {
         self.inner.borrow().current_font
     }
 
+    /// Gets the font for a specific locale (not just the UI language).
+    ///
+    /// This is useful for displaying content in different languages than the UI,
+    /// such as showing Japanese card content when the UI is in Russian.
+    pub fn get_font_for_locale(&self, locale: &str) -> Option<iced::Font> {
+        get_font_for_locale(locale)
+    }
+
     /// Checks if the AI assistant is currently running.
     pub fn is_assistant_running(&self) -> bool {
         self.inner.borrow().assistant_running

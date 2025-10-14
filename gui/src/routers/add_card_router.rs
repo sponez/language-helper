@@ -109,8 +109,6 @@ pub struct AddCardRouter {
     app_api: Rc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
-    /// Card ID if editing existing card
-    card_id: Option<i64>,
     /// Card type (Straight or Reverse)
     card_type: CardType,
     /// Word name input
@@ -162,7 +160,6 @@ impl AddCardRouter {
             profile,
             app_api,
             app_state,
-            card_id: None,
             card_type,
             word_name: String::new(),
             readings: vec![],
@@ -235,7 +232,6 @@ impl AddCardRouter {
             profile,
             app_api,
             app_state,
-            card_id: card.id,
             card_type: card.card_type,
             word_name: card.word.name,
             readings,
@@ -469,10 +465,160 @@ impl AddCardRouter {
                 }
             }
             Message::InverseWithAssistant => {
-                // TODO: Implement AI-assisted inverse card update
                 self.show_inverse_modal = false;
-                eprintln!("AI-assisted inverse card update not yet implemented");
-                Some(RouterEvent::Pop)
+
+                // Get the saved card
+                if let Some(saved_card) = self.saved_card.clone() {
+                    let username = self.user_view.username.clone();
+                    let target_language = self.profile.target_language.clone();
+                    let api = Rc::clone(&self.app_api);
+
+                    let runtime = tokio::runtime::Runtime::new().unwrap();
+
+                    // Get assistant settings
+                    let assistant_settings_result = runtime.block_on(async {
+                        api.profile_api().get_assistant_settings(&username, &target_language).await
+                    });
+
+                    let assistant_settings = match assistant_settings_result {
+                        Ok(settings) => settings,
+                        Err(e) => {
+                            eprintln!("Failed to get assistant settings: {:?}", e);
+                            return Some(RouterEvent::Pop);
+                        }
+                    };
+
+                    // Check if AI is configured
+                    if assistant_settings.ai_model.is_none() {
+                        eprintln!("AI assistant is not configured");
+                        return Some(RouterEvent::Pop);
+                    }
+
+                    // Get all existing cards
+                    let all_cards_result = runtime.block_on(async {
+                        api.profile_api().get_all_cards(&username, &target_language).await
+                    });
+
+                    let all_cards = match all_cards_result {
+                        Ok(cards) => cards,
+                        Err(e) => {
+                            eprintln!("Failed to get all cards: {:?}", e);
+                            return Some(RouterEvent::Pop);
+                        }
+                    };
+
+                    // Collect all translations from all meanings and determine inverse card type
+                    let inverse_card_type = match saved_card.card_type {
+                        CardType::Straight => CardType::Reverse,
+                        CardType::Reverse => CardType::Straight,
+                    };
+
+                    let mut translations_set = std::collections::HashSet::new();
+                    for meaning in &saved_card.meanings {
+                        for translation in &meaning.word_translations {
+                            translations_set.insert(translation.clone());
+                        }
+                    }
+
+                    // Split translations into two groups:
+                    // - translations with existing cards (for AI merging)
+                    // - translations without existing cards (for manual creation)
+                    let mut existing_cards_to_merge = Vec::new();
+                    let mut translations_without_cards = Vec::new();
+
+                    for translation in translations_set {
+                        if let Some(existing_card) = all_cards.iter().find(|c| c.word.name == translation) {
+                            existing_cards_to_merge.push(existing_card.clone());
+                        } else {
+                            translations_without_cards.push(translation);
+                        }
+                    }
+
+                    // Get user language from settings
+                    let user_language = self.user_view.settings
+                        .as_ref()
+                        .map(|s| s.language.to_string())
+                        .unwrap_or_else(|| "en-US".to_string());
+
+                    let mut result_cards = Vec::new();
+
+                    // 1. AI-merge existing cards
+                    if !existing_cards_to_merge.is_empty() {
+                        let merge_result = runtime.block_on(async {
+                            api.ai_assistant_api().merge_inverse_cards(
+                                assistant_settings.clone(),
+                                saved_card.clone(),
+                                existing_cards_to_merge,
+                                user_language.clone(),
+                                target_language.clone(),
+                            ).await
+                        });
+
+                        match merge_result {
+                            Ok(merged_cards) => {
+                                result_cards.extend(merged_cards);
+                            }
+                            Err(e) => {
+                                eprintln!("AI merging failed: {:?}", e);
+                                // Continue with manual creation for the rest
+                            }
+                        }
+                    }
+
+                    // 2. Manually create cards for translations without existing cards
+                    for translation in translations_without_cards {
+                        // Create new inverse card
+                        let word_dto = WordDto {
+                            name: translation.clone(),
+                            readings: vec![],
+                        };
+
+                        let mut inverse_meanings = Vec::new();
+
+                        // For each meaning in the original card, if it has this translation,
+                        // create an inverse meaning
+                        for meaning in &saved_card.meanings {
+                            if meaning.word_translations.contains(&translation) {
+                                inverse_meanings.push(MeaningDto {
+                                    definition: meaning.translated_definition.clone(),
+                                    translated_definition: meaning.definition.clone(),
+                                    word_translations: vec![saved_card.word.name.clone()],
+                                });
+                            }
+                        }
+
+                        if !inverse_meanings.is_empty() {
+                            let inverse_card = CardDto {
+                                card_type: inverse_card_type.clone(),
+                                word: word_dto,
+                                meanings: inverse_meanings,
+                                streak: 0,
+                                created_at: chrono::Utc::now().timestamp(),
+                            };
+                            result_cards.push(inverse_card);
+                        }
+                    }
+
+                    // Navigate to InverseCardsReviewRouter with all generated cards
+                    if !result_cards.is_empty() {
+                        let review_router: Box<dyn RouterNode> = Box::new(
+                            super::inverse_cards_review_router::InverseCardsReviewRouter::new(
+                                self.user_view.clone(),
+                                self.profile.clone(),
+                                Rc::clone(&self.app_api),
+                                self.app_state.clone(),
+                                result_cards,
+                            )
+                        );
+                        Some(RouterEvent::Push(review_router))
+                    } else {
+                        eprintln!("No inverse cards generated");
+                        Some(RouterEvent::Pop)
+                    }
+                } else {
+                    eprintln!("No saved card available for inverse generation");
+                    Some(RouterEvent::Pop)
+                }
             }
             Message::InverseNo => {
                 // Close modal and return to card manager
@@ -540,7 +686,6 @@ impl AddCardRouter {
             .collect();
 
         let card_dto = CardDto {
-            id: self.card_id,
             card_type: self.card_type.clone(),
             word: word_dto,
             meanings: meanings_dto,
@@ -570,6 +715,9 @@ impl AddCardRouter {
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
         let current_font = self.app_state.current_font();
+
+        // Get font for the profile language (for card content, not UI)
+        let profile_font = self.app_state.get_font_for_locale(&self.profile.target_language);
 
         // Title with Fill with AI button in top right
         let title_text = localized_text(&i18n, "add-card-title", current_font, 24);
@@ -624,7 +772,7 @@ impl AddCardRouter {
 
         // Word name input
         let word_label = localized_text(&i18n, "add-card-word-label", current_font, 14);
-        let word_input = text_input(
+        let mut word_input = text_input(
             &i18n.get("add-card-word-placeholder", None),
             &self.word_name,
         )
@@ -632,18 +780,26 @@ impl AddCardRouter {
         .padding(10)
         .width(Length::Fixed(400.0));
 
+        if let Some(font) = profile_font {
+            word_input = word_input.font(font);
+        }
+
         // Readings section
         let readings_label = localized_text(&i18n, "add-card-readings-label", current_font, 14);
         let mut readings_column = Column::new().spacing(10);
 
         for (index, reading) in self.readings.iter().enumerate() {
-            let reading_input = text_input(
+            let mut reading_input = text_input(
                 &i18n.get("add-card-reading-placeholder", None),
                 &reading.value,
             )
             .on_input(move |v| Message::ReadingChanged(index, v))
             .padding(10)
             .width(Length::Fixed(350.0));
+
+            if let Some(font) = profile_font {
+                reading_input = reading_input.font(font);
+            }
 
             let remove_button = button(text("-").size(14))
                 .on_press(Message::RemoveReading(index))
@@ -674,7 +830,7 @@ impl AddCardRouter {
         for (meaning_index, meaning) in self.meanings.iter().enumerate() {
             // Definition input
             let def_label = localized_text(&i18n, "add-card-definition-label", current_font, 12);
-            let def_input = text_input(
+            let mut def_input = text_input(
                 &i18n.get("add-card-definition-placeholder", None),
                 &meaning.definition,
             )
@@ -682,9 +838,13 @@ impl AddCardRouter {
             .padding(10)
             .width(Length::Fixed(400.0));
 
+            if let Some(font) = profile_font {
+                def_input = def_input.font(font);
+            }
+
             // Translated definition input
             let trans_def_label = localized_text(&i18n, "add-card-translated-def-label", current_font, 12);
-            let trans_def_input = text_input(
+            let mut trans_def_input = text_input(
                 &i18n.get("add-card-translated-def-placeholder", None),
                 &meaning.translated_definition,
             )
@@ -692,18 +852,31 @@ impl AddCardRouter {
             .padding(10)
             .width(Length::Fixed(400.0));
 
+            // User language font for translated definition
+            let user_font = self.user_view.settings.as_ref()
+                .and_then(|s| self.app_state.get_font_for_locale(&s.language));
+
+            if let Some(font) = user_font {
+                trans_def_input = trans_def_input.font(font);
+            }
+
             // Translations
             let translations_label = localized_text(&i18n, "add-card-translations-label", current_font, 12);
             let mut translations_column = Column::new().spacing(8);
 
             for (trans_index, translation) in meaning.translations.iter().enumerate() {
-                let trans_input = text_input(
+                let mut trans_input = text_input(
                     &i18n.get("add-card-translation-placeholder", None),
                     &translation.value,
                 )
                 .on_input(move |v| Message::TranslationChanged(meaning_index, trans_index, v))
                 .padding(8)
                 .width(Length::Fixed(330.0));
+
+                // User language font for word translations
+                if let Some(font) = user_font {
+                    trans_input = trans_input.font(font);
+                }
 
                 let remove_trans_button = button(text("-").size(14))
                     .on_press(Message::RemoveTranslation(meaning_index, trans_index))

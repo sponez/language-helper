@@ -40,8 +40,6 @@ impl CardType {
 /// A card represents a learning unit with a word and its meanings.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Card {
-    /// Unique identifier (None for new cards).
-    pub id: Option<i64>,
     /// Card type determining learning direction.
     pub card_type: CardType,
     /// The word being learned.
@@ -77,7 +75,6 @@ impl Card {
         let now = chrono::Utc::now().timestamp();
 
         Ok(Self {
-            id: None,
             card_type,
             word,
             meanings,
@@ -88,7 +85,6 @@ impl Card {
 
     /// Creates a Card without validation (for loading from database).
     pub fn new_unchecked(
-        id: Option<i64>,
         card_type: CardType,
         word: Word,
         meanings: Vec<Meaning>,
@@ -96,7 +92,6 @@ impl Card {
         created_at: i64,
     ) -> Self {
         Self {
-            id,
             card_type,
             word,
             meanings,
@@ -310,7 +305,6 @@ mod tests {
 
         assert_eq!(card.card_type, CardType::Straight);
         assert_eq!(card.streak, 0);
-        assert!(card.id.is_none());
     }
 
     #[test]

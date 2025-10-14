@@ -634,11 +634,11 @@ impl AssistantSettingsRouter {
     /// Map model strength to Ollama model name
     fn get_ollama_model_name(&self, model: &str) -> String {
         match model {
-            "Tiny" => "phi3:3.8b-mini-4k-instruct-q4_K_M".to_string(),
+            "Tiny" => "phi4-mini".to_string(),
             "Light" => "phi4".to_string(),
-            "Weak" => "llama3.2:3b-instruct-q8_0".to_string(),
-            "Medium" => "qwen2.5:7b-instruct-q5_K_M".to_string(),
-            "Strong" => "qwen2.5:14b-instruct-q4_K_M".to_string(),
+            "Weak" => "gemma2:2b".to_string(),
+            "Medium" => "aya:8b".to_string(),
+            "Strong" => "gemma2:9b".to_string(),
             _ => model.to_string(),
         }
     }

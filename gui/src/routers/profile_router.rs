@@ -182,11 +182,11 @@ impl ProfileRouter {
     /// Maps model names to Ollama model identifiers
     fn get_ollama_model_name(model: &str) -> String {
         match model.to_lowercase().as_str() {
-            "tiny" => "phi3:3.8b-mini-4k-instruct-q4_K_M".to_string(),
+            "tiny" => "phi4-mini".to_string(),
             "light" => "phi4".to_string(),
-            "weak" => "llama3.2:3b-instruct-q8_0".to_string(),
-            "medium" => "qwen2.5:7b-instruct-q5_K_M".to_string(),
-            "strong" => "qwen2.5:14b-instruct-q4_K_M".to_string(),
+            "weak" => "gemma2:2b".to_string(),
+            "medium" => "aya:8b".to_string(),
+            "strong" => "gemma2:9b".to_string(),
             _ => model.to_string(),
         }
     }
@@ -195,11 +195,11 @@ impl ProfileRouter {
     fn find_most_powerful_model(running_models: &[String]) -> Option<String> {
         // Model power ranking (most powerful first)
         let power_ranking = vec![
-            ("qwen2.5:14b", "Strong"),
-            ("qwen2.5:7b", "Medium"),
-            ("llama3.2:3b", "Weak"),
+            ("gemma2:9b", "Strong"),
+            ("aya:8b", "Medium"),
+            ("gemma2:2b", "Weak"),
             ("phi4", "Light"),
-            ("phi3:3.8b", "Tiny"),
+            ("phi4-mini", "Tiny"),
         ];
 
         // Find the most powerful model that's currently running

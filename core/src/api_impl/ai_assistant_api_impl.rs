@@ -12,7 +12,7 @@ use lh_api::models::ai_explain::{
     ExternalApiRequest, ExternalApiResponse, OllamaGenerateRequest, OllamaGenerateResponse,
 };
 use lh_api::models::assistant_settings::AssistantSettingsDto;
-use lh_api::models::card::{CardDto, CardType, MeaningDto, WordDto};
+use lh_api::models::card::CardDto;
 
 use crate::services::ollama_client;
 
@@ -129,15 +129,84 @@ impl AiAssistantApi for AiAssistantApiImpl {
             }
         })
     }
+
+    fn merge_inverse_cards(
+        &self,
+        assistant_settings: AssistantSettingsDto,
+        new_card: CardDto,
+        existing_cards: Vec<CardDto>,
+        user_language: String,
+        profile_language: String,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<CardDto>, ApiError>> + Send + '_>> {
+        Box::pin(async move {
+            // Determine if we're using API mode or local Ollama
+            let is_api_mode = assistant_settings
+                .ai_model
+                .as_ref()
+                .map(|m| m.to_lowercase() == "api")
+                .unwrap_or(false);
+
+            if is_api_mode {
+                // External API mode
+                Self::merge_inverse_cards_with_external_api(assistant_settings, new_card, existing_cards, &user_language, &profile_language)
+                    .await
+            } else {
+                // Local Ollama mode
+                Self::merge_inverse_cards_with_ollama(assistant_settings, new_card, existing_cards, &user_language, &profile_language)
+                    .await
+            }
+        })
+    }
 }
 
 impl AiAssistantApiImpl {
+    /// Maps locale codes to readable language names for AI prompts.
+    ///
+    /// Examples: "en-US" -> "English", "ru-RU" -> "Russian", "ja-JP" -> "Japanese"
+    fn map_locale_to_language_name(locale: &str) -> String {
+        // Extract the language code (before the hyphen)
+        let lang_code = locale.split('-').next().unwrap_or(locale).to_lowercase();
+
+        match lang_code.as_str() {
+            "en" => "English".to_string(),
+            "ru" => "Russian".to_string(),
+            "ja" => "Japanese".to_string(),
+            "es" => "Spanish".to_string(),
+            "fr" => "French".to_string(),
+            "de" => "German".to_string(),
+            "zh" => "Chinese".to_string(),
+            "ko" => "Korean".to_string(),
+            "it" => "Italian".to_string(),
+            "pt" => "Portuguese".to_string(),
+            "ar" => "Arabic".to_string(),
+            "hi" => "Hindi".to_string(),
+            "nl" => "Dutch".to_string(),
+            "pl" => "Polish".to_string(),
+            "tr" => "Turkish".to_string(),
+            "vi" => "Vietnamese".to_string(),
+            "th" => "Thai".to_string(),
+            "sv" => "Swedish".to_string(),
+            "no" => "Norwegian".to_string(),
+            "da" => "Danish".to_string(),
+            "fi" => "Finnish".to_string(),
+            "el" => "Greek".to_string(),
+            "he" => "Hebrew".to_string(),
+            "cs" => "Czech".to_string(),
+            "uk" => "Ukrainian".to_string(),
+            _ => locale.to_string(), // Fallback to original if unknown
+        }
+    }
+
     /// Builds the comprehensive explain prompt with language learning instructions.
     fn build_explain_prompt(
         user_language: &str,
         profile_language: &str,
         message: &str,
     ) -> String {
+        // Convert locale codes to readable language names
+        let user_lang_name = Self::map_locale_to_language_name(user_language);
+        let profile_lang_name = Self::map_locale_to_language_name(profile_language);
+
         format!(
             r#"You are a language assistant.
 Your goal is to explain a phrase or a word in the learner's language.
@@ -153,13 +222,13 @@ Instructions:
 4. Explain typical usage and context (formal/informal, spoken/written, emotional tone, etc.).
 5. Give 2–3 short example sentences in {} using the phrase, each with a translation into {}.
 6. Mention common mistakes or nuances learners should watch out for."#,
-            user_language,
+            user_lang_name,
             message,
-            profile_language,
-            user_language,
+            profile_lang_name,
+            user_lang_name,
             message,
-            profile_language,
-            user_language
+            profile_lang_name,
+            user_lang_name
         )
     }
 
@@ -300,11 +369,11 @@ Instructions:
     /// Maps friendly model names to Ollama model identifiers.
     fn map_to_ollama_model(model_name: &str) -> String {
         match model_name.to_lowercase().as_str() {
-            "tiny" => "phi3:3.8b-mini-4k-instruct-q4_K_M".to_string(),
+            "tiny" => "phi4-mini".to_string(),
             "light" => "phi4".to_string(),
-            "weak" => "llama3.2:3b-instruct-q8_0".to_string(),
-            "medium" => "qwen2.5:7b-instruct-q5_K_M".to_string(),
-            "strong" => "qwen2.5:14b-instruct-q4_K_M".to_string(),
+            "weak" => "gemma2:2b".to_string(),
+            "medium" => "aya:8b".to_string(),
+            "strong" => "gemma2:9b".to_string(),
             _ => model_name.to_string(),
         }
     }
@@ -316,45 +385,30 @@ Instructions:
         user_language: &str,
         profile_language: &str,
     ) -> String {
+        // Convert locale codes to readable language names
+        let user_lang_name = Self::map_locale_to_language_name(user_language);
+        let profile_lang_name = Self::map_locale_to_language_name(profile_language);
+
+        let card_language: String;
+        let target_language: String;
+        if card_type == "straight" {
+            card_language = profile_lang_name;
+            target_language = user_lang_name;
+        } else {
+            card_language = user_lang_name;
+            target_language = profile_lang_name;
+        }
+
         format!(
-            r#"System:
-You are a precise dictionary card builder. Output must be valid JSON only (UTF-8, no comments, no trailing commas), exactly matching the schema below.
+            r#"You are a precise dictionary card builder. Output must be valid JSON only (UTF-8, no comments, no trailing commas), exactly matching the schema below.
 Do not add any extra text before or after the JSON.
 
 Task:
 Fill a vocabulary card for the given word.
 
-Input variables:
-- card_type: "{card_type}"            # "straight" or "reverse"
-- user_language: "{user_language}"    # the learner's native/app language
-- profile_language: "{profile_language}"  # the target/study language
-- card_name: "{card_name}"            # the headword; its language depends on card_type (see rules)
-
-Language rules:
-- If card_type == "straight":
-  - card_name is in profile_language.
-  - meanings[].definition must be in profile_language.
-  - meanings[].translated_definition must be in user_language.
-  - meanings[].word_translations must be in user_language.
-- If card_type == "reverse":
-  - card_name is in user_language.
-  - meanings[].definition must be in user_language.
-  - meanings[].translated_definition must be in profile_language.
-  - meanings[].word_translations must be in profile_language.
-
-Content rules:
-- Include **all valid and common meanings** of the word.
-  Each distinct sense or major usage should appear as a separate object in "meanings".
-- Exclude only clearly obsolete, idiomatic, or unrelated senses.
-- "word.readings": include transliteration, pronunciation, kana/pinyin/IPA if applicable; otherwise, an empty array.
-- Deduplicate identical meanings or translations.
-- Use concise, dictionary-style wording.
-- If the input word is invalid or meaningless, return `"meanings": []`.
-- No examples, notes, or extra fields outside this schema.
-
 Output JSON schema (must match exactly):
 {{
-  "cardType": "straight",
+  "cardType": "{card_type}",
   "word": {{
     "name": "{card_name}",
     "readings": [
@@ -370,10 +424,18 @@ Output JSON schema (must match exactly):
       ]
     }}
   ]
-}}"#,
+}}
+
+For the word "{card_name}" you must fill all possible readings and meanings. Do not repeat similar meanings.
+"readings" is transcriptions, kana, romaji, and more.
+Each "meaning" must have a "definition". "definition" is the definition of a word, as in a dictionary in the {card_language} language.
+"translated_definition" is a translation of the definition into {target_language} language.
+"word_translations" are possible translations in the {target_language} language of the word "{card_name}" for this "definition".
+
+OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
             card_type = card_type,
-            user_language = user_language,
-            profile_language = profile_language,
+            card_language = card_language,
+            target_language = target_language,
             card_name = card_name
         )
     }
@@ -519,31 +581,43 @@ Output JSON schema (must match exactly):
     /// Parses a CardDto from JSON text returned by AI.
     fn parse_card_from_json(json_text: &str) -> Result<CardDto, ApiError> {
         use serde::Deserialize;
+        use lh_api::models::card::{CardType, MeaningDto, WordDto};
 
+        // Simplified structures for lenient parsing
         #[derive(Deserialize)]
         #[serde(rename_all = "camelCase")]
-        struct AiCardResponse {
-            card_type: String,
-            word: AiWord,
-            meanings: Vec<AiMeaning>,
+        struct SimpleCard {
+            #[serde(default)]
+            card_type: Option<String>,
+            word: SimpleWord,
+            #[serde(default)]
+            meanings: Vec<SimpleMeaning>,
+            #[serde(default)]
+            streak: i32,
+            #[serde(default)]
+            created_at: i64,
         }
 
         #[derive(Deserialize)]
-        struct AiWord {
+        struct SimpleWord {
             name: String,
+            #[serde(default)]
             readings: Vec<String>,
         }
 
         #[derive(Deserialize)]
-        struct AiMeaning {
+        #[serde(rename_all = "camelCase")]
+        struct SimpleMeaning {
             definition: String,
+            #[serde(alias = "translated_definition")]
             translated_definition: String,
+            #[serde(alias = "word_translations")]
+            #[serde(default)]
             word_translations: Vec<String>,
         }
 
         // Try to extract JSON if the response contains markdown code blocks
         let json_str = if json_text.contains("```json") {
-            // Extract content between ```json and ```
             json_text
                 .split("```json")
                 .nth(1)
@@ -551,7 +625,6 @@ Output JSON schema (must match exactly):
                 .unwrap_or(json_text)
                 .trim()
         } else if json_text.contains("```") {
-            // Extract content between ``` and ```
             json_text
                 .split("```")
                 .nth(1)
@@ -561,28 +634,23 @@ Output JSON schema (must match exactly):
             json_text.trim()
         };
 
-        // Parse the AI response
-        let ai_response: AiCardResponse = serde_json::from_str(json_str)
+        // Parse into simplified structure
+        let simple: SimpleCard = serde_json::from_str(json_str)
             .map_err(|e| ApiError::internal_error(format!("Failed to parse AI JSON response: {}", e)))?;
 
-        // Convert card_type string to CardType enum
-        let card_type = match ai_response.card_type.to_lowercase().as_str() {
-            "straight" => CardType::Straight,
-            "reverse" => CardType::Reverse,
-            _ => return Err(ApiError::validation_error(format!(
-                "Invalid card_type: {}. Must be 'straight' or 'reverse'",
-                ai_response.card_type
-            ))),
-        };
-
         // Convert to CardDto
-        let word_dto = WordDto {
-            name: ai_response.word.name,
-            readings: ai_response.word.readings,
+        let card_type = match simple.card_type.as_deref() {
+            Some("straight") | Some("forward") => CardType::Straight,
+            Some("reverse") => CardType::Reverse,
+            _ => CardType::Straight, // Default
         };
 
-        let meanings_dto: Vec<MeaningDto> = ai_response
-            .meanings
+        let word_dto = WordDto {
+            name: simple.word.name,
+            readings: simple.word.readings,
+        };
+
+        let meanings_dto: Vec<MeaningDto> = simple.meanings
             .into_iter()
             .map(|m| MeaningDto {
                 definition: m.definition,
@@ -592,13 +660,278 @@ Output JSON schema (must match exactly):
             .collect();
 
         Ok(CardDto {
-            id: None,
             card_type,
             word: word_dto,
             meanings: meanings_dto,
-            streak: 0,
-            created_at: chrono::Utc::now().timestamp(),
+            streak: simple.streak,
+            created_at: simple.created_at,
         })
+    }
+
+    /// Builds the merge inverse cards prompt for AI batch merging.
+    fn build_merge_inverse_cards_prompt(
+        new_card: &CardDto,
+        existing_cards: &[CardDto],
+        _user_language: &str,
+        _profile_language: &str,
+    ) -> String {
+        // Get the new translation (word name from the new card)
+        let new_translation = &new_card.word.name;
+
+        // Serialize existing cards to JSON
+        let existing_cards_json = serde_json::to_string_pretty(existing_cards).unwrap_or_else(|_| "[]".to_string());
+
+        format!(
+            r#"You are a precise dictionary card synchronizer.
+
+You need to add a new translation to EACH of the existing cards, if it's not there yet.
+If there is no definition in any sense to which this translation can be attributed, then a new meaning must be added to the list of meanings (add the definition and its translation yourself). 
+Nothing else needs to be changed. Don't change the card format.
+
+NEW TRANSLATION: {new_translation}
+
+EXISTING CARDS:
+{existing_cards_json}
+
+OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
+            new_translation = new_translation,
+            existing_cards_json = existing_cards_json
+        )
+    }
+
+    /// Merges inverse cards using a local Ollama model.
+    async fn merge_inverse_cards_with_ollama(
+        assistant_settings: AssistantSettingsDto,
+        new_card: CardDto,
+        existing_cards: Vec<CardDto>,
+        user_language: &str,
+        profile_language: &str,
+    ) -> Result<Vec<CardDto>, ApiError> {
+        // Get the model name from settings
+        let model_name = assistant_settings
+            .ai_model
+            .ok_or_else(|| ApiError::validation_error("No AI model configured"))?;
+
+        // Map friendly name to Ollama model identifier
+        let ollama_model = Self::map_to_ollama_model(&model_name);
+
+        // Build the merge prompt
+        let full_prompt = Self::build_merge_inverse_cards_prompt(&new_card, &existing_cards, user_language, profile_language);
+
+        // Create request
+        let request = OllamaGenerateRequest {
+            model: ollama_model,
+            prompt: full_prompt,
+            stream: false,
+        };
+
+        // Send request to Ollama
+        let client = reqwest::Client::new();
+        let response = client
+            .post("http://localhost:11434/api/generate")
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| ApiError::internal_error(format!("Failed to send request: {}", e)))?;
+
+        // Check response status
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ApiError::internal_error(format!(
+                "Ollama request failed with status {}: {}",
+                status, error_text
+            )));
+        }
+
+        // Parse response
+        let ollama_response: OllamaGenerateResponse = response
+            .json()
+            .await
+            .map_err(|e| ApiError::internal_error(format!("Failed to parse response: {}", e)))?;
+
+        // Parse the JSON array response from the AI
+        Self::parse_card_array_from_json(&ollama_response.response)
+    }
+
+    /// Merges inverse cards using an external API.
+    async fn merge_inverse_cards_with_external_api(
+        assistant_settings: AssistantSettingsDto,
+        new_card: CardDto,
+        existing_cards: Vec<CardDto>,
+        user_language: &str,
+        profile_language: &str,
+    ) -> Result<Vec<CardDto>, ApiError> {
+        // Get API configuration
+        let api_endpoint = assistant_settings
+            .api_endpoint
+            .ok_or_else(|| ApiError::validation_error("No API endpoint configured"))?;
+        let api_key = assistant_settings
+            .api_key
+            .ok_or_else(|| ApiError::validation_error("No API key configured"))?;
+        let api_model = assistant_settings
+            .api_model_name
+            .ok_or_else(|| ApiError::validation_error("No API model name configured"))?;
+
+        // Build the merge prompt
+        let full_prompt = Self::build_merge_inverse_cards_prompt(&new_card, &existing_cards, user_language, profile_language);
+
+        // Create request
+        let request = ExternalApiRequest {
+            model: api_model,
+            input: full_prompt,
+            stream: false,
+        };
+
+        // Send request to external API
+        let client = reqwest::Client::new();
+        let response = client
+            .post(&api_endpoint)
+            .header("Authorization", format!("Bearer {}", api_key))
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| ApiError::internal_error(format!("Failed to send request: {}", e)))?;
+
+        // Check response status
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ApiError::internal_error(format!(
+                "External API request failed with status {}: {}",
+                status, error_text
+            )));
+        }
+
+        // Parse response
+        let api_response: ExternalApiResponse = response
+            .json()
+            .await
+            .map_err(|e| ApiError::internal_error(format!("Failed to parse response: {}", e)))?;
+
+        // Find the first message in the output array (skip reasoning items)
+        let message = api_response
+            .output
+            .iter()
+            .find(|output| output.output_type == "message")
+            .ok_or_else(|| {
+                ApiError::internal_error("Response does not contain a message in output array")
+            })?;
+
+        // Extract text from content[0].text
+        let text = message
+            .content
+            .first()
+            .map(|content| content.text.clone())
+            .ok_or_else(|| {
+                ApiError::internal_error("Message does not contain expected text content")
+            })?;
+
+        // Parse the JSON array response from the AI
+        Self::parse_card_array_from_json(&text)
+    }
+
+    /// Parses an array of CardDto from JSON text returned by AI.
+    fn parse_card_array_from_json(json_text: &str) -> Result<Vec<CardDto>, ApiError> {
+        use serde::Deserialize;
+        use lh_api::models::card::{CardType, MeaningDto, WordDto};
+
+        // Simplified structures for lenient parsing
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct SimpleCard {
+            #[serde(default)]
+            card_type: Option<String>,
+            word: SimpleWord,
+            #[serde(default)]
+            meanings: Vec<SimpleMeaning>,
+            #[serde(default)]
+            streak: i32,
+            #[serde(default)]
+            created_at: i64,
+        }
+
+        #[derive(Deserialize)]
+        struct SimpleWord {
+            name: String,
+            #[serde(default)]
+            readings: Vec<String>,
+        }
+
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct SimpleMeaning {
+            definition: String,
+            #[serde(alias = "translated_definition")]
+            translated_definition: String,
+            #[serde(alias = "word_translations")]
+            #[serde(default)]
+            word_translations: Vec<String>,
+        }
+
+        // Try to extract JSON if the response contains markdown code blocks
+        let json_str = if json_text.contains("```json") {
+            json_text
+                .split("```json")
+                .nth(1)
+                .and_then(|s| s.split("```").next())
+                .unwrap_or(json_text)
+                .trim()
+        } else if json_text.contains("```") {
+            json_text
+                .split("```")
+                .nth(1)
+                .unwrap_or(json_text)
+                .trim()
+        } else {
+            json_text.trim()
+        };
+
+        // Parse into simplified structures
+        let simple_cards: Vec<SimpleCard> = serde_json::from_str(json_str)
+            .map_err(|e| ApiError::internal_error(format!("Failed to parse AI JSON array response: {}", e)))?;
+
+        // Convert to Vec<CardDto>
+        let cards: Vec<CardDto> = simple_cards
+            .into_iter()
+            .map(|simple| {
+                let card_type = match simple.card_type.as_deref() {
+                    Some("straight") | Some("forward") => CardType::Straight,
+                    Some("reverse") => CardType::Reverse,
+                    _ => CardType::Straight, // Default
+                };
+
+                let word_dto = WordDto {
+                    name: simple.word.name,
+                    readings: simple.word.readings,
+                };
+
+                let meanings_dto: Vec<MeaningDto> = simple.meanings
+                    .into_iter()
+                    .map(|m| MeaningDto {
+                        definition: m.definition,
+                        translated_definition: m.translated_definition,
+                        word_translations: m.word_translations,
+                    })
+                    .collect();
+
+                CardDto {
+                    card_type,
+                    word: word_dto,
+                    meanings: meanings_dto,
+                    streak: simple.streak,
+                    created_at: simple.created_at,
+                }
+            })
+            .collect();
+
+        Ok(cards)
     }
 }
 

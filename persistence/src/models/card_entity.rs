@@ -119,7 +119,6 @@ impl CardWithRelations {
             .collect();
 
         Ok(Card::new_unchecked(
-            None, // No separate ID anymore, word_name is the key
             card_type,
             word,
             meanings?,
@@ -142,7 +141,7 @@ mod tests {
             "traducción",
             vec!["trans1".to_string()],
         )];
-        let card = Card::new_unchecked(None, CardType::Straight, word, meanings, 5, 0);
+        let card = Card::new_unchecked(CardType::Straight, word, meanings, 5, 0);
 
         let entity = CardEntity::from_domain(&card).unwrap();
         assert_eq!(entity.word_name, "test");

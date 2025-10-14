@@ -30,7 +30,6 @@ fn map_core_error_to_api_error(error: CoreError) -> ApiError {
 /// Convert domain Card to DTO
 fn card_to_dto(card: Card) -> CardDto {
     CardDto {
-        id: card.id,
         card_type: match card.card_type {
             CardType::Straight => ApiCardType::Straight,
             CardType::Reverse => ApiCardType::Reverse,
@@ -74,15 +73,10 @@ fn dto_to_card(dto: CardDto) -> Result<Card, ApiError> {
 
     let meanings = meanings?;
 
-    if let Some(id) = dto.id {
-        Ok(Card::new_unchecked(
-            Some(id),
-            card_type,
-            word,
-            meanings,
-            dto.streak,
-            dto.created_at,
-        ))
+    // If streak and created_at are provided (non-default values), use them
+    // Otherwise create a new card with default values
+    if dto.streak != 0 || dto.created_at != 0 {
+        Ok(Card::new_unchecked(card_type, word, meanings, dto.streak, dto.created_at))
     } else {
         Card::new(card_type, word, meanings).map_err(|e| ApiError::validation_error(e.to_string()))
     }

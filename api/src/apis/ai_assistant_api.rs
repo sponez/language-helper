@@ -36,7 +36,7 @@ pub trait AiAssistantApi: Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `model_name` - The name of the model to stop (e.g., "qwen2.5:7b-instruct-q5_K_M")
+    /// * `model_name` - The name of the model to stop
     ///
     /// # Returns
     ///
@@ -90,7 +90,7 @@ pub trait AiAssistantApi: Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `model_name` - The name of the model to pull (e.g., "phi3:3.8b-mini-4k-instruct-q4_K_M")
+    /// * `model_name` - The name of the model to pull
     ///
     /// # Returns
     ///
@@ -107,7 +107,7 @@ pub trait AiAssistantApi: Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `model_name` - The name of the model to run (e.g., "phi3:3.8b-mini-4k-instruct-q4_K_M")
+    /// * `model_name` - The name of the model to run
     ///
     /// # Returns
     ///
@@ -180,4 +180,38 @@ pub trait AiAssistantApi: Send + Sync {
         user_language: String,
         profile_language: String,
     ) -> Pin<Box<dyn Future<Output = Result<CardDto, ApiError>> + Send + '_>>;
+
+    /// Merges inverse card meanings into existing cards using AI.
+    ///
+    /// This operation sends a batch merging prompt to the AI model to intelligently
+    /// merge meanings from a NEW inverse card into a list of EXISTING cards.
+    ///
+    /// # Arguments
+    ///
+    /// * `assistant_settings` - Settings containing model type and API configuration
+    /// * `new_card` - The new inverse card to merge
+    /// * `existing_cards` - List of existing cards to merge into
+    /// * `user_language` - The learner's native/interface language
+    /// * `profile_language` - The target/study language
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(Vec<CardDto>)` containing only the cards that were updated.
+    /// Returns empty vector if no changes were made.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The HTTP request fails
+    /// - The AI response cannot be parsed as JSON array
+    /// - The JSON doesn't match the expected schema
+    /// - The API returns an error
+    fn merge_inverse_cards(
+        &self,
+        assistant_settings: AssistantSettingsDto,
+        new_card: CardDto,
+        existing_cards: Vec<CardDto>,
+        user_language: String,
+        profile_language: String,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<CardDto>, ApiError>> + Send + '_>>;
 }

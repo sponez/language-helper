@@ -5,8 +5,6 @@ use lh_api::models::card::{CardDto, CardType, MeaningDto, WordDto};
 /// View model for displaying a flashcard in the GUI.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CardView {
-    /// Card identifier
-    pub id: Option<i64>,
     /// Card type display string
     pub card_type_display: String,
     /// The underlying card type
@@ -32,7 +30,6 @@ impl CardView {
         let created_at_display = format_timestamp(dto.created_at);
 
         Self {
-            id: dto.id,
             card_type_display,
             card_type: dto.card_type,
             word: WordView::from_dto(dto.word),
@@ -159,7 +156,6 @@ mod tests {
     #[test]
     fn test_card_view_is_learned() {
         let dto = CardDto {
-            id: Some(1),
             card_type: CardType::Straight,
             word: WordDto {
                 name: "test".to_string(),

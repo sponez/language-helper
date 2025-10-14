@@ -447,7 +447,6 @@ impl<R: ProfileRepository> ProfileService<R> {
                 // Card doesn't exist - create new one
                 let word = crate::models::card::Word::new_unchecked(translation.clone(), vec![]);
                 crate::models::card::Card::new_unchecked(
-                    None,
                     inverse_card_type.clone(),
                     word,
                     vec![],

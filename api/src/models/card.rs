@@ -19,9 +19,8 @@ pub enum CardType {
 /// A card represents a learning unit with a word and its meanings.
 /// The card type determines the direction of learning.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CardDto {
-    /// Unique identifier for the card.
-    pub id: Option<i64>,
     /// Card type (Straight or Reverse).
     pub card_type: CardType,
     /// The word being learned.
@@ -111,7 +110,6 @@ mod tests {
     #[test]
     fn test_card_dto_serialization() {
         let card = CardDto {
-            id: Some(1),
             card_type: CardType::Straight,
             word: WordDto {
                 name: "hello".to_string(),
@@ -122,7 +120,7 @@ mod tests {
                 translated_definition: "saludo".to_string(),
                 word_translations: vec!["hola".to_string()],
             }],
-            streak: 3,
+            streak: 0,
             created_at: 1000,
         };
 
