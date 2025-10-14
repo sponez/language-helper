@@ -5,7 +5,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use iced::{Element, Subscription, Task};
 
@@ -46,14 +46,14 @@ impl LanguageHelperApp {
     ///
     /// # Arguments
     ///
-    /// * `app_api_rc` - The application API providing access to business logic (wrapped in Rc for cloning)
+    /// * `app_api_rc` - The application API providing access to business logic (wrapped in Arc for cloning)
     ///
     /// # Returns
     ///
     /// A tuple containing:
     /// - The new `LanguageHelperApp` instance
     /// - An initial task (currently none)
-    fn new(app_api_rc: Rc<dyn lh_api::app_api::AppApi>) -> (Self, Task<Message>) {
+    fn new(app_api_rc: Arc<dyn lh_api::app_api::AppApi>) -> (Self, Task<Message>) {
 
         // Load initial app settings to create AppState
         let app_settings = block_on(app_api_rc.app_settings_api().get_app_settings())
@@ -85,13 +85,19 @@ impl LanguageHelperApp {
     /// A task to be executed by the Iced runtime. If the application should exit,
     /// returns a task to close the window.
     fn update(&mut self, message: Message) -> Task<Message> {
-        let should_exit = self.router_stack.update(message).unwrap_or(false);
-
-        if should_exit {
-            // Exit the application
-            iced::exit()
-        } else {
-            Task::none()
+        match self.router_stack.update(message) {
+            Ok((should_exit, task)) => {
+                if should_exit {
+                    // Exit the application
+                    Task::batch(vec![task, iced::exit()])
+                } else {
+                    task
+                }
+            }
+            Err(e) => {
+                eprintln!("Router stack error: {}", e);
+                Task::none()
+            }
         }
     }
 
@@ -233,8 +239,8 @@ fn main() -> iced::Result {
     let ai_assistant_api = AiAssistantApiImpl::new();
     let app_api = AppApiImpl::new(users_api, app_settings_api, profiles_api, system_requirements_api, ai_assistant_api);
 
-    // 5. Wrap the AppApi in Rc for cloning in the boot closure
-    let app_api_rc: Rc<dyn lh_api::app_api::AppApi> = Rc::new(app_api);
+    // 5. Wrap the AppApi in Arc for cloning in the boot closure
+    let app_api_rc: Arc<dyn lh_api::app_api::AppApi> = Arc::new(app_api);
 
     // 6. Load embedded fonts
     let fonts = vec![

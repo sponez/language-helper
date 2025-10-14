@@ -57,11 +57,11 @@
 //! use gui::router::{RouterStack, RouterNode};
 //! use gui::routers::user_list_router::UserListRouter;
 //! use lh_api::app_api::AppApi;
-//! use std::rc::Rc;
+//! use std::sync::Arc;
 //!
 //! fn initialize_gui(api: Box<dyn AppApi>) -> RouterStack {
-//!     let api_rc = Rc::from(api);
-//!     let root_router: Box<dyn RouterNode> = Box::new(UserListRouter::new(api_rc));
+//!     let api_arc = Arc::from(api);
+//!     let root_router: Box<dyn RouterNode> = Box::new(UserListRouter::new(api_arc));
 //!     RouterStack::new(root_router)
 //! }
 //! ```

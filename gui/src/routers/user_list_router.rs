@@ -4,7 +4,7 @@
 //! of available usernames or creating a new user account. It can navigate to the AccountRouter
 //! when a user is selected.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use iced::widget::{button, column, pick_list, row, text, text_input, Container, PickList};
 use iced::{Alignment, Element, Length};
@@ -37,7 +37,7 @@ pub enum Message {
 /// State for the account list router.
 pub struct UserListRouter {
     /// API instance for backend communication
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// The currently selected username from the pick list
@@ -57,7 +57,7 @@ impl UserListRouter {
     ///
     /// * `app_api` - The API instance for backend communication
     /// * `app_state` - Global application state
-    pub fn new(app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
         Self {
             app_api,
             app_state,
@@ -129,7 +129,7 @@ impl UserListRouter {
                                 let account_router: Box<dyn crate::router::RouterNode> =
                                     Box::new(super::user_router::UserRouter::new(
                                         user_view,
-                                        Rc::clone(&self.app_api),
+                                        Arc::clone(&self.app_api),
                                         self.app_state.clone(),
                                     ));
 
@@ -156,7 +156,7 @@ impl UserListRouter {
                         {
                             let user_view = user_mapper::dto_to_view(&user_dto);
                             let account_router: Box<dyn crate::router::RouterNode> = Box::new(
-                                super::user_router::UserRouter::new(user_view, Rc::clone(&self.app_api), self.app_state.clone()),
+                                super::user_router::UserRouter::new(user_view, Arc::clone(&self.app_api), self.app_state.clone()),
                             );
                             Some(RouterEvent::Push(account_router))
                         } else {
@@ -198,23 +198,20 @@ impl UserListRouter {
             Message::Theme,
         )
             .placeholder(self.app_state.theme())
-            .width(150);
+            .width(150)
+            .text_shaping(iced::widget::text::Shaping::Advanced);
 
         // Language pick list
         let languages: Vec<String> = LANGUAGES.clone();
         let language_selected: Option<String> = Some(self.app_state.language());
-        let mut languages_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
+        let languages_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
             languages.clone(),
             language_selected,
             Message::Language,
         )
             .placeholder(self.app_state.language())
-            .width(100);
-
-        // Apply current font to language picker
-        if let Some(font) = self.app_state.current_font() {
-            languages_pick_list = languages_pick_list.font(font);
-        }
+            .width(100)
+            .text_shaping(iced::widget::text::Shaping::Advanced);
 
         // Add "Add new user" option at the end
         let add_new_text = self.app_state.i18n().get("user-list-add-new", None);
@@ -227,18 +224,14 @@ impl UserListRouter {
             selected_username_valid
         };
 
-        let mut username_pick_list = pick_list(
+        let username_pick_list = pick_list(
             usernames.clone(),
             username_selected,
             Message::OptionSelected
         )
             .placeholder(self.app_state.i18n().get("user-list-select-placeholder", None))
-            .width(300);
-
-        // Apply current font to username picker
-        if let Some(font) = self.app_state.current_font() {
-            username_pick_list = username_pick_list.font(font);
-        }
+            .width(300)
+            .text_shaping(iced::widget::text::Shaping::Advanced);
 
         // Create the main column with the pick list
         let mut content = column![username_pick_list].spacing(20);
@@ -254,10 +247,7 @@ impl UserListRouter {
                 .padding(10)
                 .width(300);
 
-            let mut enter_username_text = text(self.app_state.i18n().get("user-list-enter-username", None));
-            if let Some(font) = self.app_state.current_font() {
-                enter_username_text = enter_username_text.font(font);
-            }
+            let enter_username_text = text(self.app_state.i18n().get("user-list-enter-username", None)).shaping(iced::widget::text::Shaping::Advanced);
             content = content.push(enter_username_text);
             content = content.push(text_input_widget);
 
@@ -274,11 +264,9 @@ impl UserListRouter {
 
         // Button row with OK and Exit buttons - small consistent size
         let ok_button = if self.is_adding_new_user {
-            let mut ok_text = text(self.app_state.i18n().get("user-list-ok-button", None))
-                .size(14);
-            if let Some(font) = self.app_state.current_font() {
-                ok_text = ok_text.font(font);
-            }
+            let ok_text = text(self.app_state.i18n().get("user-list-ok-button", None))
+                .size(14)
+                .shaping(iced::widget::text::Shaping::Advanced);
             button(ok_text)
                 .on_press_maybe(if !self.new_username_input.trim().is_empty() {
                     Some(Message::ConfirmSelection)
@@ -288,11 +276,9 @@ impl UserListRouter {
                 .width(Length::Fixed(120.0))
                 .padding(10)
         } else {
-            let mut ok_text = text(self.app_state.i18n().get("user-list-ok-button", None))
-                .size(14);
-            if let Some(font) = self.app_state.current_font() {
-                ok_text = ok_text.font(font);
-            }
+            let ok_text = text(self.app_state.i18n().get("user-list-ok-button", None))
+                .size(14)
+                .shaping(iced::widget::text::Shaping::Advanced);
             button(ok_text)
                 .on_press_maybe(
                     self.selected_username
@@ -303,11 +289,9 @@ impl UserListRouter {
                 .padding(10)
         };
 
-        let mut exit_text = text(self.app_state.i18n().get("user-list-exit-button", None))
-            .size(14);
-        if let Some(font) = self.app_state.current_font() {
-            exit_text = exit_text.font(font);
-        }
+        let exit_text = text(self.app_state.i18n().get("user-list-exit-button", None))
+            .size(14)
+            .shaping(iced::widget::text::Shaping::Advanced);
         let exit_button = button(exit_text)
             .on_press(Message::Exit)
             .width(Length::Fixed(120.0))
@@ -358,10 +342,10 @@ impl RouterNode for UserListRouter {
         "user_list"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::UserList(msg) => UserListRouter::update(self, msg.clone()),
-            _ => None, // Ignore messages not meant for this router
+            router::Message::UserList(msg) => { let event = UserListRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            _ => (None, iced::Task::none()), // Ignore messages not meant for this router
         }
     }
 

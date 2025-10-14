@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use iced::widget::{button, column, container, pick_list, row, Container, PickList};
 use iced::{Alignment, Background, Color, Element, Length};
@@ -29,7 +29,7 @@ pub struct UserSettingsRouter {
     /// User view with all user data
     user_view: UserView,
     /// API instance for backend communication
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Show delete confirmation dialog
@@ -37,7 +37,7 @@ pub struct UserSettingsRouter {
 }
 
 impl UserSettingsRouter {
-    pub fn new(user_view: UserView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(user_view: UserView, app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -108,7 +108,6 @@ impl UserSettingsRouter {
 
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Main settings view
         let language_label = localized_text(&i18n, "user-settings-language-label", 16);
@@ -123,16 +122,13 @@ impl UserSettingsRouter {
 
         let themes: Vec<String> = get_sorted_themes();
         let theme_selected: Option<String> = Some(self.app_state.theme());
-        let mut theme_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
+        let theme_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
             themes,
             theme_selected,
             Message::ThemeSelected,
         )
-        .width(200);
-
-        if let Some(font) = current_font {
-            theme_pick_list = theme_pick_list.font(font);
-        }
+        .width(200)
+        .text_shaping(iced::widget::text::Shaping::Advanced);
 
         let delete_button_text = localized_text(&i18n, "user-settings-delete-button", 14);
         let delete_button = button(delete_button_text)
@@ -245,10 +241,10 @@ impl RouterNode for UserSettingsRouter {
         "user_settings"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::UserSettings(msg) => UserSettingsRouter::update(self, msg.clone()),
-            _ => None, // Ignore messages not meant for this router
+            router::Message::UserSettings(msg) => { let event = UserSettingsRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            _ => (None, iced::Task::none()), // Ignore messages not meant for this router
         }
     }
 

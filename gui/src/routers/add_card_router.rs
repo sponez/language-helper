@@ -1,6 +1,6 @@
 //! Add/Edit card router for creating and modifying flashcards.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use iced::widget::{button, column, container, row, scrollable, text, text_input, Column, Container, Space, stack};
 use iced::{Alignment, Element, Length};
@@ -106,7 +106,7 @@ pub struct AddCardRouter {
     /// Currently selected profile
     profile: ProfileView,
     /// API instance for backend communication
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Card type (Straight or Reverse)
@@ -134,7 +134,7 @@ impl AddCardRouter {
     pub fn new_create(
         user_view: UserView,
         profile: ProfileView,
-        app_api: Rc<dyn AppApi>,
+        app_api: Arc<dyn AppApi>,
         app_state: AppState,
         card_type: CardType,
     ) -> Self {
@@ -176,7 +176,7 @@ impl AddCardRouter {
     pub fn new_edit(
         user_view: UserView,
         profile: ProfileView,
-        app_api: Rc<dyn AppApi>,
+        app_api: Arc<dyn AppApi>,
         app_state: AppState,
         card: CardDto,
     ) -> Self {
@@ -187,7 +187,7 @@ impl AddCardRouter {
     pub fn new_edit_with_flags(
         user_view: UserView,
         profile: ProfileView,
-        app_api: Rc<dyn AppApi>,
+        app_api: Arc<dyn AppApi>,
         app_state: AppState,
         card: CardDto,
         is_inverse_card_edit: bool,
@@ -319,7 +319,7 @@ impl AddCardRouter {
                 // Get assistant settings
                 let username = self.user_view.username.clone();
                 let target_language = self.profile.target_language.clone();
-                let api = Rc::clone(&self.app_api);
+                let api = Arc::clone(&self.app_api);
 
                 let runtime = tokio::runtime::Runtime::new().unwrap();
 
@@ -432,7 +432,7 @@ impl AddCardRouter {
                 if let Some(saved_card) = self.saved_card.clone() {
                     let username = self.user_view.username.clone();
                     let target_language = self.profile.target_language.clone();
-                    let api = Rc::clone(&self.app_api);
+                    let api = Arc::clone(&self.app_api);
 
                     // Generate inverse cards
                     let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -447,7 +447,7 @@ impl AddCardRouter {
                                 super::inverse_cards_review_router::InverseCardsReviewRouter::new(
                                     self.user_view.clone(),
                                     self.profile.clone(),
-                                    Rc::clone(&self.app_api),
+                                    Arc::clone(&self.app_api),
                                     self.app_state.clone(),
                                     inverted_cards,
                                 )
@@ -471,7 +471,7 @@ impl AddCardRouter {
                 if let Some(saved_card) = self.saved_card.clone() {
                     let username = self.user_view.username.clone();
                     let target_language = self.profile.target_language.clone();
-                    let api = Rc::clone(&self.app_api);
+                    let api = Arc::clone(&self.app_api);
 
                     let runtime = tokio::runtime::Runtime::new().unwrap();
 
@@ -605,7 +605,7 @@ impl AddCardRouter {
                             super::inverse_cards_review_router::InverseCardsReviewRouter::new(
                                 self.user_view.clone(),
                                 self.profile.clone(),
-                                Rc::clone(&self.app_api),
+                                Arc::clone(&self.app_api),
                                 self.app_state.clone(),
                                 result_cards,
                             )
@@ -694,7 +694,7 @@ impl AddCardRouter {
         };
 
         // Save the card
-        let app_api = Rc::clone(&self.app_api);
+        let app_api = Arc::clone(&self.app_api);
         let username = self.user_view.username.clone();
         let target_language = self.profile.target_language.clone();
 
@@ -714,7 +714,6 @@ impl AddCardRouter {
 
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Title with Fill with AI button in top right
         let title_text = localized_text(&i18n, "add-card-title", 24);
@@ -1065,10 +1064,10 @@ impl RouterNode for AddCardRouter {
         "add_card"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::AddCard(msg) => AddCardRouter::update(self, msg.clone()),
-            _ => None,
+            router::Message::AddCard(msg) => { let event = AddCardRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            _ => (None, iced::Task::none()),
         }
     }
 

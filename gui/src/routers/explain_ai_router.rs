@@ -1,6 +1,6 @@
 //! AI Explain router for getting explanations from the AI assistant.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use iced::widget::{button, column, container, row, scrollable, text, text_input, Container};
 use iced::{Alignment, Element, Length};
@@ -27,9 +27,10 @@ pub struct ExplainAIRouter {
     /// User view with all user data
     user_view: UserView,
     /// Currently selected profile
+    #[allow(dead_code)]
     profile: ProfileView,
     /// API instance for backend communication
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Target language being learned
@@ -44,7 +45,7 @@ impl ExplainAIRouter {
     pub fn new(
         user_view: UserView,
         profile: ProfileView,
-        app_api: Rc<dyn AppApi>,
+        app_api: Arc<dyn AppApi>,
         app_state: AppState,
     ) -> Self {
         // Update app_state with user's settings if available
@@ -215,10 +216,10 @@ impl RouterNode for ExplainAIRouter {
         "explain_ai"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::ExplainAI(msg) => ExplainAIRouter::update(self, msg.clone()),
-            _ => None,
+            router::Message::ExplainAI(msg) => { let event = ExplainAIRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            _ => (None, iced::Task::none()),
         }
     }
 

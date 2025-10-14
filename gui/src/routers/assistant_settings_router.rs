@@ -2,9 +2,8 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
-use futures::stream;
 use iced::widget::{button, column, container, pick_list, row, text, text_input, Container};
 use iced::{Alignment, Background, Color, Element, Length, Subscription};
 use lh_api::app_api::AppApi;
@@ -86,7 +85,7 @@ pub struct AssistantSettingsRouter {
     #[allow(dead_code)]
     profile: ProfileView,
     /// API instance for backend communication
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Selected model strength
@@ -118,7 +117,7 @@ pub struct AssistantSettingsRouter {
 }
 
 impl AssistantSettingsRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(user_view: UserView, profile: ProfileView, app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -757,7 +756,8 @@ impl AssistantSettingsRouter {
                 }
             },
         )
-        .width(Length::Fixed(200.0));
+        .width(Length::Fixed(200.0))
+        .text_shaping(iced::widget::text::Shaping::Advanced);
 
         let model_row = row![
             model_label,
@@ -1212,10 +1212,10 @@ impl RouterNode for AssistantSettingsRouter {
         "assistant_settings"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::AssistantSettings(msg) => AssistantSettingsRouter::update(self, msg.clone()),
-            _ => None,
+            router::Message::AssistantSettings(msg) => { let event = AssistantSettingsRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            _ => (None, iced::Task::none()),
         }
     }
 

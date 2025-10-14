@@ -4,9 +4,8 @@
 //! eliminating the need to pass common settings through every router.
 
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 
-use crate::fonts::get_font_for_locale;
 use crate::i18n::I18n;
 
 /// Global application state shared across all routers.
@@ -15,7 +14,7 @@ use crate::i18n::I18n;
 /// such as theme, language, internationalization, and application-wide flags.
 #[derive(Clone)]
 pub struct AppState {
-    inner: Rc<RefCell<AppStateInner>>,
+    inner: Arc<RefCell<AppStateInner>>,
 }
 
 /// Inner mutable state.
@@ -26,8 +25,6 @@ struct AppStateInner {
     language: String,
     /// Internationalization instance for the current language
     i18n: I18n,
-    /// Font for the current language
-    current_font: Option<iced::Font>,
     /// Whether the AI assistant is currently running
     assistant_running: bool,
 }
@@ -36,14 +33,12 @@ impl AppState {
     /// Creates a new AppState with the given theme and language.
     pub fn new(theme: String, language: String) -> Self {
         let i18n = I18n::new(&language);
-        let current_font = get_font_for_locale(&language);
 
         Self {
-            inner: Rc::new(RefCell::new(AppStateInner {
+            inner: Arc::new(RefCell::new(AppStateInner {
                 theme,
                 language,
                 i18n,
-                current_font,
                 assistant_running: false,
             })),
         }
@@ -67,11 +62,6 @@ impl AppState {
         I18n::new(&language)
     }
 
-    /// Gets the current font.
-    pub fn current_font(&self) -> Option<iced::Font> {
-        self.inner.borrow().current_font
-    }
-
     /// Checks if the AI assistant is currently running.
     pub fn is_assistant_running(&self) -> bool {
         self.inner.borrow().assistant_running
@@ -87,7 +77,6 @@ impl AppState {
         let mut inner = self.inner.borrow_mut();
         inner.language = language.clone();
         inner.i18n = I18n::new(&language);
-        inner.current_font = get_font_for_locale(&language);
     }
 
     /// Sets whether the AI assistant is running.
@@ -103,7 +92,6 @@ impl AppState {
         inner.theme = theme;
         inner.language = language.clone();
         inner.i18n = I18n::new(&language);
-        inner.current_font = get_font_for_locale(&language);
     }
 }
 

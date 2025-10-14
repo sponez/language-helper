@@ -177,34 +177,6 @@ impl Default for FontManager {
     }
 }
 
-/// Helper function to get the appropriate font for a locale
-pub fn get_font_for_locale(locale: &str) -> Option<Font> {
-    let script = LOCALE_FONTS
-        .get(locale)
-        .copied()
-        .unwrap_or(ScriptFont::LatinCyrillic);
-
-    EmbeddedFonts::get_font_bytes(script).map(|_bytes| {
-        let family_name = match script {
-            ScriptFont::LatinCyrillic => "Noto Sans",
-            ScriptFont::Arabic => "Noto Sans Arabic",
-            ScriptFont::Devanagari => "Noto Sans Devanagari",
-            ScriptFont::Bengali => "Noto Sans Bengali",
-            ScriptFont::ChineseSimplified => "Noto Sans SC",
-            ScriptFont::Japanese => "Noto Sans JP",
-            ScriptFont::Korean => "Noto Sans KR",
-            ScriptFont::Thai => "Noto Sans Thai",
-        };
-
-        Font {
-            family: iced::font::Family::Name(family_name),
-            weight: iced::font::Weight::Normal,
-            stretch: iced::font::Stretch::Normal,
-            style: iced::font::Style::Normal,
-        }
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

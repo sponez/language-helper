@@ -1,6 +1,6 @@
 //! Inverse Cards Review router for reviewing and editing generated inverse cards.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use iced::widget::{button, column, container, row, scrollable, text, Container};
 use iced::{Alignment, Element, Length};
@@ -33,7 +33,7 @@ pub struct InverseCardsReviewRouter {
     /// Currently selected profile
     profile: ProfileView,
     /// API instance for backend communication
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Pending inverse cards to review
@@ -46,7 +46,7 @@ impl InverseCardsReviewRouter {
     pub fn new(
         user_view: UserView,
         profile: ProfileView,
-        app_api: Rc<dyn AppApi>,
+        app_api: Arc<dyn AppApi>,
         app_state: AppState,
         pending_cards: Vec<CardDto>,
     ) -> Self {
@@ -82,7 +82,7 @@ impl InverseCardsReviewRouter {
                         super::add_card_router::AddCardRouter::new_edit_with_flags(
                             self.user_view.clone(),
                             self.profile.clone(),
-                            Rc::clone(&self.app_api),
+                            Arc::clone(&self.app_api),
                             self.app_state.clone(),
                             card,
                             true, // is_inverse_card_edit = true
@@ -98,7 +98,7 @@ impl InverseCardsReviewRouter {
                 // Save all pending cards to database
                 let username = self.user_view.username.clone();
                 let target_language = self.profile.target_language.clone();
-                let api = Rc::clone(&self.app_api);
+                let api = Arc::clone(&self.app_api);
 
                 for card in self.pending_cards.drain(..) {
                     let result = block_on(
@@ -144,8 +144,8 @@ impl InverseCardsReviewRouter {
 
             for card in &self.pending_cards {
                 // Card container with word name, meaning count, and Show button
-                let word_name_text = text(&card.word.name).size(16);
-                let meaning_count_text = text(format!("({} meanings)", card.meanings.len())).size(14);
+                let word_name_text = text(&card.word.name).size(16).shaping(iced::widget::text::Shaping::Advanced);
+                let meaning_count_text = text(format!("({} meanings)", card.meanings.len())).size(14).shaping(iced::widget::text::Shaping::Advanced);
 
                 let word_name_clone = card.word.name.clone();
 
@@ -227,10 +227,10 @@ impl RouterNode for InverseCardsReviewRouter {
         "inverse_cards_review"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::InverseCardsReview(msg) => InverseCardsReviewRouter::update(self, msg.clone()),
-            _ => None,
+            router::Message::InverseCardsReview(msg) => { let event = InverseCardsReviewRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            _ => (None, iced::Task::none()),
         }
     }
 

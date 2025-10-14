@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use iced::widget::{button, column, container, Container};
 use iced::{Alignment, Element, Length};
@@ -42,7 +42,7 @@ pub struct ProfileRouter {
     profile: ProfileView,
     /// API instance for backend communication
     #[allow(dead_code)]
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Target language being learned
@@ -55,7 +55,7 @@ pub struct ProfileRouter {
 }
 
 impl ProfileRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(user_view: UserView, profile: ProfileView, app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -86,7 +86,7 @@ impl ProfileRouter {
     fn determine_ai_button_state(
         username: &str,
         target_language: &str,
-        app_api: &Rc<dyn AppApi>,
+        app_api: &Arc<dyn AppApi>,
         app_state: &AppState,
     ) -> bool {
         use lh_api::models::assistant_settings::AssistantSettingsDto;
@@ -220,7 +220,7 @@ impl ProfileRouter {
                     super::cards_menu_router::CardsMenuRouter::new(
                         self.user_view.clone(),
                         self.profile.clone(),
-                        Rc::clone(&self.app_api),
+                        Arc::clone(&self.app_api),
                         self.app_state.clone(),
                     )
                 );
@@ -232,7 +232,7 @@ impl ProfileRouter {
                     super::explain_ai_router::ExplainAIRouter::new(
                         self.user_view.clone(),
                         self.profile.clone(),
-                        Rc::clone(&self.app_api),
+                        Arc::clone(&self.app_api),
                         self.app_state.clone(),
                     )
                 );
@@ -244,7 +244,7 @@ impl ProfileRouter {
                     super::profile_settings_router::ProfileSettingsRouter::new(
                         self.user_view.clone(),
                         self.profile.clone(),
-                        Rc::clone(&self.app_api),
+                        Arc::clone(&self.app_api),
                         self.app_state.clone(),
                     )
                 );
@@ -274,7 +274,6 @@ impl ProfileRouter {
 
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
         let assistant_running = self.ai_buttons_active;
 
         // Main buttons - small consistent size
@@ -438,10 +437,10 @@ impl RouterNode for ProfileRouter {
         "profile"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::Profile(msg) => ProfileRouter::update(self, msg.clone()),
-            _ => None,
+            router::Message::Profile(msg) => { let event = ProfileRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            _ => (None, iced::Task::none()),
         }
     }
 

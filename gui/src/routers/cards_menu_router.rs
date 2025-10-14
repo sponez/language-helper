@@ -1,6 +1,6 @@
 //! Cards menu router for accessing card-related features.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use iced::widget::{button, column, Container};
 use iced::{Alignment, Element, Length};
@@ -36,13 +36,13 @@ pub struct CardsMenuRouter {
     profile: ProfileView,
     /// API instance for backend communication
     #[allow(dead_code)]
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
 }
 
 impl CardsMenuRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(user_view: UserView, profile: ProfileView, app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -64,7 +64,7 @@ impl CardsMenuRouter {
                     super::manage_cards_router::ManageCardsRouter::new(
                         self.user_view.clone(),
                         self.profile.clone(),
-                        Rc::clone(&self.app_api),
+                        Arc::clone(&self.app_api),
                         self.app_state.clone(),
                     )
                 );
@@ -167,10 +167,10 @@ impl RouterNode for CardsMenuRouter {
         "cards_menu"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::CardsMenu(msg) => CardsMenuRouter::update(self, msg.clone()),
-            _ => None,
+            router::Message::CardsMenu(msg) => { let event = CardsMenuRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            _ => (None, iced::Task::none()),
         }
     }
 

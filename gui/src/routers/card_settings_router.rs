@@ -3,7 +3,7 @@
 //! NOTE: This router currently stores settings in memory only.
 //! Persistence to the database will be added in a future iteration.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use iced::widget::{button, column, pick_list, row, text, text_input, Container};
 use iced::{Alignment, Element, Length};
@@ -35,11 +35,12 @@ pub struct CardSettingsRouter {
     /// User view with all user data
     user_view: UserView,
     /// Currently selected profile
+    #[allow(dead_code)]
     profile: ProfileView,
     /// Card settings view model
     settings: CardSettingsView,
     /// API instance for backend communication
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Target language being learned
@@ -55,7 +56,7 @@ pub struct CardSettingsRouter {
 }
 
 impl CardSettingsRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(user_view: UserView, profile: ProfileView, app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -242,7 +243,8 @@ impl CardSettingsRouter {
                 }
             },
         )
-        .width(Length::Fixed(200.0));
+        .width(Length::Fixed(200.0))
+        .text_shaping(iced::widget::text::Shaping::Advanced);
 
         let test_method_row = row![
             test_method_label,
@@ -364,10 +366,10 @@ impl RouterNode for CardSettingsRouter {
         "card_settings"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::CardSettings(msg) => CardSettingsRouter::update(self, msg.clone()),
-            _ => None,
+            router::Message::CardSettings(msg) => { let event = CardSettingsRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            _ => (None, iced::Task::none()),
         }
     }
 

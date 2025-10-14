@@ -27,7 +27,7 @@
 //! Each router only knows about its immediate children and can push them
 //! onto the stack. Routers never need to know about parent or sibling routers.
 
-use iced::{Element, Subscription};
+use iced::{Element, Subscription, Task};
 
 use crate::routers::{add_card_router, assistant_settings_router, card_settings_router, cards_menu_router, explain_ai_router, inverse_cards_review_router, manage_cards_router, profile_list_router, profile_router, profile_settings_router, user_list_router, user_router, user_settings_router};
 
@@ -130,7 +130,11 @@ pub trait RouterNode {
     fn router_name(&self) -> &'static str;
 
     /// Update with a global message
-    fn update(&mut self, message: &Message) -> Option<RouterEvent>;
+    ///
+    /// Returns a tuple of:
+    /// - Optional router event (Push, Pop, PopTo, Exit)
+    /// - A Task to execute (use Task::none() if no async work needed)
+    fn update(&mut self, message: &Message) -> (Option<RouterEvent>, Task<Message>);
 
     /// Render view with global message type
     fn view(&self) -> Element<'_, Message>;
@@ -183,13 +187,16 @@ impl RouterStack {
     ///
     /// # Returns
     ///
-    /// - `Ok(true)` if the application should exit
-    /// - `Ok(false)` if the update completed normally
+    /// A tuple of:
+    /// - `Ok(true)` if the application should exit, `Ok(false)` otherwise
+    /// - A Task to execute
     /// - `Err` if the stack is empty (should never happen)
-    pub fn update(&mut self, message: Message) -> Result<bool, &'static str> {
+    pub fn update(&mut self, message: Message) -> Result<(bool, Task<Message>), &'static str> {
         let router = self.stack.last_mut().ok_or("Router stack is empty")?;
 
-        if let Some(event) = router.update(&message) {
+        let (event, task) = router.update(&message);
+
+        if let Some(event) = event {
             match event {
                 RouterEvent::Push(new_router) => {
                     self.stack.push(new_router);
@@ -203,7 +210,7 @@ impl RouterStack {
                         }
                     } else {
                         // Can't pop the root router - exit instead
-                        return Ok(true);
+                        return Ok((true, task));
                     }
                 }
                 RouterEvent::PopTo(target) => {
@@ -228,7 +235,7 @@ impl RouterStack {
                                     current_router.refresh();
                                 }
                             } else {
-                                return Ok(true);
+                                return Ok((true, task));
                             }
                         }
                     } else {
@@ -243,12 +250,12 @@ impl RouterStack {
                     }
                 }
                 RouterEvent::Exit => {
-                    return Ok(true);
+                    return Ok((true, task));
                 }
             }
         }
 
-        Ok(false)
+        Ok((false, task))
     }
 
     /// Render the view of the current (topmost) router.
@@ -303,10 +310,6 @@ mod tests {
                 refresh_count: std::cell::RefCell::new(0),
             }
         }
-
-        fn get_refresh_count(&self) -> usize {
-            *self.refresh_count.borrow()
-        }
     }
 
     impl RouterNode for MockRouter {
@@ -314,8 +317,8 @@ mod tests {
             self.name
         }
 
-        fn update(&mut self, _message: &Message) -> Option<RouterEvent> {
-            None
+        fn update(&mut self, _message: &Message) -> (Option<RouterEvent>, Task<Message>) {
+            (None, Task::none())
         }
 
         fn view(&self) -> Element<'_, Message> {

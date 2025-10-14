@@ -1,6 +1,6 @@
 //! Manage Cards router for viewing and managing flashcards.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use iced::widget::{button, column, container, row, scrollable, text, Container};
 use iced::{Alignment, Element, Length};
@@ -44,7 +44,7 @@ pub struct ManageCardsRouter {
     /// Currently selected profile
     profile: ProfileView,
     /// API instance for backend communication
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Currently selected tab
@@ -56,7 +56,7 @@ pub struct ManageCardsRouter {
 }
 
 impl ManageCardsRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(user_view: UserView, profile: ProfileView, app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -91,7 +91,7 @@ impl ManageCardsRouter {
                     super::add_card_router::AddCardRouter::new_create(
                         self.user_view.clone(),
                         self.profile.clone(),
-                        Rc::clone(&self.app_api),
+                        Arc::clone(&self.app_api),
                         self.app_state.clone(),
                         CardType::Straight,
                     )
@@ -111,7 +111,7 @@ impl ManageCardsRouter {
                         super::add_card_router::AddCardRouter::new_edit(
                             self.user_view.clone(),
                             self.profile.clone(),
-                            Rc::clone(&self.app_api),
+                            Arc::clone(&self.app_api),
                             self.app_state.clone(),
                             card,
                         )
@@ -342,10 +342,10 @@ impl RouterNode for ManageCardsRouter {
         "manage_cards"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::ManageCards(msg) => ManageCardsRouter::update(self, msg.clone()),
-            _ => None,
+            router::Message::ManageCards(msg) => { let event = ManageCardsRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            _ => (None, iced::Task::none()),
         }
     }
 

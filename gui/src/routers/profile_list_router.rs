@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use iced::widget::{button, column, pick_list, Container, PickList};
 use iced::{Alignment, Element, Length};
@@ -29,7 +29,7 @@ pub struct ProfileListRouter {
     /// User view with all user data
     user_view: UserView,
     /// API instance for backend communication
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Currently selected profile ID (or "+ Create New Profile")
@@ -41,7 +41,7 @@ pub struct ProfileListRouter {
 }
 
 impl ProfileListRouter {
-    pub fn new(user_view: UserView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(user_view: UserView, app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -81,7 +81,7 @@ impl ProfileListRouter {
                             super::profile_router::ProfileRouter::new(
                                 self.user_view.clone(),
                                 profile,
-                                Rc::clone(&self.app_api),
+                                Arc::clone(&self.app_api),
                                 self.app_state.clone(),
                             ),
                         );
@@ -136,7 +136,6 @@ impl ProfileListRouter {
 
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         if self.show_language_picker {
             // Show language picker for new profile
@@ -158,16 +157,12 @@ impl ProfileListRouter {
                 .cloned()
                 .collect();
 
-            let mut language_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
+            let language_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
                 available_languages,
                 self.selected_language.clone(),
                 Message::LanguageSelected,
             )
             .width(200);
-
-            if let Some(font) = current_font {
-                language_pick_list = language_pick_list.font(font);
-            }
 
             let create_text = localized_text(&i18n, "profile-list-create-button", 14);
             let create_button = button(create_text)
@@ -215,16 +210,12 @@ impl ProfileListRouter {
         let create_new_text = i18n.get("profile-list-create-new", None);
         profile_options.push(create_new_text.clone());
 
-        let mut profile_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
+        let profile_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
             profile_options,
             self.selected_profile.clone(),
             Message::ProfileSelected,
         )
         .width(300);
-
-        if let Some(font) = current_font {
-            profile_pick_list = profile_pick_list.font(font);
-        }
 
         let back_text = localized_text(&i18n, "user-back-button", 14);
         let back_button = button(back_text)
@@ -273,10 +264,10 @@ impl RouterNode for ProfileListRouter {
         "profile_list"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::ProfileList(msg) => ProfileListRouter::update(self, msg.clone()),
-            _ => None, // Ignore messages not meant for this router
+            router::Message::ProfileList(msg) => { let event = ProfileListRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            _ => (None, iced::Task::none()), // Ignore messages not meant for this router
         }
     }
 

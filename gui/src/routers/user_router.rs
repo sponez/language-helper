@@ -4,7 +4,7 @@
 //! a user's account information. Users can view their settings, profiles,
 //! and navigate back to the account list.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use iced::widget::{button, column, Container};
 use iced::{Alignment, Element, Length};
@@ -35,7 +35,7 @@ pub struct UserRouter {
     user_view: UserView,
     /// API instance for backend communication
     #[allow(dead_code)]
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
 }
@@ -48,7 +48,7 @@ impl UserRouter {
     /// * `user_view` - The user view model to display (with settings and profiles)
     /// * `app_api` - The API instance for backend communication
     /// * `app_state` - Global application state
-    pub fn new(user_view: UserView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(user_view: UserView, app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -87,7 +87,7 @@ impl UserRouter {
                 let user_settings_router: Box<dyn crate::router::RouterNode> =
                     Box::new(super::user_settings_router::UserSettingsRouter::new(
                         self.user_view.clone(),
-                        Rc::clone(&self.app_api),
+                        Arc::clone(&self.app_api),
                         self.app_state.clone(),
                     ));
                 Some(RouterEvent::Push(user_settings_router))
@@ -96,7 +96,7 @@ impl UserRouter {
                 let profile_list_router: Box<dyn crate::router::RouterNode> =
                     Box::new(super::profile_list_router::ProfileListRouter::new(
                         self.user_view.clone(),
-                        Rc::clone(&self.app_api),
+                        Arc::clone(&self.app_api),
                         self.app_state.clone(),
                     ));
                 Some(RouterEvent::Push(profile_list_router))
@@ -165,10 +165,10 @@ impl RouterNode for UserRouter {
         "user"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::User(msg) => UserRouter::update(self, msg.clone()),
-            _ => None, // Ignore messages not meant for this router
+            router::Message::User(msg) => { let event = UserRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            _ => (None, iced::Task::none()), // Ignore messages not meant for this router
         }
     }
 

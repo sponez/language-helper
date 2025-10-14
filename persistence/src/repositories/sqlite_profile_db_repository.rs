@@ -462,7 +462,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                 ))
             })?;
 
-            let mut cards = Self::fetch_cards(
+            let cards = Self::fetch_cards(
                 &conn,
                 "SELECT word_name, card_type, word_readings, streak, created_at FROM cards WHERE word_name = ?1",
                 &[&word_name],
