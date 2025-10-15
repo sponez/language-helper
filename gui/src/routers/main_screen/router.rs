@@ -8,47 +8,24 @@
 use std::sync::Arc;
 
 use iced::widget::{column, container, row, Container};
-use iced::{Alignment, Element, Length, Task};
+use iced::{event, Alignment, Element, Length, Subscription, Task};
 
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
 use crate::router::{self, RouterEvent, RouterNode};
+use crate::routers::error_banner::error_modal::{
+    error_modal, handle_error_modal_event, ErrorModalMessage,
+};
+use crate::routers::main_screen::message::Message;
 
 use super::elements::{
-    add_new_user_button::{add_new_user_button, AddNewUserButtonMessage},
-    create_new_user::modal_window::{CreateNewUserModal, ModalAction, ModalWindowMessage},
-    error_modal::{error_modal, ErrorModalMessage},
+    add_new_user_button::{add_new_button, AddNewUserButtonMessage},
+    create_new_user::modal_window::CreateNewUserModal,
     language_pick_list::{language_pick_list, LanguagePickListMessage},
     theme_pick_list::{theme_pick_list, ThemePickListMessage},
     user_pick_list::{user_pick_list, UserPickListMessage},
 };
-
-/// Messages that can be sent within the main screen router
-#[derive(Debug, Clone)]
-pub enum Message {
-    /// Message from the theme picker component
-    ThemePicker(ThemePickListMessage),
-    /// Message from the language picker component
-    LanguagePicker(LanguagePickListMessage),
-    /// Message from the user picker component
-    UserPicker(UserPickListMessage),
-    /// Message from the add new user button component
-    AddUserButton(AddNewUserButtonMessage),
-    /// Messages from the create new user modal (wraps all modal messages)
-    Modal(ModalWindowMessage),
-    /// Messages from the error modal
-    ErrorModal(ErrorModalMessage),
-
-    /// Usernames received from API
-    UsernamesReceived(Vec<String>),
-    /// User creation completed
-    UserCreated(Result<String, String>),
-    /// Theme updated in API
-    ThemeUpdated(Result<(), String>),
-    /// Language updated in API
-    LanguageUpdated(Result<(), String>),
-}
 
 /// State for the main screen router
 pub struct MainScreenRouter {
@@ -87,10 +64,8 @@ impl MainScreenRouter {
 
         // Create task to load usernames
         let task = Task::perform(
-            Self::load_usernames(
-                Arc::clone(&router.app_api)
-            ),
-            Message::UsernamesReceived
+            Self::load_usernames(router.app_api.clone()),
+            Message::UsernamesReceived,
         );
 
         (router, task)
@@ -104,18 +79,6 @@ impl MainScreenRouter {
                 eprintln!("Failed to load usernames: {:?}", e);
                 Vec::new()
             }
-        }
-    }
-
-    /// Asynchronously creates a new user
-    async fn create_user(
-        app_api: Arc<dyn AppApi>,
-        username: &str,
-        _language: &str,
-    ) -> Result<String, String> {
-        match app_api.users_api().create_user(username).await {
-            Ok(_) => Ok(username.to_string()),
-            Err(_e) => Err("error-create-user".to_string()), // Return i18n key
         }
     }
 
@@ -187,57 +150,41 @@ impl MainScreenRouter {
                 }
             }
             Message::UserPicker(msg) => {
-                        match msg {
-                            UserPickListMessage::Choosed(_username) => {
-                                // TODO: Load user and navigate to UserRouter
-                            }
-                        }
-                        (None, Task::none())
+                match msg {
+                    UserPickListMessage::Choosed(_username) => {
+                        // TODO: Load user and navigate to UserRouter
                     }
+                }
+                (None, Task::none())
+            }
             Message::AddUserButton(msg) => {
-                        match msg {
-                            AddNewUserButtonMessage::Pressed => {
-                                // Open modal - create fresh instance
-                                self.create_user_modal = Some(CreateNewUserModal::new());
-                            }
-                        }
-                        (None, Task::none())
+                match msg {
+                    AddNewUserButtonMessage::Pressed => {
+                        // Open modal - create fresh instance
+                        self.create_user_modal = Some(CreateNewUserModal::new());
                     }
+                }
+                (None, Task::none())
+            }
             Message::Modal(msg) => {
-                        if let Some(modal) = &mut self.create_user_modal {
-                            let action = modal.update(msg, self.app_state.i18n());
+                if let Some(modal) = &mut self.create_user_modal {
+                    let (should_close, task) =
+                        modal.update(&self.app_state.i18n(), msg, &self.app_api);
 
-                            match action {
-                                ModalAction::CreateUser { username, language } => {
-                                    // Close modal immediately
-                                    self.create_user_modal = None;
-
-                                    let app_api = Arc::clone(&self.app_api);
-                                    let task = Task::perform(
-                                        async move {
-                                            Self::create_user(app_api, &username, language.name()).await
-                                        },
-                                        Message::UserCreated,
-                                    );
-
-                                    return (None, task);
-                                }
-                                ModalAction::Cancel => {
-                                    // Close modal and destroy state
-                                    self.create_user_modal = None;
-                                }
-                                ModalAction::None => {
-                                    // Modal still open, no action needed
-                                }
-                            }
-                        }
-                        (None, Task::none())
+                    if should_close {
+                        self.create_user_modal = None;
                     }
+
+                    return (None, task);
+                };
+
+                (None, Task::none())
+            }
             Message::UsernamesReceived(usernames) => {
-                        // Update the username list with loaded data
-                        self.username_list = usernames;
-                        (None, Task::none())
-                    }
+                // Update the username list with loaded data
+                self.username_list = usernames;
+                (None, Task::none())
+            }
             Message::UserCreated(result) => {
                 match result {
                     Ok(username) => {
@@ -255,8 +202,7 @@ impl MainScreenRouter {
                     Err(error_key) => {
                         eprintln!("Failed to create user: {}", error_key);
                         // Localize the error message
-                        let i18n = self.app_state.i18n();
-                        let localized_error = i18n.get(&error_key, None);
+                        let localized_error = self.app_state.i18n().get(&error_key, None);
                         self.error_message = Some(localized_error);
                         (None, Task::none())
                     }
@@ -272,8 +218,7 @@ impl MainScreenRouter {
                     Err(error_key) => {
                         eprintln!("Failed to save theme: {}", error_key);
                         // Localize the error message
-                        let i18n = self.app_state.i18n();
-                        let localized_error = i18n.get(&error_key, None);
+                        let localized_error = self.app_state.i18n().get(&error_key, None);
                         self.error_message = Some(localized_error);
                         (None, Task::none())
                     }
@@ -289,22 +234,49 @@ impl MainScreenRouter {
                     Err(error_key) => {
                         eprintln!("Failed to save language: {}", error_key);
                         // Localize the error message
-                        let i18n = self.app_state.i18n();
-                        let localized_error = i18n.get(&error_key, None);
+                        let localized_error = self.app_state.i18n().get(&error_key, None);
                         self.error_message = Some(localized_error);
                         (None, Task::none())
                     }
                 }
             }
-            Message::ErrorModal(msg) => {
-                match msg {
-                    ErrorModalMessage::Close => {
+            Message::ErrorModal(msg) => match msg {
+                ErrorModalMessage::Close => {
+                    self.error_message = None;
+                    (None, Task::none())
+                }
+            },
+            Message::KeyboardButtonPressed(event) => {
+                // If create user modal is open, forward keyboard events to it
+                if let Some(modal) = &mut self.create_user_modal {
+                    let (should_close, task) = modal.handle_event(event, &self.app_api);
+
+                    if should_close {
+                        self.create_user_modal = None;
+                    }
+
+                    return (None, task);
+                };
+
+                // If error modal is showing, handle Enter/Esc to close
+                if self.error_message.is_some() {
+                    if handle_error_modal_event(event) {
                         self.error_message = None;
-                        (None, Task::none())
                     }
                 }
+
+                (None, Task::none())
             }
         }
+    }
+
+    /// Subscribe to keyboard events
+    ///
+    /// # Returns
+    ///
+    /// A Subscription that listens for keyboard events
+    pub fn subscription(&self) -> Subscription<Message> {
+        event::listen().map(Message::KeyboardButtonPressed)
     }
 
     /// Render the router's view
@@ -314,11 +286,9 @@ impl MainScreenRouter {
     /// An Element containing the UI for this router
     pub fn view(&self) -> Element<'_, Message> {
         // Top-right corner: Theme and Language pickers
-        let current_theme = self.app_state.theme();
-        let theme_element = theme_pick_list(&current_theme).map(Message::ThemePicker);
-
-        let current_language = self.app_state.language();
-        let language_element = language_pick_list(&current_language).map(Message::LanguagePicker);
+        let theme_element = theme_pick_list(&self.app_state.theme).map(Message::ThemePicker);
+        let language_element =
+            language_pick_list(&self.app_state.language).map(Message::LanguagePicker);
 
         let top_bar = row![theme_element, language_element]
             .spacing(10)
@@ -327,9 +297,9 @@ impl MainScreenRouter {
 
         // Center: User picker + Add button
         let user_picker_element =
-            user_pick_list(&self.username_list, self.app_state.i18n()).map(Message::UserPicker);
+            user_pick_list(&self.username_list, &self.app_state.i18n).map(Message::UserPicker);
 
-        let add_button_element = add_new_user_button().map(Message::AddUserButton);
+        let add_button_element = add_new_button().map(Message::AddUserButton);
 
         let center_content = row![user_picker_element, add_button_element]
             .spacing(10)
@@ -352,13 +322,14 @@ impl MainScreenRouter {
 
         // If create user modal is open, render it on top
         if let Some(modal) = &self.create_user_modal {
-            let modal_view = modal.view(self.app_state.i18n()).map(Message::Modal);
+            let modal_view = modal.view(&self.app_state.i18n()).map(Message::Modal);
             return modal_view.into();
         }
 
         // If error modal is open, render it on top using stack
         if let Some(ref error_msg) = self.error_message {
-            let error_overlay = error_modal(error_msg.clone(), self.app_state.i18n()).map(Message::ErrorModal);
+            let error_overlay =
+                error_modal(&self.app_state.i18n(), &error_msg).map(Message::ErrorModal);
             return iced::widget::stack![base, error_overlay].into();
         }
 
@@ -390,18 +361,21 @@ impl RouterNode for MainScreenRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        self.app_state.theme()
+        self.app_state.theme.clone()
     }
 
     fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         let refresh_task = Task::perform(
-            Self::load_usernames(
-                Arc::clone(&self.app_api)
-            ),
-             Message::UsernamesReceived
-        ).map(router::Message::MainScreen);
+            Self::load_usernames(Arc::clone(&self.app_api)),
+            Message::UsernamesReceived,
+        )
+        .map(router::Message::MainScreen);
 
         // Batch the incoming task with the refresh task
         Task::batch(vec![incoming_task, refresh_task])
+    }
+
+    fn subscription(&self) -> Subscription<router::Message> {
+        MainScreenRouter::subscription(self).map(router::Message::MainScreen)
     }
 }

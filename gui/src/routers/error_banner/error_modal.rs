@@ -4,8 +4,9 @@
 
 use std::rc::Rc;
 
+use iced::keyboard::{key::Named, Key};
 use iced::widget::{button, column, container, text, Container};
-use iced::{Alignment, Background, Border, Color, Element, Length};
+use iced::{Alignment, Background, Border, Color, Element, Event, Length};
 
 use crate::i18n::I18n;
 
@@ -26,8 +27,11 @@ pub enum ErrorModalMessage {
 /// # Returns
 ///
 /// An Element containing the modal UI with backdrop and centered card
-pub fn error_modal(error_message: String, i18n: Rc<I18n>) -> Element<'static, ErrorModalMessage> {
-    let error_text = text(error_message)
+pub fn error_modal(
+    i18n: &Rc<I18n>,
+    error_message: &str
+) -> Element<'static, ErrorModalMessage> {
+    let error_text = text(error_message.to_string())
         .size(16)
         .shaping(iced::widget::text::Shaping::Advanced);
 
@@ -67,4 +71,21 @@ pub fn error_modal(error_message: String, i18n: Rc<I18n>) -> Element<'static, Er
             ..Default::default()
         })
         .into()
+}
+
+/// Handle keyboard events for the error modal
+///
+/// # Arguments
+///
+/// * `event` - The event to handle
+///
+/// # Returns
+///
+/// `true` if the modal should be closed, `false` otherwise
+pub fn handle_error_modal_event(event: Event) -> bool {
+    if let Event::Keyboard(iced::keyboard::Event::KeyPressed { key, .. }) = event {
+        matches!(key, Key::Named(Named::Enter) | Key::Named(Named::Escape))
+    } else {
+        false
+    }
 }

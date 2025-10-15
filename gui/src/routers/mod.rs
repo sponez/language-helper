@@ -3,6 +3,7 @@
 //! Each module in this directory represents a self-contained screen/router
 //! that handles its own logic and navigation to child screens.
 
+pub mod error_banner;
 pub mod main_screen;
 
 // pub mod add_card_router;

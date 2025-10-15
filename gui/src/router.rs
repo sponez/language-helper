@@ -29,9 +29,7 @@
 
 use iced::{Element, Subscription, Task};
 
-use crate::routers::{
-    main_screen,
-};
+use crate::routers::main_screen;
 
 /// Identifies a specific router type for navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,7 +92,7 @@ impl std::fmt::Debug for RouterEvent {
 #[derive(Debug, Clone)]
 pub enum Message {
     /// Message for the user list router
-    MainScreen(main_screen::router::Message),
+    MainScreen(main_screen::message::Message),
     // /// Message for the user router
     // User(user_router::Message),
     // /// Message for the user settings router

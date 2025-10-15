@@ -3,12 +3,17 @@
 //! This component aggregates all sub-components and manages the modal state.
 
 use std::rc::Rc;
+use std::sync::Arc;
 
+use iced::keyboard::{key::Named, Key};
 use iced::widget::{column, container, row, text, Column, Container};
-use iced::{Alignment, Element, Length};
+use iced::{Alignment, Element, Event, Length, Task};
+
+use lh_api::app_api::AppApi;
 
 use crate::i18n::I18n;
 use crate::languages::Language;
+use crate::routers::main_screen::message::Message;
 
 use super::elements::{
     cancel_button::{cancel_button, CancelButtonMessage},
@@ -41,20 +46,6 @@ pub enum ModalWindowMessage {
     CancelButton(CancelButtonMessage),
 }
 
-/// Actions that the modal can request from its parent
-#[derive(Debug, Clone)]
-pub enum ModalAction {
-    /// No action needed
-    None,
-    /// User wants to create a new user with the given username and language
-    CreateUser {
-        username: String,
-        language: Language,
-    },
-    /// User cancelled the operation
-    Cancel,
-}
-
 impl CreateNewUserModal {
     /// Creates a new Create New User modal
     pub fn new() -> Self {
@@ -76,7 +67,7 @@ impl CreateNewUserModal {
     }
 
     /// Updates the validation error message based on current state
-    fn update_validation(&mut self, i18n: Rc<I18n>) {
+    fn update_validation(&mut self, i18n: &Rc<I18n>) {
         let username_len = self.username.trim().len();
 
         if self.username.is_empty() {
@@ -92,6 +83,60 @@ impl CreateNewUserModal {
         }
     }
 
+    fn ok(&self, app_api: &Arc<dyn AppApi>) -> (bool, Task<Message>) {
+        if self.is_valid() {
+            let username = self.username.trim().to_string();
+            let app_api_clonned = Arc::clone(app_api);
+            let task = Task::perform(
+                async move {
+                    match app_api_clonned.users_api().create_user(&username).await {
+                        Ok(_) => Ok(username),
+                        Err(_e) => Err("error-create-user".to_string()),
+                    }
+                },
+                Message::UserCreated,
+            );
+
+            return (true, task);
+        }
+
+        (false, Task::none())
+    }
+
+    fn cancel(&self) -> (bool, Task<Message>) {
+        (true, Task::none())
+    }
+
+    /// Handles keyboard events
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - The keyboard event
+    ///
+    /// # Returns
+    ///
+    /// A ModalAction indicating what the parent should do
+    pub fn handle_event(&self, event: Event, app_api: &Arc<dyn AppApi>) -> (bool, Task<Message>) {
+        if let Event::Keyboard(iced::keyboard::Event::KeyPressed {
+            key, modifiers: _, ..
+        }) = event
+        {
+            match key {
+                Key::Named(Named::Enter) => {
+                    return self.ok(app_api);
+                }
+                Key::Named(Named::Escape) => {
+                    return self.cancel();
+                }
+                _ => {
+                    return (false, Task::none());
+                }
+            }
+        }
+
+        (false, Task::none())
+    }
+
     /// Updates the modal state based on messages
     ///
     /// # Arguments
@@ -102,7 +147,12 @@ impl CreateNewUserModal {
     /// # Returns
     ///
     /// A ModalAction indicating what the parent should do
-    pub fn update(&mut self, message: ModalWindowMessage, i18n: Rc<I18n>) -> ModalAction {
+    pub fn update(
+        &mut self,
+        i18n: &Rc<I18n>,
+        message: ModalWindowMessage,
+        app_api: &Arc<dyn AppApi>,
+    ) -> (bool, Task<Message>) {
         match message {
             ModalWindowMessage::UsernameInput(msg) => {
                 match msg {
@@ -111,7 +161,7 @@ impl CreateNewUserModal {
                         self.update_validation(i18n);
                     }
                 }
-                ModalAction::None
+                (false, Task::none())
             }
             ModalWindowMessage::LanguagePicker(msg) => {
                 match msg {
@@ -120,23 +170,13 @@ impl CreateNewUserModal {
                         self.update_validation(i18n);
                     }
                 }
-                ModalAction::None
+                (false, Task::none())
             }
             ModalWindowMessage::OkButton(msg) => match msg {
-                OkButtonMessage::Pressed => {
-                    if self.is_valid() {
-                        if let Some(language) = self.selected_language {
-                            return ModalAction::CreateUser {
-                                username: self.username.trim().to_string(),
-                                language,
-                            };
-                        }
-                    }
-                    ModalAction::None
-                }
+                OkButtonMessage::Pressed => self.ok(app_api),
             },
             ModalWindowMessage::CancelButton(msg) => match msg {
-                CancelButtonMessage::Pressed => ModalAction::Cancel,
+                CancelButtonMessage::Pressed => (true, Task::none()),
             },
         }
     }
@@ -150,7 +190,7 @@ impl CreateNewUserModal {
     /// # Returns
     ///
     /// An Element containing the modal UI
-    pub fn view(&self, i18n: Rc<I18n>) -> Element<'_, ModalWindowMessage> {
+    pub fn view(&self, i18n: &Rc<I18n>) -> Element<'_, ModalWindowMessage> {
         // Title
         let title = title_text(&i18n.get("create-new-user-title", None));
 
