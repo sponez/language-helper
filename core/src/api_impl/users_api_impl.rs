@@ -210,11 +210,18 @@ impl<
 
     async fn delete_user(&self, username: &str) -> Result<bool, ApiError> {
         // Delete user settings
-        let _ = self.user_settings_service.delete_user_settings(username).await;
+        let _ = self
+            .user_settings_service
+            .delete_user_settings(username)
+            .await;
 
         // Delete all profile metadata for the user
         // Note: Profile database files must be deleted separately via ProfilesApi
-        if let Ok(profiles) = self.profile_metadata_service.get_profiles_for_user(username).await {
+        if let Ok(profiles) = self
+            .profile_metadata_service
+            .get_profiles_for_user(username)
+            .await
+        {
             for profile in profiles {
                 let _ = self
                     .profile_metadata_service
@@ -247,7 +254,11 @@ impl<
         Ok(map_profile_to_dto(profile))
     }
 
-    async fn delete_profile(&self, username: &str, target_language: &str) -> Result<bool, ApiError> {
+    async fn delete_profile(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<bool, ApiError> {
         // Delete profile metadata only
         // Note: Profile database file must be deleted separately via ProfilesApi
         match self
@@ -396,10 +407,17 @@ mod tests {
     struct MockUserSettingsRepository;
     #[async_trait]
     impl UserSettingsRepository for MockUserSettingsRepository {
-        async fn find_by_username(&self, _username: &str) -> Result<Option<UserSettings>, CoreError> {
+        async fn find_by_username(
+            &self,
+            _username: &str,
+        ) -> Result<Option<UserSettings>, CoreError> {
             Ok(None)
         }
-        async fn save(&self, _username: &str, settings: UserSettings) -> Result<UserSettings, CoreError> {
+        async fn save(
+            &self,
+            _username: &str,
+            settings: UserSettings,
+        ) -> Result<UserSettings, CoreError> {
             Ok(settings)
         }
         async fn delete(&self, _username: &str) -> Result<bool, CoreError> {
@@ -466,7 +484,11 @@ mod tests {
                 should_fail: false,
             },
         );
-        UsersApiImpl::new(user_service, user_settings_service, profile_metadata_service)
+        UsersApiImpl::new(
+            user_service,
+            user_settings_service,
+            profile_metadata_service,
+        )
     }
 
     #[tokio::test]

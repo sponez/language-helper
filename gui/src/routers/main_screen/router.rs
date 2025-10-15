@@ -87,7 +87,8 @@ impl MainScreenRouter {
             Message::LanguagePicker(msg) => {
                 match msg {
                     LanguagePickListMessage::LanguageSelected(language) => {
-                        self.app_state.set_language(language.to_locale_code().to_string());
+                        self.app_state
+                            .set_language(language.to_locale_code().to_string());
                         // TODO: Save language to app settings via API
                     }
                 }
@@ -153,15 +154,13 @@ impl MainScreenRouter {
             .cloned()
             .unwrap_or(iced::Theme::Light);
 
-        let theme_element = theme_pick_list(&current_theme)
-            .map(Message::ThemePicker);
+        let theme_element = theme_pick_list(&current_theme).map(Message::ThemePicker);
 
         // Convert current language string to Language enum for picker
-        let current_language = Language::from_locale_code(&self.app_state.language())
-            .unwrap_or(Language::English);
+        let current_language =
+            Language::from_locale_code(&self.app_state.language()).unwrap_or(Language::English);
 
-        let language_element = language_pick_list(&current_language)
-            .map(Message::LanguagePicker);
+        let language_element = language_pick_list(&current_language).map(Message::LanguagePicker);
 
         let top_bar = row![theme_element, language_element]
             .spacing(10)
@@ -172,11 +171,9 @@ impl MainScreenRouter {
         // TODO: Fetch actual users from API
         let users = vec!["User1".to_string(), "User2".to_string()];
 
-        let user_picker_element = user_pick_list(&i18n, &users)
-            .map(Message::UserPicker);
+        let user_picker_element = user_pick_list(&i18n, &users).map(Message::UserPicker);
 
-        let add_button_element = add_new_user_button()
-            .map(Message::AddUserButton);
+        let add_button_element = add_new_user_button().map(Message::AddUserButton);
 
         let center_content = row![user_picker_element, add_button_element]
             .spacing(10)
@@ -194,15 +191,13 @@ impl MainScreenRouter {
                 .align_y(Alignment::Center),
         ];
 
-        let base: Container<'_, Message> = container(content)
-            .width(Length::Fill)
-            .height(Length::Fill);
+        let base: Container<'_, Message> =
+            container(content).width(Length::Fill).height(Length::Fill);
 
         // If modal is open, render it on top using stack!
         if let Some(modal) = &self.create_user_modal {
             let i18n = self.app_state.i18n();
-            let modal_view = modal.view(&i18n)
-                .map(Message::Modal);
+            let modal_view = modal.view(&i18n).map(Message::Modal);
 
             modal_view.into()
         } else {

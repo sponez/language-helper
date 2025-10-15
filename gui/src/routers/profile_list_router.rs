@@ -72,19 +72,21 @@ impl ProfileListRouter {
                     let target_language = profile_id.trim_end_matches(" profile");
 
                     // Find the matching profile in user_view.profiles
-                    if let Some(profile) = self.user_view.profiles.iter()
+                    if let Some(profile) = self
+                        .user_view
+                        .profiles
+                        .iter()
                         .find(|p| p.target_language == target_language)
                         .cloned()
                     {
                         // Navigate to profile router
-                        let profile_router: Box<dyn crate::router::RouterNode> = Box::new(
-                            super::profile_router::ProfileRouter::new(
+                        let profile_router: Box<dyn crate::router::RouterNode> =
+                            Box::new(super::profile_router::ProfileRouter::new(
                                 self.user_view.clone(),
                                 profile,
                                 Arc::clone(&self.app_api),
                                 self.app_state.clone(),
-                            ),
-                        );
+                            ));
                         Some(RouterEvent::Push(profile_router))
                     } else {
                         eprintln!("Profile not found: {}", target_language);
@@ -100,20 +102,33 @@ impl ProfileListRouter {
                 if let Some(language) = &self.selected_language {
                     // Create new profile via API
                     // Step 1: Create profile metadata
-                    match block_on(self.app_api.users_api().create_profile(&self.user_view.username, language)) {
+                    match block_on(
+                        self.app_api
+                            .users_api()
+                            .create_profile(&self.user_view.username, language),
+                    ) {
                         Ok(profile_dto) => {
                             // Step 2: Create the profile database file
-                            match block_on(self.app_api.profile_api().create_profile_database(&self.user_view.username, language)) {
+                            match block_on(
+                                self.app_api
+                                    .profile_api()
+                                    .create_profile_database(&self.user_view.username, language),
+                            ) {
                                 Ok(_) => {
                                     // Add the new profile to the user_view
                                     use crate::mappers::user_mapper;
-                                    let profile_view = user_mapper::dto_profile_to_view(&profile_dto);
+                                    let profile_view =
+                                        user_mapper::dto_profile_to_view(&profile_dto);
                                     self.user_view.profiles.push(profile_view);
                                 }
                                 Err(e) => {
                                     eprintln!("Failed to create profile database: {:?}", e);
                                     // Cleanup: delete the metadata if database creation failed
-                                    let _ = block_on(self.app_api.users_api().delete_profile(&self.user_view.username, language));
+                                    let _ = block_on(
+                                        self.app_api
+                                            .users_api()
+                                            .delete_profile(&self.user_view.username, language),
+                                    );
                                 }
                             }
                         }
@@ -167,7 +182,9 @@ impl ProfileListRouter {
             let create_text = localized_text(&i18n, "profile-list-create-button", 14);
             let create_button = button(create_text)
                 .on_press_maybe(
-                    self.selected_language.as_ref().map(|_| Message::CreateProfile),
+                    self.selected_language
+                        .as_ref()
+                        .map(|_| Message::CreateProfile),
                 )
                 .width(Length::Fixed(120.0))
                 .padding(10);
@@ -223,14 +240,10 @@ impl ProfileListRouter {
             .width(Length::Fixed(120.0))
             .padding(10);
 
-        let content = column![
-            title_text,
-            profile_pick_list,
-            back_button,
-        ]
-        .spacing(20)
-        .padding(20)
-        .align_x(Alignment::Center);
+        let content = column![title_text, profile_pick_list, back_button,]
+            .spacing(20)
+            .padding(20)
+            .align_x(Alignment::Center);
 
         Container::new(content)
             .width(Length::Fill)
@@ -244,16 +257,24 @@ impl ProfileListRouter {
 impl ProfileListRouter {
     /// Refresh user data (including profiles list) from the API
     fn refresh_data(&mut self) {
-        if let Some(user_dto) = block_on(self.app_api.users_api().get_user_by_username(&self.user_view.username)) {
+        if let Some(user_dto) = block_on(
+            self.app_api
+                .users_api()
+                .get_user_by_username(&self.user_view.username),
+        ) {
             use crate::mappers::user_mapper;
             self.user_view = user_mapper::dto_to_view(&user_dto);
 
             // Update app_state with user's settings if they changed
             if let Some(ref settings) = self.user_view.settings {
-                self.app_state.update_settings(settings.theme.clone(), settings.language.clone());
+                self.app_state
+                    .update_settings(settings.theme.clone(), settings.language.clone());
             }
         } else {
-            eprintln!("Failed to refresh user data for user: {}", self.user_view.username);
+            eprintln!(
+                "Failed to refresh user data for user: {}",
+                self.user_view.username
+            );
         }
     }
 }
@@ -264,9 +285,15 @@ impl RouterNode for ProfileListRouter {
         "profile_list"
     }
 
-    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
+    fn update(
+        &mut self,
+        message: &router::Message,
+    ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::ProfileList(msg) => { let event = ProfileListRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            router::Message::ProfileList(msg) => {
+                let event = ProfileListRouter::update(self, msg.clone());
+                (event, iced::Task::none())
+            }
             _ => (None, iced::Task::none()), // Ignore messages not meant for this router
         }
     }

@@ -33,7 +33,11 @@ impl CardView {
             card_type_display,
             card_type: dto.card_type,
             word: WordView::from_dto(dto.word),
-            meanings: dto.meanings.into_iter().map(MeaningView::from_dto).collect(),
+            meanings: dto
+                .meanings
+                .into_iter()
+                .map(MeaningView::from_dto)
+                .collect(),
             streak: dto.streak,
             created_at_display,
         }

@@ -4,10 +4,10 @@
 //! `UserRepository` trait. It's generic over the concrete persistence
 //! implementation to avoid circular dependencies.
 
-use async_trait::async_trait;
-use crate::models::user::User;
 use crate::errors::CoreError;
+use crate::models::user::User;
 use crate::repositories::user_repository::UserRepository;
+use async_trait::async_trait;
 
 /// Trait representing a persistence-layer user repository.
 ///

@@ -256,7 +256,10 @@ mod tests {
         assert_eq!(Language::from_locale_code("en-US"), Some(Language::English));
         assert_eq!(Language::from_locale_code("es-ES"), Some(Language::Spanish));
         assert_eq!(Language::from_locale_code("zh-CN"), Some(Language::Chinese));
-        assert_eq!(Language::from_locale_code("pt-BR"), Some(Language::Portuguese));
+        assert_eq!(
+            Language::from_locale_code("pt-BR"),
+            Some(Language::Portuguese)
+        );
         assert_eq!(Language::from_locale_code("invalid"), None);
         assert_eq!(Language::from_locale_code(""), None);
     }

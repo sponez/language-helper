@@ -3,9 +3,9 @@
 //! This module defines the repository trait for user persistence operations.
 //! The actual implementation will be provided by the persistence layer.
 
-use async_trait::async_trait;
-use crate::models::user::User;
 use crate::errors::CoreError;
+use crate::models::user::User;
+use async_trait::async_trait;
 
 /// Repository trait for user persistence operations.
 ///

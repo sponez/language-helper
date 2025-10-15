@@ -41,10 +41,7 @@ pub fn view_to_model(view: &UserView) -> User {
 /// A UserView with settings and profiles for display in the GUI
 pub fn dto_to_view(user_dto: &UserDto) -> UserView {
     let settings = dto_settings_to_view(&user_dto.settings);
-    let profiles = user_dto.profiles
-        .iter()
-        .map(dto_profile_to_view)
-        .collect();
+    let profiles = user_dto.profiles.iter().map(dto_profile_to_view).collect();
 
     UserView::with_details(user_dto.username.clone(), settings, profiles)
 }
@@ -63,7 +60,8 @@ pub fn dto_profile_to_view(profile_dto: &ProfileDto) -> ProfileView {
         None => "Invalid date".to_string(),
     };
 
-    let last_activity_display = match DateTime::<Utc>::from_timestamp(profile_dto.last_activity, 0) {
+    let last_activity_display = match DateTime::<Utc>::from_timestamp(profile_dto.last_activity, 0)
+    {
         Some(dt) => dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
         None => "Invalid date".to_string(),
     };

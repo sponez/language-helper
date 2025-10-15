@@ -80,7 +80,7 @@ impl AppSettings {
     pub fn new<UT, UL>(ui_theme: UT, default_ui_language: UL) -> Result<Self, CoreError>
     where
         UT: AsRef<str> + Into<String>,
-        UL: AsRef<str> + Into<String>
+        UL: AsRef<str> + Into<String>,
     {
         Self::validate_theme(ui_theme.as_ref())?;
         Self::validate_language_code(default_ui_language.as_ref())?;

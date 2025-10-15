@@ -13,10 +13,7 @@ use lh_core::models::user_settings::UserSettings;
 ///
 /// A UserSettings model instance
 pub fn entity_to_model(entity: &UserSettingsEntity) -> UserSettings {
-    UserSettings::new_unchecked(
-        entity.ui_theme.clone(),
-        entity.ui_language.clone(),
-    )
+    UserSettings::new_unchecked(entity.ui_theme.clone(), entity.ui_language.clone())
 }
 
 /// Converts a core UserSettings model to a persistence UserSettingsEntity.
@@ -56,11 +53,7 @@ mod tests {
     #[test]
     fn test_model_to_entity() {
         let username = "test_user";
-        let settings = UserSettings::new(
-            "Light".to_string(),
-            "es".to_string(),
-        )
-        .unwrap();
+        let settings = UserSettings::new("Light".to_string(), "es".to_string()).unwrap();
         let entity = model_to_entity(username, &settings);
 
         assert_eq!(entity.username, username);
@@ -71,11 +64,7 @@ mod tests {
     #[test]
     fn test_roundtrip() {
         let username = "Bob";
-        let original_settings = UserSettings::new(
-            "Nord".to_string(),
-            "fr".to_string(),
-        )
-        .unwrap();
+        let original_settings = UserSettings::new("Nord".to_string(), "fr".to_string()).unwrap();
         let entity = model_to_entity(username, &original_settings);
         let converted_settings = entity_to_model(&entity);
 

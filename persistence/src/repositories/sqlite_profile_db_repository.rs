@@ -5,10 +5,12 @@
 //! for storing learning content (vocabulary cards, progress, etc.).
 
 use crate::errors::PersistenceError;
-use crate::models::{AssistantSettingsEntity, CardEntity, CardSettingsEntity, CardWithRelations, MeaningEntity};
+use crate::models::{
+    AssistantSettingsEntity, CardEntity, CardSettingsEntity, CardWithRelations, MeaningEntity,
+};
 use lh_core::models::{AssistantSettings, Card, CardSettings};
 use lh_core::repositories::adapters::PersistenceProfileDbRepository;
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::fs;
 use std::path::PathBuf;
 
@@ -197,23 +199,30 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                 ))
             })?;
 
-            let mut stmt = conn.prepare(
-                "SELECT id, cards_per_set, test_answer_method, streak_length
-                 FROM card_settings WHERE id = 1"
-            ).map_err(|e| {
-                PersistenceError::database_error(format!("Failed to prepare query: {}", e))
-            })?;
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, cards_per_set, test_answer_method, streak_length
+                 FROM card_settings WHERE id = 1",
+                )
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to prepare query: {}", e))
+                })?;
 
-            let entity = stmt.query_row([], |row| {
-                Ok(CardSettingsEntity {
-                    id: row.get(0)?,
-                    cards_per_set: row.get(1)?,
-                    test_answer_method: row.get(2)?,
-                    streak_length: row.get(3)?,
+            let entity = stmt
+                .query_row([], |row| {
+                    Ok(CardSettingsEntity {
+                        id: row.get(0)?,
+                        cards_per_set: row.get(1)?,
+                        test_answer_method: row.get(2)?,
+                        streak_length: row.get(3)?,
+                    })
                 })
-            }).map_err(|e| {
-                PersistenceError::database_error(format!("Failed to fetch card settings: {}", e))
-            })?;
+                .map_err(|e| {
+                    PersistenceError::database_error(format!(
+                        "Failed to fetch card settings: {}",
+                        e
+                    ))
+                })?;
 
             entity.to_domain()
         })
@@ -221,7 +230,11 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    async fn update_card_settings(&self, db_path: PathBuf, settings: CardSettings) -> Result<(), Self::Error> {
+    async fn update_card_settings(
+        &self,
+        db_path: PathBuf,
+        settings: CardSettings,
+    ) -> Result<(), Self::Error> {
         tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path).map_err(|e| {
                 PersistenceError::database_error(format!(
@@ -241,7 +254,8 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                     settings.test_answer_method,
                     settings.streak_length as i64,
                 ],
-            ).map_err(|e| {
+            )
+            .map_err(|e| {
                 PersistenceError::database_error(format!("Failed to update card settings: {}", e))
             })?;
 
@@ -251,7 +265,10 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    async fn get_assistant_settings(&self, db_path: PathBuf) -> Result<AssistantSettings, Self::Error> {
+    async fn get_assistant_settings(
+        &self,
+        db_path: PathBuf,
+    ) -> Result<AssistantSettings, Self::Error> {
         tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path).map_err(|e| {
                 PersistenceError::database_error(format!(
@@ -260,24 +277,31 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                 ))
             })?;
 
-            let mut stmt = conn.prepare(
-                "SELECT id, ai_model, api_endpoint, api_key, api_model_name
-                 FROM assistant_settings WHERE id = 1"
-            ).map_err(|e| {
-                PersistenceError::database_error(format!("Failed to prepare query: {}", e))
-            })?;
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, ai_model, api_endpoint, api_key, api_model_name
+                 FROM assistant_settings WHERE id = 1",
+                )
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to prepare query: {}", e))
+                })?;
 
-            let entity = stmt.query_row([], |row| {
-                Ok(AssistantSettingsEntity {
-                    id: row.get(0)?,
-                    ai_model: row.get(1)?,
-                    api_endpoint: row.get(2)?,
-                    api_key: row.get(3)?,
-                    api_model_name: row.get(4)?,
+            let entity = stmt
+                .query_row([], |row| {
+                    Ok(AssistantSettingsEntity {
+                        id: row.get(0)?,
+                        ai_model: row.get(1)?,
+                        api_endpoint: row.get(2)?,
+                        api_key: row.get(3)?,
+                        api_model_name: row.get(4)?,
+                    })
                 })
-            }).map_err(|e| {
-                PersistenceError::database_error(format!("Failed to fetch assistant settings: {}", e))
-            })?;
+                .map_err(|e| {
+                    PersistenceError::database_error(format!(
+                        "Failed to fetch assistant settings: {}",
+                        e
+                    ))
+                })?;
 
             entity.to_domain()
         })
@@ -285,7 +309,11 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    async fn update_assistant_settings(&self, db_path: PathBuf, settings: AssistantSettings) -> Result<(), Self::Error> {
+    async fn update_assistant_settings(
+        &self,
+        db_path: PathBuf,
+        settings: AssistantSettings,
+    ) -> Result<(), Self::Error> {
         tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path).map_err(|e| {
                 PersistenceError::database_error(format!(
@@ -307,8 +335,12 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                     settings.api_key,
                     settings.api_model_name,
                 ],
-            ).map_err(|e| {
-                PersistenceError::database_error(format!("Failed to update assistant settings: {}", e))
+            )
+            .map_err(|e| {
+                PersistenceError::database_error(format!(
+                    "Failed to update assistant settings: {}",
+                    e
+                ))
             })?;
 
             Ok(())
@@ -334,8 +366,12 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                     api_model_name = NULL
                  WHERE id = 1",
                 [],
-            ).map_err(|e| {
-                PersistenceError::database_error(format!("Failed to clear assistant settings: {}", e))
+            )
+            .map_err(|e| {
+                PersistenceError::database_error(format!(
+                    "Failed to clear assistant settings: {}",
+                    e
+                ))
             })?;
 
             Ok(())
@@ -421,7 +457,11 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                 ))
             })?;
 
-            Self::fetch_cards(&conn, "SELECT word_name, card_type, word_readings, streak, created_at FROM cards", &[])
+            Self::fetch_cards(
+                &conn,
+                "SELECT word_name, card_type, word_readings, streak, created_at FROM cards",
+                &[],
+            )
         })
         .await
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
@@ -453,7 +493,11 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    async fn get_card_by_word_name(&self, db_path: PathBuf, word_name: String) -> Result<Card, Self::Error> {
+    async fn get_card_by_word_name(
+        &self,
+        db_path: PathBuf,
+        word_name: String,
+    ) -> Result<Card, Self::Error> {
         tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path).map_err(|e| {
                 PersistenceError::database_error(format!(
@@ -476,7 +520,12 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    async fn update_card_streak(&self, db_path: PathBuf, word_name: String, streak: i32) -> Result<(), Self::Error> {
+    async fn update_card_streak(
+        &self,
+        db_path: PathBuf,
+        word_name: String,
+        streak: i32,
+    ) -> Result<(), Self::Error> {
         tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path).map_err(|e| {
                 PersistenceError::database_error(format!(
@@ -485,15 +534,20 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                 ))
             })?;
 
-            let rows_affected = conn.execute(
-                "UPDATE cards SET streak = ?1 WHERE word_name = ?2",
-                params![streak, word_name],
-            ).map_err(|e| {
-                PersistenceError::database_error(format!("Failed to update card streak: {}", e))
-            })?;
+            let rows_affected = conn
+                .execute(
+                    "UPDATE cards SET streak = ?1 WHERE word_name = ?2",
+                    params![streak, word_name],
+                )
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to update card streak: {}", e))
+                })?;
 
             if rows_affected == 0 {
-                return Err(PersistenceError::database_error(format!("Card with word_name '{}' not found", word_name)));
+                return Err(PersistenceError::database_error(format!(
+                    "Card with word_name '{}' not found",
+                    word_name
+                )));
             }
 
             Ok(())
@@ -511,12 +565,11 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                 ))
             })?;
 
-            let rows_affected = conn.execute(
-                "DELETE FROM cards WHERE word_name = ?1",
-                params![word_name],
-            ).map_err(|e| {
-                PersistenceError::database_error(format!("Failed to delete card: {}", e))
-            })?;
+            let rows_affected = conn
+                .execute("DELETE FROM cards WHERE word_name = ?1", params![word_name])
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to delete card: {}", e))
+                })?;
 
             Ok(rows_affected > 0)
         })
@@ -546,9 +599,7 @@ impl SqliteProfileDbRepository {
                     created_at: row.get(4)?,
                 })
             })
-            .map_err(|e| {
-                PersistenceError::database_error(format!("Failed to query cards: {}", e))
-            })?
+            .map_err(|e| PersistenceError::database_error(format!("Failed to query cards: {}", e)))?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 PersistenceError::database_error(format!("Failed to collect cards: {}", e))

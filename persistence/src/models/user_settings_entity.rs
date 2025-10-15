@@ -72,7 +72,6 @@ impl UserSettingsEntity {
             ui_language: ui_language.into(),
         }
     }
-
 }
 
 #[cfg(test)]

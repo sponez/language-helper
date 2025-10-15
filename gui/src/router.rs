@@ -29,7 +29,12 @@
 
 use iced::{Element, Subscription, Task};
 
-use crate::routers::{add_card_router, assistant_settings_router, card_settings_router, cards_menu_router, explain_ai_router, inverse_cards_review_router, main_screen, manage_cards_router, profile_list_router, profile_router, profile_settings_router, user_router, user_settings_router};
+use crate::routers::{
+    add_card_router, assistant_settings_router, card_settings_router, cards_menu_router,
+    explain_ai_router, inverse_cards_review_router, main_screen, manage_cards_router,
+    profile_list_router, profile_router, profile_settings_router, user_router,
+    user_settings_router,
+};
 
 /// Identifies a specific router type for navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -217,7 +222,9 @@ impl RouterStack {
                     if let Some(target_router) = target {
                         // Find the target router in the stack
                         let target_name = target_router.as_str();
-                        let target_index = self.stack.iter()
+                        let target_index = self
+                            .stack
+                            .iter()
                             .position(|r| r.router_name() == target_name);
 
                         if let Some(index) = target_index {
@@ -412,8 +419,7 @@ mod tests {
         assert_eq!(stack.stack.len(), 4);
 
         // PopTo should find "user" and truncate above it
-        let target_index = stack.stack.iter()
-            .position(|r| r.router_name() == "user");
+        let target_index = stack.stack.iter().position(|r| r.router_name() == "user");
 
         assert_eq!(target_index, Some(1));
 

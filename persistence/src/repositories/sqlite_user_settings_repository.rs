@@ -142,7 +142,11 @@ impl SqliteUserSettingsRepository {
     ///
     /// * `Ok(UserSettings)` - The saved settings
     /// * `Err(PersistenceError)` - If the save operation fails
-    pub fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, PersistenceError> {
+    pub fn save(
+        &self,
+        username: &str,
+        settings: UserSettings,
+    ) -> Result<UserSettings, PersistenceError> {
         let conn = self.connection.lock().map_err(|e| {
             PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
         })?;
@@ -227,7 +231,11 @@ impl PersistenceUserSettingsRepository for SqliteUserSettingsRepository {
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    async fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, Self::Error> {
+    async fn save(
+        &self,
+        username: &str,
+        settings: UserSettings,
+    ) -> Result<UserSettings, Self::Error> {
         let username = username.to_string();
         let conn = self.connection.clone();
         tokio::task::spawn_blocking(move || {
@@ -267,7 +275,10 @@ impl PersistenceUserSettingsRepository for SqliteUserSettingsRepository {
                     params![username],
                 )
                 .map_err(|e| {
-                    PersistenceError::database_error(format!("Failed to delete user settings: {}", e))
+                    PersistenceError::database_error(format!(
+                        "Failed to delete user settings: {}",
+                        e
+                    ))
                 })?;
 
             Ok(rows_affected > 0)

@@ -56,7 +56,8 @@ pub fn get_running_models() -> Vec<String> {
             }
 
             // Extract model names from each line (first column)
-            lines.iter()
+            lines
+                .iter()
                 .skip(1) // Skip header
                 .filter_map(|line| {
                     // Split by whitespace and get first column (model name)
@@ -97,11 +98,7 @@ pub fn get_running_models() -> Vec<String> {
 /// ```
 pub fn stop_model(model_name: &str) -> Result<(), String> {
     // Execute "ollama stop <model_name>" command
-    match Command::new("ollama")
-        .arg("stop")
-        .arg(model_name)
-        .output()
-    {
+    match Command::new("ollama").arg("stop").arg(model_name).output() {
         Ok(output) => {
             if output.status.success() {
                 Ok(())
@@ -110,9 +107,7 @@ pub fn stop_model(model_name: &str) -> Result<(), String> {
                 Err(format!("Failed to stop model: {}", stderr.trim()))
             }
         }
-        Err(e) => {
-            Err(format!("Failed to execute ollama stop: {}", e))
-        }
+        Err(e) => Err(format!("Failed to execute ollama stop: {}", e)),
     }
 }
 
@@ -260,7 +255,8 @@ pub fn get_available_models() -> Vec<String> {
             }
 
             // Extract model names from each line (first column)
-            lines.iter()
+            lines
+                .iter()
                 .skip(1) // Skip header
                 .filter_map(|line| {
                     // Split by whitespace and get first column (model name)
@@ -309,11 +305,7 @@ pub fn pull_model(model_name: &str) -> Result<(), String> {
     println!("Starting pull for model: {}", model_name);
 
     // Execute "ollama pull <model_name>" and wait for completion
-    match Command::new("ollama")
-        .arg("pull")
-        .arg(model_name)
-        .output()
-    {
+    match Command::new("ollama").arg("pull").arg(model_name).output() {
         Ok(output) => {
             if output.status.success() {
                 println!("Model pull completed successfully");
@@ -328,9 +320,7 @@ pub fn pull_model(model_name: &str) -> Result<(), String> {
                 ))
             }
         }
-        Err(e) => {
-            Err(format!("Failed to execute ollama pull: {}", e))
-        }
+        Err(e) => Err(format!("Failed to execute ollama pull: {}", e)),
     }
 }
 
@@ -415,7 +405,10 @@ pub fn run_model(model_name: &str) -> Result<(), String> {
             if e.is_connect() {
                 Err("Cannot connect to Ollama server. Is it running?".to_string())
             } else if e.is_timeout() {
-                Err(format!("Timeout loading model '{}' (models can take up to 60 seconds to load)", model_name))
+                Err(format!(
+                    "Timeout loading model '{}' (models can take up to 60 seconds to load)",
+                    model_name
+                ))
             } else {
                 Err(format!("Failed to load model via API: {}", e))
             }

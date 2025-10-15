@@ -142,11 +142,7 @@ mod tests {
 
     #[test]
     fn test_user_settings_creation_valid() {
-        let settings = UserSettings::new(
-            "Dark".to_string(),
-            "en".to_string(),
-        )
-        .unwrap();
+        let settings = UserSettings::new("Dark".to_string(), "en".to_string()).unwrap();
         assert_eq!(settings.ui_theme, "Dark");
         assert_eq!(settings.ui_language, "en");
     }
@@ -154,18 +150,14 @@ mod tests {
     #[test]
     fn test_valid_themes() {
         for theme in UserSettings::VALID_THEMES {
-            let result =
-                UserSettings::new(theme.to_string(), "en".to_string());
+            let result = UserSettings::new(theme.to_string(), "en".to_string());
             assert!(result.is_ok(), "Theme '{}' should be valid", theme);
         }
     }
 
     #[test]
     fn test_invalid_theme() {
-        let result = UserSettings::new(
-            "NotARealTheme".to_string(),
-            "en".to_string(),
-        );
+        let result = UserSettings::new("NotARealTheme".to_string(), "en".to_string());
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
@@ -197,29 +189,21 @@ mod tests {
     fn test_valid_language_codes() {
         let valid_codes = vec!["en", "es", "fr", "de", "zh", "ja", "en-US", "pt-BR"];
         for code in valid_codes {
-            let result = UserSettings::new(
-                "Dark".to_string(),
-                code.to_string(),
-            );
+            let result = UserSettings::new("Dark".to_string(), code.to_string());
             assert!(result.is_ok(), "Language code '{}' should be valid", code);
         }
     }
 
     #[test]
     fn test_clone() {
-        let settings = UserSettings::new(
-            "Light".to_string(),
-            "es".to_string(),
-        )
-        .unwrap();
+        let settings = UserSettings::new("Light".to_string(), "es".to_string()).unwrap();
         let cloned = settings.clone();
         assert_eq!(settings, cloned);
     }
 
     #[test]
     fn test_new_unchecked() {
-        let settings =
-            UserSettings::new_unchecked("NotARealTheme".to_string(), "".to_string());
+        let settings = UserSettings::new_unchecked("NotARealTheme".to_string(), "".to_string());
         assert_eq!(settings.ui_theme, "NotARealTheme");
     }
 }

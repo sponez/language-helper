@@ -41,13 +41,9 @@ pub fn language_pick_list<'a>(
     placeholder: &str,
     selected: Option<Language>,
 ) -> Element<'a, LanguagePickListMessage> {
-    pick_list(
-        Language::ALL,
-        selected,
-        LanguagePickListMessage::Selected,
-    )
-    .placeholder(placeholder.to_string())
-    .width(iced::Length::Fill)
-    .text_shaping(iced::widget::text::Shaping::Advanced)
-    .into()
+    pick_list(Language::ALL, selected, LanguagePickListMessage::Selected)
+        .placeholder(placeholder.to_string())
+        .width(iced::Length::Fill)
+        .text_shaping(iced::widget::text::Shaping::Advanced)
+        .into()
 }

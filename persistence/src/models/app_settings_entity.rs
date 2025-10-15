@@ -70,7 +70,6 @@ impl AppSettingsEntity {
             default_ui_language: default_ui_language.into(),
         }
     }
-
 }
 
 #[cfg(test)]

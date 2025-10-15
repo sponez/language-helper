@@ -120,26 +120,22 @@ impl CreateNewUserModal {
                 }
                 ModalAction::None
             }
-            ModalWindowMessage::OkButton(msg) => {
-                match msg {
-                    OkButtonMessage::Pressed => {
-                        if self.is_valid() {
-                            if let Some(language) = self.selected_language {
-                                return ModalAction::CreateUser {
-                                    username: self.username.trim().to_string(),
-                                    language,
-                                };
-                            }
+            ModalWindowMessage::OkButton(msg) => match msg {
+                OkButtonMessage::Pressed => {
+                    if self.is_valid() {
+                        if let Some(language) = self.selected_language {
+                            return ModalAction::CreateUser {
+                                username: self.username.trim().to_string(),
+                                language,
+                            };
                         }
-                        ModalAction::None
                     }
+                    ModalAction::None
                 }
-            }
-            ModalWindowMessage::CancelButton(msg) => {
-                match msg {
-                    CancelButtonMessage::Pressed => ModalAction::Cancel,
-                }
-            }
+            },
+            ModalWindowMessage::CancelButton(msg) => match msg {
+                CancelButtonMessage::Pressed => ModalAction::Cancel,
+            },
         }
     }
 
@@ -157,11 +153,9 @@ impl CreateNewUserModal {
         let title = title_text(&i18n.get("create-new-user-title", None));
 
         // Username input
-        let username_element = username_input(
-            &i18n.get("username-placeholder", None),
-            &self.username,
-        )
-        .map(ModalWindowMessage::UsernameInput);
+        let username_element =
+            username_input(&i18n.get("username-placeholder", None), &self.username)
+                .map(ModalWindowMessage::UsernameInput);
 
         // Language picker
         let language_element = language_pick_list(
@@ -171,13 +165,10 @@ impl CreateNewUserModal {
         .map(ModalWindowMessage::LanguagePicker);
 
         // Error message (if any)
-        let mut content_column: Column<'_, ModalWindowMessage> = column![
-            title,
-            username_element,
-            language_element,
-        ]
-        .spacing(20)
-        .align_x(Alignment::Center);
+        let mut content_column: Column<'_, ModalWindowMessage> =
+            column![title, username_element, language_element,]
+                .spacing(20)
+                .align_x(Alignment::Center);
 
         if let Some(error) = &self.error_message {
             let error_text = text(error.clone())
@@ -193,8 +184,8 @@ impl CreateNewUserModal {
         let ok_btn = ok_button(&i18n.get("ok-button", None), self.is_valid())
             .map(ModalWindowMessage::OkButton);
 
-        let cancel_btn = cancel_button(&i18n.get("cancel-button", None))
-            .map(ModalWindowMessage::CancelButton);
+        let cancel_btn =
+            cancel_button(&i18n.get("cancel-button", None)).map(ModalWindowMessage::CancelButton);
 
         let button_row = row![ok_btn, cancel_btn].spacing(10);
         content_column = content_column.push(button_row);

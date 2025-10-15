@@ -3,8 +3,8 @@
 //! This module provides the business logic for global application settings operations.
 //! It uses the AppSettingsRepository trait for persistence operations.
 
-use crate::models::app_settings::AppSettings;
 use crate::errors::CoreError;
+use crate::models::app_settings::AppSettings;
 use crate::repositories::app_settings_repository::AppSettingsRepository;
 
 /// Service for app settings business logic.

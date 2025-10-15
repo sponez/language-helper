@@ -42,7 +42,12 @@ pub struct CardsMenuRouter {
 }
 
 impl CardsMenuRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(
+        user_view: UserView,
+        profile: ProfileView,
+        app_api: Arc<dyn AppApi>,
+        app_state: AppState,
+    ) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -60,14 +65,13 @@ impl CardsMenuRouter {
         match message {
             Message::ManageCards => {
                 // Navigate to manage cards view
-                let manage_cards_router: Box<dyn RouterNode> = Box::new(
-                    super::manage_cards_router::ManageCardsRouter::new(
+                let manage_cards_router: Box<dyn RouterNode> =
+                    Box::new(super::manage_cards_router::ManageCardsRouter::new(
                         self.user_view.clone(),
                         self.profile.clone(),
                         Arc::clone(&self.app_api),
                         self.app_state.clone(),
-                    )
-                );
+                    ));
                 Some(RouterEvent::Push(manage_cards_router))
             }
             Message::Learn => {
@@ -85,9 +89,7 @@ impl CardsMenuRouter {
                 eprintln!("Repeat feature not yet implemented");
                 None
             }
-            Message::Back => {
-                Some(RouterEvent::Pop)
-            }
+            Message::Back => Some(RouterEvent::Pop),
         }
     }
 
@@ -167,9 +169,15 @@ impl RouterNode for CardsMenuRouter {
         "cards_menu"
     }
 
-    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
+    fn update(
+        &mut self,
+        message: &router::Message,
+    ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::CardsMenu(msg) => { let event = CardsMenuRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            router::Message::CardsMenu(msg) => {
+                let event = CardsMenuRouter::update(self, msg.clone());
+                (event, iced::Task::none())
+            }
             _ => (None, iced::Task::none()),
         }
     }

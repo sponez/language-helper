@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 
-use iced::widget::{button, column, container, row, scrollable, text, text_input, Column, Container, Space, stack};
+use iced::widget::{
+    button, column, container, row, scrollable, stack, text, text_input, Column, Container, Space,
+};
 use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
 use lh_api::models::card::{CardDto, CardType, MeaningDto, WordDto};
@@ -147,12 +149,16 @@ impl AddCardRouter {
         let target_language = profile.target_language.clone();
 
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        let ai_available = runtime.block_on(async {
-            app_api.profile_api().get_assistant_settings(&username, &target_language).await
-        })
-        .ok()
-        .map(|settings| settings.ai_model.is_some())
-        .unwrap_or(false);
+        let ai_available = runtime
+            .block_on(async {
+                app_api
+                    .profile_api()
+                    .get_assistant_settings(&username, &target_language)
+                    .await
+            })
+            .ok()
+            .map(|settings| settings.ai_model.is_some())
+            .unwrap_or(false);
 
         Self {
             user_view,
@@ -201,25 +207,33 @@ impl AddCardRouter {
         let target_language = profile.target_language.clone();
 
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        let ai_available = runtime.block_on(async {
-            app_api.profile_api().get_assistant_settings(&username, &target_language).await
-        })
-        .ok()
-        .map(|settings| settings.ai_model.is_some())
-        .unwrap_or(false);
+        let ai_available = runtime
+            .block_on(async {
+                app_api
+                    .profile_api()
+                    .get_assistant_settings(&username, &target_language)
+                    .await
+            })
+            .ok()
+            .map(|settings| settings.ai_model.is_some())
+            .unwrap_or(false);
 
         // Convert CardDto fields to internal structures
-        let readings: Vec<ReadingField> = card.word.readings
+        let readings: Vec<ReadingField> = card
+            .word
+            .readings
             .iter()
             .map(|r| ReadingField { value: r.clone() })
             .collect();
 
-        let meanings: Vec<MeaningFields> = card.meanings
+        let meanings: Vec<MeaningFields> = card
+            .meanings
             .iter()
             .map(|m| MeaningFields {
                 definition: m.definition.clone(),
                 translated_definition: m.translated_definition.clone(),
-                translations: m.word_translations
+                translations: m
+                    .word_translations
                     .iter()
                     .map(|t| TranslationField { value: t.clone() })
                     .collect(),
@@ -324,13 +338,16 @@ impl AddCardRouter {
 
                 // First, get assistant settings
                 let assistant_settings_result = runtime.block_on(async {
-                    api.profile_api().get_assistant_settings(&username, &target_language).await
+                    api.profile_api()
+                        .get_assistant_settings(&username, &target_language)
+                        .await
                 });
 
                 let assistant_settings = match assistant_settings_result {
                     Ok(settings) => settings,
                     Err(e) => {
-                        self.error_message = Some(format!("Failed to get assistant settings: {}", e));
+                        self.error_message =
+                            Some(format!("Failed to get assistant settings: {}", e));
                         return None;
                     }
                 };
@@ -343,7 +360,8 @@ impl AddCardRouter {
 
                 // Get card name from input
                 if self.word_name.trim().is_empty() {
-                    self.error_message = Some("Please enter a word name before using AI".to_string());
+                    self.error_message =
+                        Some("Please enter a word name before using AI".to_string());
                     return None;
                 }
 
@@ -354,20 +372,24 @@ impl AddCardRouter {
                 };
 
                 // Get user language from settings
-                let user_language = self.user_view.settings
+                let user_language = self
+                    .user_view
+                    .settings
                     .as_ref()
                     .map(|s| s.language.to_string())
                     .unwrap_or_else(|| "en-US".to_string());
 
                 // Call fill_card API
                 let fill_result = runtime.block_on(async {
-                    api.ai_assistant_api().fill_card(
-                        assistant_settings,
-                        card_name,
-                        card_type_str,
-                        user_language,
-                        target_language,
-                    ).await
+                    api.ai_assistant_api()
+                        .fill_card(
+                            assistant_settings,
+                            card_name,
+                            card_type_str,
+                            user_language,
+                            target_language,
+                        )
+                        .await
                 });
 
                 match fill_result {
@@ -376,18 +398,22 @@ impl AddCardRouter {
                         self.word_name = card_dto.word.name;
 
                         // Fill readings
-                        self.readings = card_dto.word.readings
+                        self.readings = card_dto
+                            .word
+                            .readings
                             .into_iter()
                             .map(|r| ReadingField { value: r })
                             .collect();
 
                         // Fill meanings
-                        self.meanings = card_dto.meanings
+                        self.meanings = card_dto
+                            .meanings
                             .into_iter()
                             .map(|m| MeaningFields {
                                 definition: m.definition,
                                 translated_definition: m.translated_definition,
-                                translations: m.word_translations
+                                translations: m
+                                    .word_translations
                                     .into_iter()
                                     .map(|t| TranslationField { value: t })
                                     .collect(),
@@ -436,7 +462,9 @@ impl AddCardRouter {
                     // Generate inverse cards
                     let runtime = tokio::runtime::Runtime::new().unwrap();
                     let inverted_cards_result = runtime.block_on(async {
-                        api.profile_api().get_inverted_cards(&username, &target_language, saved_card).await
+                        api.profile_api()
+                            .get_inverted_cards(&username, &target_language, saved_card)
+                            .await
                     });
 
                     match inverted_cards_result {
@@ -449,7 +477,7 @@ impl AddCardRouter {
                                     Arc::clone(&self.app_api),
                                     self.app_state.clone(),
                                     inverted_cards,
-                                )
+                                ),
                             );
                             Some(RouterEvent::Push(review_router))
                         }
@@ -476,7 +504,9 @@ impl AddCardRouter {
 
                     // Get assistant settings
                     let assistant_settings_result = runtime.block_on(async {
-                        api.profile_api().get_assistant_settings(&username, &target_language).await
+                        api.profile_api()
+                            .get_assistant_settings(&username, &target_language)
+                            .await
                     });
 
                     let assistant_settings = match assistant_settings_result {
@@ -495,7 +525,9 @@ impl AddCardRouter {
 
                     // Get all existing cards
                     let all_cards_result = runtime.block_on(async {
-                        api.profile_api().get_all_cards(&username, &target_language).await
+                        api.profile_api()
+                            .get_all_cards(&username, &target_language)
+                            .await
                     });
 
                     let all_cards = match all_cards_result {
@@ -526,7 +558,9 @@ impl AddCardRouter {
                     let mut translations_without_cards = Vec::new();
 
                     for translation in translations_set {
-                        if let Some(existing_card) = all_cards.iter().find(|c| c.word.name == translation) {
+                        if let Some(existing_card) =
+                            all_cards.iter().find(|c| c.word.name == translation)
+                        {
                             existing_cards_to_merge.push(existing_card.clone());
                         } else {
                             translations_without_cards.push(translation);
@@ -534,7 +568,9 @@ impl AddCardRouter {
                     }
 
                     // Get user language from settings
-                    let user_language = self.user_view.settings
+                    let user_language = self
+                        .user_view
+                        .settings
                         .as_ref()
                         .map(|s| s.language.to_string())
                         .unwrap_or_else(|| "en-US".to_string());
@@ -544,13 +580,15 @@ impl AddCardRouter {
                     // 1. AI-merge existing cards
                     if !existing_cards_to_merge.is_empty() {
                         let merge_result = runtime.block_on(async {
-                            api.ai_assistant_api().merge_inverse_cards(
-                                assistant_settings.clone(),
-                                saved_card.clone(),
-                                existing_cards_to_merge,
-                                user_language.clone(),
-                                target_language.clone(),
-                            ).await
+                            api.ai_assistant_api()
+                                .merge_inverse_cards(
+                                    assistant_settings.clone(),
+                                    saved_card.clone(),
+                                    existing_cards_to_merge,
+                                    user_language.clone(),
+                                    target_language.clone(),
+                                )
+                                .await
                         });
 
                         match merge_result {
@@ -607,7 +645,7 @@ impl AddCardRouter {
                                 Arc::clone(&self.app_api),
                                 self.app_state.clone(),
                                 result_cards,
-                            )
+                            ),
                         );
                         Some(RouterEvent::Push(review_router))
                     } else {
@@ -657,13 +695,20 @@ impl AddCardRouter {
 
             // Must have at least one translation
             if meaning.translations.is_empty() {
-                return Err(format!("Meaning {} must have at least one translation", i + 1));
+                return Err(format!(
+                    "Meaning {} must have at least one translation",
+                    i + 1
+                ));
             }
 
             // Validate translations (all must be non-empty)
             for (j, translation) in meaning.translations.iter().enumerate() {
                 if translation.value.trim().is_empty() {
-                    return Err(format!("Translation {} of meaning {} cannot be empty", j + 1, i + 1));
+                    return Err(format!(
+                        "Translation {} of meaning {} cannot be empty",
+                        j + 1,
+                        i + 1
+                    ));
                 }
             }
         }
@@ -737,29 +782,25 @@ impl AddCardRouter {
         // Card type selector
         let card_type_label = localized_text(&i18n, "add-card-type-label", 14);
 
-        let straight_button = button(
-            localized_text(&i18n, "add-card-type-straight", 14)
-        )
-        .on_press(Message::CardTypeChanged(CardType::Straight))
-        .padding(10)
-        .width(Length::Fixed(150.0))
-        .style(if self.card_type == CardType::Straight {
-            button::primary
-        } else {
-            button::secondary
-        });
+        let straight_button = button(localized_text(&i18n, "add-card-type-straight", 14))
+            .on_press(Message::CardTypeChanged(CardType::Straight))
+            .padding(10)
+            .width(Length::Fixed(150.0))
+            .style(if self.card_type == CardType::Straight {
+                button::primary
+            } else {
+                button::secondary
+            });
 
-        let reverse_button = button(
-            localized_text(&i18n, "add-card-type-reverse", 14)
-        )
-        .on_press(Message::CardTypeChanged(CardType::Reverse))
-        .padding(10)
-        .width(Length::Fixed(150.0))
-        .style(if self.card_type == CardType::Reverse {
-            button::primary
-        } else {
-            button::secondary
-        });
+        let reverse_button = button(localized_text(&i18n, "add-card-type-reverse", 14))
+            .on_press(Message::CardTypeChanged(CardType::Reverse))
+            .padding(10)
+            .width(Length::Fixed(150.0))
+            .style(if self.card_type == CardType::Reverse {
+                button::primary
+            } else {
+                button::secondary
+            });
 
         let card_type_row = row![straight_button, reverse_button]
             .spacing(10)
@@ -960,11 +1001,7 @@ impl AddCardRouter {
             let modal_overlay = self.inverse_modal_view();
 
             // Stack the main content with the modal overlay on top
-            stack![
-                main_content,
-                modal_overlay,
-            ]
-            .into()
+            stack![main_content, modal_overlay,].into()
         } else {
             main_content.into()
         }
@@ -975,30 +1012,23 @@ impl AddCardRouter {
         let i18n = self.app_state.i18n();
 
         // Modal title/question
-        let modal_title = localized_text(
-            &i18n,
-            "add-card-inverse-modal-title",
-            18,
-        );
+        let modal_title = localized_text(&i18n, "add-card-inverse-modal-title", 18);
 
         // Three buttons
-        let manually_button = button(
-            localized_text(&i18n, "add-card-inverse-manually", 14)
-        )
-        .on_press(Message::InverseManually)
-        .padding(10)
-        .width(Length::Fixed(150.0));
+        let manually_button = button(localized_text(&i18n, "add-card-inverse-manually", 14))
+            .on_press(Message::InverseManually)
+            .padding(10)
+            .width(Length::Fixed(150.0));
 
-        let with_assistant_button = button(
-            localized_text(&i18n, "add-card-inverse-with-assistant", 14)
-        )
-        .padding(10)
-        .width(Length::Fixed(150.0))
-        .style(if self.ai_available {
-            button::primary
-        } else {
-            button::secondary
-        });
+        let with_assistant_button =
+            button(localized_text(&i18n, "add-card-inverse-with-assistant", 14))
+                .padding(10)
+                .width(Length::Fixed(150.0))
+                .style(if self.ai_available {
+                    button::primary
+                } else {
+                    button::secondary
+                });
 
         // Only enable "With assistant" button if AI is available
         let with_assistant_button = if self.ai_available {
@@ -1007,30 +1037,20 @@ impl AddCardRouter {
             with_assistant_button
         };
 
-        let no_button = button(
-            localized_text(&i18n, "add-card-inverse-no", 14)
-        )
-        .on_press(Message::InverseNo)
-        .padding(10)
-        .width(Length::Fixed(150.0));
+        let no_button = button(localized_text(&i18n, "add-card-inverse-no", 14))
+            .on_press(Message::InverseNo)
+            .padding(10)
+            .width(Length::Fixed(150.0));
 
-        let buttons_row = row![
-            manually_button,
-            with_assistant_button,
-            no_button,
-        ]
-        .spacing(15)
-        .align_y(Alignment::Center);
+        let buttons_row = row![manually_button, with_assistant_button, no_button,]
+            .spacing(15)
+            .align_y(Alignment::Center);
 
         // Modal content
-        let modal_inner = column![
-            modal_title,
-            Space::new().height(20),
-            buttons_row,
-        ]
-        .spacing(20)
-        .padding(30)
-        .align_x(Alignment::Center);
+        let modal_inner = column![modal_title, Space::new().height(20), buttons_row,]
+            .spacing(20)
+            .padding(30)
+            .align_x(Alignment::Center);
 
         let modal_container = container(modal_inner)
             .style(container::rounded_box)
@@ -1042,14 +1062,16 @@ impl AddCardRouter {
                 .width(Length::Shrink)
                 .height(Length::Shrink)
                 .center_x(Length::Fill)
-                .center_y(Length::Fill)
+                .center_y(Length::Fill),
         )
         .width(Length::Fill)
         .height(Length::Fill)
         .center_x(Length::Fill)
         .center_y(Length::Fill)
         .style(|_theme| container::Style {
-            background: Some(iced::Background::Color(iced::Color::from_rgba(0.0, 0.0, 0.0, 0.5))),
+            background: Some(iced::Background::Color(iced::Color::from_rgba(
+                0.0, 0.0, 0.0, 0.5,
+            ))),
             ..Default::default()
         });
 
@@ -1063,9 +1085,15 @@ impl RouterNode for AddCardRouter {
         "add_card"
     }
 
-    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
+    fn update(
+        &mut self,
+        message: &router::Message,
+    ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::AddCard(msg) => { let event = AddCardRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            router::Message::AddCard(msg) => {
+                let event = AddCardRouter::update(self, msg.clone());
+                (event, iced::Task::none())
+            }
             _ => (None, iced::Task::none()),
         }
     }

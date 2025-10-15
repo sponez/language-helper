@@ -7,7 +7,8 @@ pub enum AddNewUserButtonMessage {
 }
 
 pub fn add_new_user_button<'a>() -> Element<'a, AddNewUserButtonMessage> {
-    let button_text = text("+").size(14)
+    let button_text = text("+")
+        .size(14)
         .shaping(iced::widget::text::Shaping::Advanced);
 
     button(button_text)

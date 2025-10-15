@@ -3,8 +3,8 @@
 //! This module provides the business logic for user-specific settings operations.
 //! It uses the UserSettingsRepository trait for persistence operations.
 
-use crate::models::user_settings::UserSettings;
 use crate::errors::CoreError;
+use crate::models::user_settings::UserSettings;
 use crate::repositories::app_settings_repository::AppSettingsRepository;
 use crate::repositories::user_repository::UserRepository;
 use crate::repositories::user_settings_repository::UserSettingsRepository;
@@ -106,7 +106,8 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// ```
     pub async fn get_user_settings(&self, username: &str) -> Result<UserSettings, CoreError> {
         self.settings_repository
-            .find_by_username(username).await?
+            .find_by_username(username)
+            .await?
             .ok_or_else(|| CoreError::not_found("UserSettings", username))
     }
 
@@ -147,14 +148,20 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// ```
     pub async fn create_user_settings(&self, username: &str) -> Result<UserSettings, CoreError> {
         // Business logic: ensure user exists
-        if self.user_repository.find_by_username(username).await?.is_none() {
+        if self
+            .user_repository
+            .find_by_username(username)
+            .await?
+            .is_none()
+        {
             return Err(CoreError::not_found("User", username));
         }
 
         // Business logic: check if settings already exist
         if self
             .settings_repository
-            .find_by_username(&username).await?
+            .find_by_username(&username)
+            .await?
             .is_some()
         {
             return Err(CoreError::validation_error(format!(
@@ -167,10 +174,7 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
         let app_settings = self.app_settings_repository.get().await.unwrap_or_default();
 
         // Domain validation happens in UserSettings::new()
-        let settings = UserSettings::new(
-            app_settings.ui_theme,
-            app_settings.default_ui_language,
-        )?;
+        let settings = UserSettings::new(app_settings.ui_theme, app_settings.default_ui_language)?;
 
         self.settings_repository.save(username, settings).await
     }
@@ -218,7 +222,8 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
         // Business logic: ensure settings exist
         if self
             .settings_repository
-            .find_by_username(username).await?
+            .find_by_username(username)
+            .await?
             .is_none()
         {
             return Err(CoreError::not_found("UserSettings", username));

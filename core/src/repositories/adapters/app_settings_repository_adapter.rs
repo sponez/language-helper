@@ -1,9 +1,9 @@
 //! AppSettings repository adapter for mapping persistence errors to core errors.
 
-use async_trait::async_trait;
-use crate::models::app_settings::AppSettings;
 use crate::errors::CoreError;
+use crate::models::app_settings::AppSettings;
 use crate::repositories::app_settings_repository::AppSettingsRepository;
+use async_trait::async_trait;
 
 /// Trait representing a persistence-layer app settings repository.
 #[async_trait]

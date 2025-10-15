@@ -57,7 +57,11 @@ impl UserSettingsRouter {
             Message::ThemeSelected(new_theme) => {
                 self.app_state.set_theme(new_theme.clone());
                 // Update user theme via API
-                match block_on(self.app_api.users_api().update_user_theme(&self.user_view.username, &new_theme)) {
+                match block_on(
+                    self.app_api
+                        .users_api()
+                        .update_user_theme(&self.user_view.username, &new_theme),
+                ) {
                     Ok(_) => {
                         // Update the user_view settings to reflect the change
                         if let Some(ref mut settings) = self.user_view.settings {
@@ -76,12 +80,20 @@ impl UserSettingsRouter {
             }
             Message::ConfirmDelete => {
                 // Step 1: Delete the entire user folder (includes all profile databases)
-                if let Err(e) = block_on(self.app_api.profile_api().delete_user_folder(&self.user_view.username)) {
+                if let Err(e) = block_on(
+                    self.app_api
+                        .profile_api()
+                        .delete_user_folder(&self.user_view.username),
+                ) {
                     eprintln!("Failed to delete user folder: {:?}", e);
                 }
 
                 // Step 2: Delete user (which deletes profile metadata, settings, and user record)
-                match block_on(self.app_api.users_api().delete_user(&self.user_view.username)) {
+                match block_on(
+                    self.app_api
+                        .users_api()
+                        .delete_user(&self.user_view.username),
+                ) {
                     Ok(deleted) => {
                         if deleted {
                             // User deleted successfully
@@ -112,26 +124,16 @@ impl UserSettingsRouter {
         // Main settings view
         let language_label = localized_text(&i18n, "user-settings-language-label", 16);
 
-        let language_display = localized_text(
-            &i18n,
-            &self.app_state.language(),
-            16,
-        );
+        let language_display = localized_text(&i18n, &self.app_state.language(), 16);
 
         let theme_label = localized_text(&i18n, "user-settings-theme-label", 16);
 
-        let themes: Vec<String> = iced::Theme::ALL
-            .iter()
-            .map(|t| t.to_string())
-            .collect();
+        let themes: Vec<String> = iced::Theme::ALL.iter().map(|t| t.to_string()).collect();
         let theme_selected: Option<String> = Some(self.app_state.theme());
-        let theme_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
-            themes,
-            theme_selected,
-            Message::ThemeSelected,
-        )
-        .width(200)
-        .text_shaping(iced::widget::text::Shaping::Advanced);
+        let theme_pick_list: PickList<'_, String, Vec<String>, String, Message> =
+            pick_list(themes, theme_selected, Message::ThemeSelected)
+                .width(200)
+                .text_shaping(iced::widget::text::Shaping::Advanced);
 
         let delete_button_text = localized_text(&i18n, "user-settings-delete-button", 14);
         let delete_button = button(delete_button_text)
@@ -181,31 +183,27 @@ impl UserSettingsRouter {
                 .padding(10)
                 .width(Length::Fixed(120.0));
 
-            let modal_content = column![
-                warning_text,
-                row![yes_button, no_button].spacing(15),
-            ]
-            .spacing(20)
-            .padding(30)
-            .align_x(Alignment::Center);
+            let modal_content = column![warning_text, row![yes_button, no_button].spacing(15),]
+                .spacing(20)
+                .padding(30)
+                .align_x(Alignment::Center);
 
-            let modal_card = container(modal_content)
-                .style(|_theme| container::Style {
-                    background: Some(Background::Color(Color::from_rgb(0.15, 0.15, 0.15))),
-                    border: iced::Border {
-                        color: Color::from_rgb(0.3, 0.3, 0.3),
-                        width: 2.0,
-                        radius: 10.0.into(),
-                    },
-                    ..Default::default()
-                });
+            let modal_card = container(modal_content).style(|_theme| container::Style {
+                background: Some(Background::Color(Color::from_rgb(0.15, 0.15, 0.15))),
+                border: iced::Border {
+                    color: Color::from_rgb(0.3, 0.3, 0.3),
+                    width: 2.0,
+                    radius: 10.0.into(),
+                },
+                ..Default::default()
+            });
 
             let overlay = container(
                 Container::new(modal_card)
                     .width(Length::Fill)
                     .height(Length::Fill)
                     .align_x(Alignment::Center)
-                    .align_y(Alignment::Center)
+                    .align_y(Alignment::Center),
             )
             .width(Length::Fill)
             .height(Length::Fill)
@@ -224,16 +222,24 @@ impl UserSettingsRouter {
 impl UserSettingsRouter {
     /// Refresh user data from the API
     fn refresh_data(&mut self) {
-        if let Some(user_dto) = block_on(self.app_api.users_api().get_user_by_username(&self.user_view.username)) {
+        if let Some(user_dto) = block_on(
+            self.app_api
+                .users_api()
+                .get_user_by_username(&self.user_view.username),
+        ) {
             use crate::mappers::user_mapper;
             self.user_view = user_mapper::dto_to_view(&user_dto);
 
             // Update app_state with user's settings if they changed
             if let Some(ref settings) = self.user_view.settings {
-                self.app_state.update_settings(settings.theme.clone(), settings.language.clone());
+                self.app_state
+                    .update_settings(settings.theme.clone(), settings.language.clone());
             }
         } else {
-            eprintln!("Failed to refresh user data for user: {}", self.user_view.username);
+            eprintln!(
+                "Failed to refresh user data for user: {}",
+                self.user_view.username
+            );
         }
     }
 }
@@ -244,9 +250,15 @@ impl RouterNode for UserSettingsRouter {
         "user_settings"
     }
 
-    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
+    fn update(
+        &mut self,
+        message: &router::Message,
+    ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::UserSettings(msg) => { let event = UserSettingsRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            router::Message::UserSettings(msg) => {
+                let event = UserSettingsRouter::update(self, msg.clone());
+                (event, iced::Task::none())
+            }
             _ => (None, iced::Task::none()), // Ignore messages not meant for this router
         }
     }

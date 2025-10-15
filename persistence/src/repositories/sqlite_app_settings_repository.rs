@@ -129,7 +129,8 @@ impl SqliteAppSettingsRepository {
     /// * `Ok(AppSettings)` - The settings
     /// * `Err(PersistenceError)` - If the query fails
     pub fn get(&self) -> Result<AppSettings, PersistenceError> {
-        self.get_entity().map(|entity| app_settings_mapper::entity_to_model(&entity))
+        self.get_entity()
+            .map(|entity| app_settings_mapper::entity_to_model(&entity))
     }
 
     /// Updates the global app settings.

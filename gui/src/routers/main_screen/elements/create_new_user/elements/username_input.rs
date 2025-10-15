@@ -34,10 +34,7 @@ pub enum UsernameInputMessage {
 /// // Can be mapped to parent message:
 /// // element.map(Message::UsernameInput)
 /// ```
-pub fn username_input<'a>(
-    placeholder: &str,
-    value: &str,
-) -> Element<'a, UsernameInputMessage> {
+pub fn username_input<'a>(placeholder: &str, value: &str) -> Element<'a, UsernameInputMessage> {
     text_input(placeholder, value)
         .on_input(UsernameInputMessage::Changed)
         .padding(10)

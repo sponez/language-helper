@@ -3,9 +3,9 @@
 use std::sync::Arc;
 
 use iced::widget::{button, column, container, row, Container};
-use iced::{Alignment, Element, Length};
 use iced::Background;
 use iced::Color;
+use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
@@ -49,7 +49,12 @@ pub struct ProfileSettingsRouter {
 }
 
 impl ProfileSettingsRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(
+        user_view: UserView,
+        profile: ProfileView,
+        app_api: Arc<dyn AppApi>,
+        app_state: AppState,
+    ) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -106,18 +111,27 @@ impl ProfileSettingsRouter {
 
                 // Delete profile database
                 let db_result = runtime.block_on(async {
-                    self.app_api.profile_api().delete_profile_database(username, target_language).await
+                    self.app_api
+                        .profile_api()
+                        .delete_profile_database(username, target_language)
+                        .await
                 });
 
                 // Delete profile metadata
                 let profile_result = runtime.block_on(async {
-                    self.app_api.users_api().delete_profile(username, target_language).await
+                    self.app_api
+                        .users_api()
+                        .delete_profile(username, target_language)
+                        .await
                 });
 
                 // Check for errors
                 match (db_result, profile_result) {
                     (Ok(_), Ok(_)) => {
-                        println!("Successfully deleted profile {} for user {}", target_language, username);
+                        println!(
+                            "Successfully deleted profile {} for user {}",
+                            target_language, username
+                        );
                         // Navigate back to profile list
                         Some(RouterEvent::PopTo(Some(RouterTarget::ProfileList)))
                     }
@@ -128,9 +142,7 @@ impl ProfileSettingsRouter {
                     }
                 }
             }
-            Message::Back => {
-                Some(RouterEvent::Pop)
-            }
+            Message::Back => Some(RouterEvent::Pop),
         }
     }
 
@@ -149,7 +161,8 @@ impl ProfileSettingsRouter {
             .padding(10);
 
         // Assistant Settings button
-        let assistant_settings_text = localized_text(&i18n, "profile-settings-assistant-settings-button", 14);
+        let assistant_settings_text =
+            localized_text(&i18n, "profile-settings-assistant-settings-button", 14);
 
         let assistant_settings_button = button(assistant_settings_text)
             .on_press(Message::AssistantSettings)
@@ -216,23 +229,22 @@ impl ProfileSettingsRouter {
             .padding(30)
             .align_x(Alignment::Center);
 
-            let modal_card = container(modal_content)
-                .style(|_theme| container::Style {
-                    background: Some(Background::Color(Color::from_rgb(0.15, 0.15, 0.15))),
-                    border: iced::Border {
-                        color: Color::from_rgb(0.3, 0.3, 0.3),
-                        width: 2.0,
-                        radius: 10.0.into(),
-                    },
-                    ..Default::default()
-                });
+            let modal_card = container(modal_content).style(|_theme| container::Style {
+                background: Some(Background::Color(Color::from_rgb(0.15, 0.15, 0.15))),
+                border: iced::Border {
+                    color: Color::from_rgb(0.3, 0.3, 0.3),
+                    width: 2.0,
+                    radius: 10.0.into(),
+                },
+                ..Default::default()
+            });
 
             let overlay = container(
                 Container::new(modal_card)
                     .width(Length::Fill)
                     .height(Length::Fill)
                     .align_x(Alignment::Center)
-                    .align_y(Alignment::Center)
+                    .align_y(Alignment::Center),
             )
             .width(Length::Fill)
             .height(Length::Fill)
@@ -261,9 +273,15 @@ impl RouterNode for ProfileSettingsRouter {
         "profile_settings"
     }
 
-    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
+    fn update(
+        &mut self,
+        message: &router::Message,
+    ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::ProfileSettings(msg) => { let event = ProfileSettingsRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            router::Message::ProfileSettings(msg) => {
+                let event = ProfileSettingsRouter::update(self, msg.clone());
+                (event, iced::Task::none())
+            }
             _ => (None, iced::Task::none()),
         }
     }

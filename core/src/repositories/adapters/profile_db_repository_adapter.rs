@@ -3,10 +3,10 @@
 //! This module provides an adapter that wraps a persistence-layer profile database
 //! repository and converts its errors to core domain errors.
 
-use async_trait::async_trait;
 use crate::errors::CoreError;
 use crate::models::{AssistantSettings, Card, CardSettings};
 use crate::repositories::profile_repository::ProfileRepository;
+use async_trait::async_trait;
 use std::fmt::Display;
 use std::path::PathBuf;
 
@@ -29,13 +29,24 @@ pub trait PersistenceProfileDbRepository: Send + Sync {
     async fn get_card_settings(&self, db_path: PathBuf) -> Result<CardSettings, Self::Error>;
 
     /// Updates card settings in a profile database.
-    async fn update_card_settings(&self, db_path: PathBuf, settings: CardSettings) -> Result<(), Self::Error>;
+    async fn update_card_settings(
+        &self,
+        db_path: PathBuf,
+        settings: CardSettings,
+    ) -> Result<(), Self::Error>;
 
     /// Gets assistant settings from a profile database.
-    async fn get_assistant_settings(&self, db_path: PathBuf) -> Result<AssistantSettings, Self::Error>;
+    async fn get_assistant_settings(
+        &self,
+        db_path: PathBuf,
+    ) -> Result<AssistantSettings, Self::Error>;
 
     /// Updates assistant settings in a profile database.
-    async fn update_assistant_settings(&self, db_path: PathBuf, settings: AssistantSettings) -> Result<(), Self::Error>;
+    async fn update_assistant_settings(
+        &self,
+        db_path: PathBuf,
+        settings: AssistantSettings,
+    ) -> Result<(), Self::Error>;
 
     /// Clears assistant settings in a profile database.
     async fn clear_assistant_settings(&self, db_path: PathBuf) -> Result<(), Self::Error>;
@@ -55,10 +66,19 @@ pub trait PersistenceProfileDbRepository: Send + Sync {
     ) -> Result<Vec<Card>, Self::Error>;
 
     /// Gets a single card by word name.
-    async fn get_card_by_word_name(&self, db_path: PathBuf, word_name: String) -> Result<Card, Self::Error>;
+    async fn get_card_by_word_name(
+        &self,
+        db_path: PathBuf,
+        word_name: String,
+    ) -> Result<Card, Self::Error>;
 
     /// Updates a card's streak.
-    async fn update_card_streak(&self, db_path: PathBuf, word_name: String, streak: i32) -> Result<(), Self::Error>;
+    async fn update_card_streak(
+        &self,
+        db_path: PathBuf,
+        word_name: String,
+        streak: i32,
+    ) -> Result<(), Self::Error>;
 
     /// Deletes a card from the database.
     async fn delete_card(&self, db_path: PathBuf, word_name: String) -> Result<bool, Self::Error>;
@@ -106,21 +126,32 @@ impl<R: PersistenceProfileDbRepository> ProfileRepository for ProfileDbRepositor
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    async fn update_card_settings(&self, db_path: PathBuf, settings: CardSettings) -> Result<(), CoreError> {
+    async fn update_card_settings(
+        &self,
+        db_path: PathBuf,
+        settings: CardSettings,
+    ) -> Result<(), CoreError> {
         self.repository
             .update_card_settings(db_path, settings)
             .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    async fn get_assistant_settings(&self, db_path: PathBuf) -> Result<AssistantSettings, CoreError> {
+    async fn get_assistant_settings(
+        &self,
+        db_path: PathBuf,
+    ) -> Result<AssistantSettings, CoreError> {
         self.repository
             .get_assistant_settings(db_path)
             .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    async fn update_assistant_settings(&self, db_path: PathBuf, settings: AssistantSettings) -> Result<(), CoreError> {
+    async fn update_assistant_settings(
+        &self,
+        db_path: PathBuf,
+        settings: AssistantSettings,
+    ) -> Result<(), CoreError> {
         self.repository
             .update_assistant_settings(db_path, settings)
             .await
@@ -160,14 +191,23 @@ impl<R: PersistenceProfileDbRepository> ProfileRepository for ProfileDbRepositor
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    async fn get_card_by_word_name(&self, db_path: PathBuf, word_name: String) -> Result<Card, CoreError> {
+    async fn get_card_by_word_name(
+        &self,
+        db_path: PathBuf,
+        word_name: String,
+    ) -> Result<Card, CoreError> {
         self.repository
             .get_card_by_word_name(db_path, word_name)
             .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    async fn update_card_streak(&self, db_path: PathBuf, word_name: String, streak: i32) -> Result<(), CoreError> {
+    async fn update_card_streak(
+        &self,
+        db_path: PathBuf,
+        word_name: String,
+        streak: i32,
+    ) -> Result<(), CoreError> {
         self.repository
             .update_card_streak(db_path, word_name, streak)
             .await

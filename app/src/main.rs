@@ -9,7 +9,10 @@ use std::sync::Arc;
 
 use iced::{Element, Subscription, Task};
 
-use lh_core::api_impl::{AiAssistantApiImpl, AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl, SystemRequirementsApiImpl, UsersApiImpl};
+use lh_core::api_impl::{
+    AiAssistantApiImpl, AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl, SystemRequirementsApiImpl,
+    UsersApiImpl,
+};
 use lh_core::repositories::adapters::{
     AppSettingsRepositoryAdapter, ProfileDbRepositoryAdapter, ProfileRepositoryAdapter,
     UserRepositoryAdapter, UserSettingsRepositoryAdapter,
@@ -54,7 +57,6 @@ impl LanguageHelperApp {
     /// - The new `LanguageHelperApp` instance
     /// - An initial task (currently none)
     fn new(app_api_rc: Arc<dyn lh_api::app_api::AppApi>) -> (Self, Task<Message>) {
-
         // Load initial app settings to create AppState
         let app_settings = block_on(app_api_rc.app_settings_api().get_app_settings())
             .expect("Failed to load app settings");
@@ -62,10 +64,8 @@ impl LanguageHelperApp {
         // Create global app state
         let app_state = AppState::new(app_settings.theme, app_settings.language);
 
-        let root_router: Box<dyn RouterNode> = Box::new(MainScreenRouter::new(
-            app_api_rc,
-            app_state,
-        ));
+        let root_router: Box<dyn RouterNode> =
+            Box::new(MainScreenRouter::new(app_api_rc, app_state));
         let router_stack = RouterStack::new(root_router);
 
         (Self { router_stack }, Task::none())
@@ -237,7 +237,13 @@ fn main() -> iced::Result {
     let app_settings_api = AppSettingsApiImpl::new(app_settings_service);
     let system_requirements_api = SystemRequirementsApiImpl::new();
     let ai_assistant_api = AiAssistantApiImpl::new();
-    let app_api = AppApiImpl::new(users_api, app_settings_api, profiles_api, system_requirements_api, ai_assistant_api);
+    let app_api = AppApiImpl::new(
+        users_api,
+        app_settings_api,
+        profiles_api,
+        system_requirements_api,
+        ai_assistant_api,
+    );
 
     // 5. Wrap the AppApi in Arc for cloning in the boot closure
     let app_api_rc: Arc<dyn lh_api::app_api::AppApi> = Arc::new(app_api);
@@ -266,7 +272,7 @@ fn main() -> iced::Result {
     iced::application(
         move || LanguageHelperApp::new(app_api_rc.clone()),
         LanguageHelperApp::update,
-        LanguageHelperApp::view
+        LanguageHelperApp::view,
     )
     .title(LanguageHelperApp::title)
     .theme(LanguageHelperApp::theme)

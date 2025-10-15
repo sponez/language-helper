@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use iced::widget::{button, column, container, Container};
-use iced::{Alignment, Element, Length};
 use iced::Background;
 use iced::Color;
+use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
@@ -55,7 +55,12 @@ pub struct ProfileRouter {
 }
 
 impl ProfileRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(
+        user_view: UserView,
+        profile: ProfileView,
+        app_api: Arc<dyn AppApi>,
+        app_state: AppState,
+    ) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -94,7 +99,10 @@ impl ProfileRouter {
         // Step 1: Load assistant settings from database
         let runtime = tokio::runtime::Runtime::new().unwrap();
         let settings_result = runtime.block_on(async {
-            app_api.profile_api().get_assistant_settings(username, target_language).await
+            app_api
+                .profile_api()
+                .get_assistant_settings(username, target_language)
+                .await
         });
 
         let settings = match settings_result {
@@ -130,7 +138,10 @@ impl ProfileRouter {
         if let Some(ref ai_model) = settings.ai_model {
             let expected_model_name = Self::get_ollama_model_name(ai_model);
 
-            if running_models.iter().any(|m| m.contains(&expected_model_name)) {
+            if running_models
+                .iter()
+                .any(|m| m.contains(&expected_model_name))
+            {
                 // Configured model is running - activate buttons
                 app_state.set_assistant_running(true);
                 return true;
@@ -151,11 +162,10 @@ impl ProfileRouter {
                 );
 
                 let update_result = runtime.block_on(async {
-                    app_api.profile_api().update_assistant_settings(
-                        username,
-                        target_language,
-                        new_settings
-                    ).await
+                    app_api
+                        .profile_api()
+                        .update_assistant_settings(username, target_language, new_settings)
+                        .await
                 });
 
                 match update_result {
@@ -216,38 +226,35 @@ impl ProfileRouter {
         match message {
             Message::Cards => {
                 // Navigate to cards menu
-                let cards_menu_router: Box<dyn RouterNode> = Box::new(
-                    super::cards_menu_router::CardsMenuRouter::new(
+                let cards_menu_router: Box<dyn RouterNode> =
+                    Box::new(super::cards_menu_router::CardsMenuRouter::new(
                         self.user_view.clone(),
                         self.profile.clone(),
                         Arc::clone(&self.app_api),
                         self.app_state.clone(),
-                    )
-                );
+                    ));
                 Some(RouterEvent::Push(cards_menu_router))
             }
             Message::ExplainWithAI => {
                 // Navigate to AI explanation view
-                let explain_router: Box<dyn RouterNode> = Box::new(
-                    super::explain_ai_router::ExplainAIRouter::new(
+                let explain_router: Box<dyn RouterNode> =
+                    Box::new(super::explain_ai_router::ExplainAIRouter::new(
                         self.user_view.clone(),
                         self.profile.clone(),
                         Arc::clone(&self.app_api),
                         self.app_state.clone(),
-                    )
-                );
+                    ));
                 Some(RouterEvent::Push(explain_router))
             }
             Message::Settings => {
                 // Navigate to profile settings
-                let settings_router: Box<dyn RouterNode> = Box::new(
-                    super::profile_settings_router::ProfileSettingsRouter::new(
+                let settings_router: Box<dyn RouterNode> =
+                    Box::new(super::profile_settings_router::ProfileSettingsRouter::new(
                         self.user_view.clone(),
                         self.profile.clone(),
                         Arc::clone(&self.app_api),
                         self.app_state.clone(),
-                    )
-                );
+                    ));
                 Some(RouterEvent::Push(settings_router))
             }
             Message::ShowBackModal => {
@@ -266,9 +273,7 @@ impl ProfileRouter {
                 // Pop back to user_list router
                 Some(RouterEvent::PopTo(Some(RouterTarget::UserList)))
             }
-            Message::Exit => {
-                Some(RouterEvent::Exit)
-            }
+            Message::Exit => Some(RouterEvent::Exit),
         }
     }
 
@@ -286,7 +291,11 @@ impl ProfileRouter {
         let explain_text = localized_text(&i18n, "profile-explain-ai-button", 14);
         // Disable AI button when assistant is not running
         let explain_button = button(explain_text)
-            .on_press_maybe(if assistant_running { Some(Message::ExplainWithAI) } else { None })
+            .on_press_maybe(if assistant_running {
+                Some(Message::ExplainWithAI)
+            } else {
+                None
+            })
             .width(Length::Fixed(200.0))
             .padding(10);
 
@@ -304,15 +313,10 @@ impl ProfileRouter {
             .width(Length::Fixed(200.0))
             .padding(10);
 
-        let main_content = column![
-            cards_button,
-            explain_button,
-            settings_button,
-            back_button,
-        ]
-        .spacing(20)
-        .padding(20)
-        .align_x(Alignment::Center);
+        let main_content = column![cards_button, explain_button, settings_button, back_button,]
+            .spacing(20)
+            .padding(20)
+            .align_x(Alignment::Center);
 
         let base = Container::new(main_content)
             .width(Length::Fill)
@@ -361,16 +365,15 @@ impl ProfileRouter {
             .align_x(Alignment::Center);
 
             // Modal card with background
-            let modal_card = container(modal_content)
-                .style(|_theme| container::Style {
-                    background: Some(Background::Color(Color::from_rgb(0.15, 0.15, 0.15))),
-                    border: iced::Border {
-                        color: Color::from_rgb(0.3, 0.3, 0.3),
-                        width: 2.0,
-                        radius: 10.0.into(),
-                    },
-                    ..Default::default()
-                });
+            let modal_card = container(modal_content).style(|_theme| container::Style {
+                background: Some(Background::Color(Color::from_rgb(0.15, 0.15, 0.15))),
+                border: iced::Border {
+                    color: Color::from_rgb(0.3, 0.3, 0.3),
+                    width: 2.0,
+                    radius: 10.0.into(),
+                },
+                ..Default::default()
+            });
 
             // Semi-transparent overlay
             let overlay = container(
@@ -378,7 +381,7 @@ impl ProfileRouter {
                     .width(Length::Fill)
                     .height(Length::Fill)
                     .align_x(Alignment::Center)
-                    .align_y(Alignment::Center)
+                    .align_y(Alignment::Center),
             )
             .width(Length::Fill)
             .height(Length::Fill)
@@ -398,27 +401,41 @@ impl ProfileRouter {
 impl ProfileRouter {
     /// Refresh user and profile data from the API
     fn refresh_data(&mut self) {
-        if let Some(user_dto) = block_on(self.app_api.users_api().get_user_by_username(&self.user_view.username)) {
+        if let Some(user_dto) = block_on(
+            self.app_api
+                .users_api()
+                .get_user_by_username(&self.user_view.username),
+        ) {
             use crate::mappers::user_mapper;
             self.user_view = user_mapper::dto_to_view(&user_dto);
 
             // Update app_state with user's settings if they changed
             if let Some(ref settings) = self.user_view.settings {
-                self.app_state.update_settings(settings.theme.clone(), settings.language.clone());
+                self.app_state
+                    .update_settings(settings.theme.clone(), settings.language.clone());
             }
 
             // Find and update the profile data
-            if let Some(updated_profile) = self.user_view.profiles.iter()
+            if let Some(updated_profile) = self
+                .user_view
+                .profiles
+                .iter()
                 .find(|p| p.target_language == self.profile.target_language)
                 .cloned()
             {
                 self.profile = updated_profile;
                 self.target_language = self.profile.target_language.clone();
             } else {
-                eprintln!("Profile not found after refresh: {}", self.profile.target_language);
+                eprintln!(
+                    "Profile not found after refresh: {}",
+                    self.profile.target_language
+                );
             }
         } else {
-            eprintln!("Failed to refresh user data for user: {}", self.user_view.username);
+            eprintln!(
+                "Failed to refresh user data for user: {}",
+                self.user_view.username
+            );
         }
 
         // Re-determine AI button state after refresh
@@ -437,9 +454,15 @@ impl RouterNode for ProfileRouter {
         "profile"
     }
 
-    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
+    fn update(
+        &mut self,
+        message: &router::Message,
+    ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::Profile(msg) => { let event = ProfileRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            router::Message::Profile(msg) => {
+                let event = ProfileRouter::update(self, msg.clone());
+                (event, iced::Task::none())
+            }
             _ => (None, iced::Task::none()),
         }
     }

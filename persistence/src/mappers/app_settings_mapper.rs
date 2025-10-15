@@ -26,7 +26,10 @@ pub fn entity_to_model(entity: &AppSettingsEntity) -> AppSettings {
 ///
 /// An AppSettingsEntity
 pub fn model_to_entity(settings: &AppSettings) -> AppSettingsEntity {
-    AppSettingsEntity::new(settings.ui_theme.clone(), settings.default_ui_language.clone())
+    AppSettingsEntity::new(
+        settings.ui_theme.clone(),
+        settings.default_ui_language.clone(),
+    )
 }
 
 #[cfg(test)]

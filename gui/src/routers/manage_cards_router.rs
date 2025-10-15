@@ -56,7 +56,12 @@ pub struct ManageCardsRouter {
 }
 
 impl ManageCardsRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(
+        user_view: UserView,
+        profile: ProfileView,
+        app_api: Arc<dyn AppApi>,
+        app_state: AppState,
+    ) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -87,35 +92,35 @@ impl ManageCardsRouter {
             }
             Message::AddNew => {
                 // Navigate to add card view (Straight type by default)
-                let add_card_router: Box<dyn RouterNode> = Box::new(
-                    super::add_card_router::AddCardRouter::new_create(
+                let add_card_router: Box<dyn RouterNode> =
+                    Box::new(super::add_card_router::AddCardRouter::new_create(
                         self.user_view.clone(),
                         self.profile.clone(),
                         Arc::clone(&self.app_api),
                         self.app_state.clone(),
                         CardType::Straight,
-                    )
-                );
+                    ));
                 Some(RouterEvent::Push(add_card_router))
             }
             Message::EditCard(word_name) => {
                 // Find the card in either unlearned or learned lists
-                let card = self.unlearned_cards.iter()
+                let card = self
+                    .unlearned_cards
+                    .iter()
                     .chain(self.learned_cards.iter())
                     .find(|c| c.word.name == word_name)
                     .cloned();
 
                 if let Some(card) = card {
                     // Navigate to edit card view
-                    let add_card_router: Box<dyn RouterNode> = Box::new(
-                        super::add_card_router::AddCardRouter::new_edit(
+                    let add_card_router: Box<dyn RouterNode> =
+                        Box::new(super::add_card_router::AddCardRouter::new_edit(
                             self.user_view.clone(),
                             self.profile.clone(),
                             Arc::clone(&self.app_api),
                             self.app_state.clone(),
                             card,
-                        )
-                    );
+                        ));
                     Some(RouterEvent::Push(add_card_router))
                 } else {
                     eprintln!("Card with word_name '{}' not found", word_name);
@@ -124,13 +129,11 @@ impl ManageCardsRouter {
             }
             Message::DeleteCard(word_name) => {
                 // Delete the card via API
-                let result = block_on(
-                    self.app_api.profile_api().delete_card(
-                        &self.user_view.username,
-                        &self.profile.target_language,
-                        &word_name
-                    )
-                );
+                let result = block_on(self.app_api.profile_api().delete_card(
+                    &self.user_view.username,
+                    &self.profile.target_language,
+                    &word_name,
+                ));
 
                 match result {
                     Ok(deleted) => {
@@ -147,9 +150,7 @@ impl ManageCardsRouter {
                 }
                 None
             }
-            Message::Back => {
-                Some(RouterEvent::Pop)
-            }
+            Message::Back => Some(RouterEvent::Pop),
         }
     }
 
@@ -184,12 +185,9 @@ impl ManageCardsRouter {
                 button::secondary
             });
 
-        let tabs_row = row![
-            unlearned_button,
-            learned_button,
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
+        let tabs_row = row![unlearned_button, learned_button,]
+            .spacing(10)
+            .align_y(Alignment::Center);
 
         // Cards content area
         let cards = if self.selected_tab == SelectedTab::Unlearned {
@@ -199,17 +197,15 @@ impl ManageCardsRouter {
         };
 
         let cards_content = if cards.is_empty() {
-            container(
-                localized_text(
-                    &i18n,
-                    if self.selected_tab == SelectedTab::Unlearned {
-                        "manage-cards-no-unlearned"
-                    } else {
-                        "manage-cards-no-learned"
-                    },
-                    14,
-                )
-            )
+            container(localized_text(
+                &i18n,
+                if self.selected_tab == SelectedTab::Unlearned {
+                    "manage-cards-no-unlearned"
+                } else {
+                    "manage-cards-no-learned"
+                },
+                14,
+            ))
             .padding(20)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -272,23 +268,15 @@ impl ManageCardsRouter {
             .width(Length::Fixed(150.0))
             .padding(10);
 
-        let buttons_row = row![
-            add_new_button,
-            back_button,
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
+        let buttons_row = row![add_new_button, back_button,]
+            .spacing(10)
+            .align_y(Alignment::Center);
 
         // Main layout
-        let main_content = column![
-            title,
-            tabs_row,
-            cards_content,
-            buttons_row,
-        ]
-        .spacing(20)
-        .padding(20)
-        .align_x(Alignment::Center);
+        let main_content = column![title, tabs_row, cards_content, buttons_row,]
+            .spacing(20)
+            .padding(20)
+            .align_x(Alignment::Center);
 
         Container::new(main_content)
             .width(Length::Fill)
@@ -304,10 +292,9 @@ impl ManageCardsRouter {
     fn refresh_data(&mut self) {
         // Load unlearned cards
         match block_on(
-            self.app_api.profile_api().get_unlearned_cards(
-                &self.user_view.username,
-                &self.profile.target_language
-            )
+            self.app_api
+                .profile_api()
+                .get_unlearned_cards(&self.user_view.username, &self.profile.target_language),
         ) {
             Ok(cards) => {
                 self.unlearned_cards = cards;
@@ -320,10 +307,9 @@ impl ManageCardsRouter {
 
         // Load learned cards
         match block_on(
-            self.app_api.profile_api().get_learned_cards(
-                &self.user_view.username,
-                &self.profile.target_language
-            )
+            self.app_api
+                .profile_api()
+                .get_learned_cards(&self.user_view.username, &self.profile.target_language),
         ) {
             Ok(cards) => {
                 self.learned_cards = cards;
@@ -342,9 +328,15 @@ impl RouterNode for ManageCardsRouter {
         "manage_cards"
     }
 
-    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
+    fn update(
+        &mut self,
+        message: &router::Message,
+    ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::ManageCards(msg) => { let event = ManageCardsRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            router::Message::ManageCards(msg) => {
+                let event = ManageCardsRouter::update(self, msg.clone());
+                (event, iced::Task::none())
+            }
             _ => (None, iced::Task::none()),
         }
     }

@@ -19,11 +19,7 @@ pub struct CardSettingsDto {
 
 impl CardSettingsDto {
     /// Creates a new CardSettingsDto.
-    pub fn new(
-        cards_per_set: u32,
-        test_answer_method: String,
-        streak_length: u32,
-    ) -> Self {
+    pub fn new(cards_per_set: u32, test_answer_method: String, streak_length: u32) -> Self {
         Self {
             cards_per_set,
             test_answer_method,

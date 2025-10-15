@@ -4,9 +4,9 @@
 //! Unlike UserProfilesRepository which manages profile metadata, this repository
 //! manages the actual profile database files that store learning content.
 
-use async_trait::async_trait;
 use crate::errors::CoreError;
 use crate::models::{AssistantSettings, Card, CardSettings};
+use async_trait::async_trait;
 use std::path::PathBuf;
 
 /// Repository trait for profile database operations.
@@ -68,7 +68,11 @@ pub trait ProfileRepository: Send + Sync {
     ///
     /// * `Ok(())` - If the settings were successfully saved
     /// * `Err(CoreError)` - If an error occurs
-    async fn update_card_settings(&self, db_path: PathBuf, settings: CardSettings) -> Result<(), CoreError>;
+    async fn update_card_settings(
+        &self,
+        db_path: PathBuf,
+        settings: CardSettings,
+    ) -> Result<(), CoreError>;
 
     /// Gets assistant settings from a profile database.
     ///
@@ -80,7 +84,10 @@ pub trait ProfileRepository: Send + Sync {
     ///
     /// * `Ok(AssistantSettings)` - The assistant settings from the database
     /// * `Err(CoreError)` - If an error occurs
-    async fn get_assistant_settings(&self, db_path: PathBuf) -> Result<AssistantSettings, CoreError>;
+    async fn get_assistant_settings(
+        &self,
+        db_path: PathBuf,
+    ) -> Result<AssistantSettings, CoreError>;
 
     /// Updates assistant settings in a profile database.
     ///
@@ -93,7 +100,11 @@ pub trait ProfileRepository: Send + Sync {
     ///
     /// * `Ok(())` - If the settings were successfully saved
     /// * `Err(CoreError)` - If an error occurs
-    async fn update_assistant_settings(&self, db_path: PathBuf, settings: AssistantSettings) -> Result<(), CoreError>;
+    async fn update_assistant_settings(
+        &self,
+        db_path: PathBuf,
+        settings: AssistantSettings,
+    ) -> Result<(), CoreError>;
 
     /// Clears assistant settings in a profile database (sets all AI fields to None).
     ///
@@ -162,7 +173,11 @@ pub trait ProfileRepository: Send + Sync {
     ///
     /// * `Ok(Card)` - The card
     /// * `Err(CoreError)` - If card not found or error occurs
-    async fn get_card_by_word_name(&self, db_path: PathBuf, word_name: String) -> Result<Card, CoreError>;
+    async fn get_card_by_word_name(
+        &self,
+        db_path: PathBuf,
+        word_name: String,
+    ) -> Result<Card, CoreError>;
 
     /// Updates a card's streak.
     ///
@@ -176,7 +191,12 @@ pub trait ProfileRepository: Send + Sync {
     ///
     /// * `Ok(())` - If the update was successful
     /// * `Err(CoreError)` - If an error occurs
-    async fn update_card_streak(&self, db_path: PathBuf, word_name: String, streak: i32) -> Result<(), CoreError>;
+    async fn update_card_streak(
+        &self,
+        db_path: PathBuf,
+        word_name: String,
+        streak: i32,
+    ) -> Result<(), CoreError>;
 
     /// Deletes a card from the database.
     ///

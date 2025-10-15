@@ -216,9 +216,15 @@ impl RouterNode for ExplainAIRouter {
         "explain_ai"
     }
 
-    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
+    fn update(
+        &mut self,
+        message: &router::Message,
+    ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::ExplainAI(msg) => { let event = ExplainAIRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            router::Message::ExplainAI(msg) => {
+                let event = ExplainAIRouter::update(self, msg.clone());
+                (event, iced::Task::none())
+            }
             _ => (None, iced::Task::none()),
         }
     }

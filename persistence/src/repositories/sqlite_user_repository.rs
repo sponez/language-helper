@@ -394,7 +394,9 @@ impl PersistenceUserRepository for SqliteUserRepository {
                      ON CONFLICT(username) DO UPDATE SET last_used_at = ?3",
                     params![entity.username, entity.created_at, entity.last_used_at],
                 )
-                .map_err(|e| PersistenceError::database_error(format!("Failed to save user: {}", e)))?;
+                .map_err(|e| {
+                    PersistenceError::database_error(format!("Failed to save user: {}", e))
+                })?;
 
             Ok(user)
         })

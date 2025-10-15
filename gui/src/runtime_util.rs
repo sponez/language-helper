@@ -8,9 +8,8 @@ use std::future::Future;
 use tokio::runtime::Runtime;
 
 /// Shared Tokio runtime for GUI async operations
-static RUNTIME: Lazy<Runtime> = Lazy::new(|| {
-    Runtime::new().expect("Failed to create Tokio runtime")
-});
+static RUNTIME: Lazy<Runtime> =
+    Lazy::new(|| Runtime::new().expect("Failed to create Tokio runtime"));
 
 /// Execute an async future in the shared runtime and block until completion.
 ///

@@ -98,7 +98,9 @@ impl<R: ProfileRepository> ProfileService<R> {
             return Err(CoreError::validation_error("Username cannot be empty"));
         }
         if target_language.is_empty() {
-            return Err(CoreError::validation_error("Target language cannot be empty"));
+            return Err(CoreError::validation_error(
+                "Target language cannot be empty",
+            ));
         }
 
         // Build the path: data/{username}/{target_language}_profile.db
@@ -234,7 +236,9 @@ impl<R: ProfileRepository> ProfileService<R> {
         settings: CardSettings,
     ) -> Result<(), CoreError> {
         let db_path = self.get_db_path(username, target_language);
-        self.repository.update_card_settings(db_path, settings).await
+        self.repository
+            .update_card_settings(db_path, settings)
+            .await
     }
 
     /// Gets assistant settings from a profile database.
@@ -276,7 +280,9 @@ impl<R: ProfileRepository> ProfileService<R> {
         settings: AssistantSettings,
     ) -> Result<(), CoreError> {
         let db_path = self.get_db_path(username, target_language);
-        self.repository.update_assistant_settings(db_path, settings).await
+        self.repository
+            .update_assistant_settings(db_path, settings)
+            .await
     }
 
     /// Clears assistant settings in a profile database (sets all AI fields to None).
@@ -356,7 +362,9 @@ impl<R: ProfileRepository> ProfileService<R> {
         word_name: &str,
     ) -> Result<Card, CoreError> {
         let db_path = self.get_db_path(username, target_language);
-        self.repository.get_card_by_word_name(db_path, word_name.to_string()).await
+        self.repository
+            .get_card_by_word_name(db_path, word_name.to_string())
+            .await
     }
 
     /// Updates a card's streak.
@@ -381,7 +389,9 @@ impl<R: ProfileRepository> ProfileService<R> {
         word_name: &str,
     ) -> Result<bool, CoreError> {
         let db_path = self.get_db_path(username, target_language);
-        self.repository.delete_card(db_path, word_name.to_string()).await
+        self.repository
+            .delete_card(db_path, word_name.to_string())
+            .await
     }
 
     /// Generates inverted cards from an original card.
@@ -414,7 +424,8 @@ impl<R: ProfileRepository> ProfileService<R> {
         let db_path = self.get_db_path(username, target_language);
 
         // Collect all translations from all meanings
-        let mut translations_with_meanings: Vec<(String, &crate::models::card::Meaning)> = Vec::new();
+        let mut translations_with_meanings: Vec<(String, &crate::models::card::Meaning)> =
+            Vec::new();
         for meaning in &original_card.meanings {
             for translation in &meaning.word_translations {
                 translations_with_meanings.push((translation.clone(), meaning));
@@ -422,9 +433,13 @@ impl<R: ProfileRepository> ProfileService<R> {
         }
 
         // Group by translation to handle duplicates
-        let mut translation_map: HashMap<String, Vec<&crate::models::card::Meaning>> = HashMap::new();
+        let mut translation_map: HashMap<String, Vec<&crate::models::card::Meaning>> =
+            HashMap::new();
         for (translation, meaning) in translations_with_meanings {
-            translation_map.entry(translation).or_insert_with(Vec::new).push(meaning);
+            translation_map
+                .entry(translation)
+                .or_insert_with(Vec::new)
+                .push(meaning);
         }
 
         // Generate inverse cards
@@ -436,7 +451,8 @@ impl<R: ProfileRepository> ProfileService<R> {
 
         for (translation, meanings) in translation_map {
             // Try to get existing card with this word_name
-            let existing_card_result = self.repository
+            let existing_card_result = self
+                .repository
                 .get_card_by_word_name(db_path.clone(), translation.clone())
                 .await;
 

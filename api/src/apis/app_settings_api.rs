@@ -2,8 +2,8 @@
 //!
 //! This module provides the trait definition for global application settings operations.
 
-use async_trait::async_trait;
 use crate::{errors::api_error::ApiError, models::app_settings::AppSettingsDto};
+use async_trait::async_trait;
 
 /// API for managing global application settings.
 ///

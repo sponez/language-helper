@@ -24,11 +24,7 @@ impl CardSettings {
     /// * `cards_per_set` - Number of cards per set (1-100)
     /// * `test_answer_method` - Method for testing ("manual" or "self_review")
     /// * `streak_length` - Streak length for remembering (1-50)
-    pub fn new(
-        cards_per_set: u32,
-        test_answer_method: String,
-        streak_length: u32,
-    ) -> Self {
+    pub fn new(cards_per_set: u32, test_answer_method: String, streak_length: u32) -> Self {
         Self {
             cards_per_set,
             test_answer_method,

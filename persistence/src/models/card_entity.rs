@@ -2,8 +2,8 @@
 //!
 //! This module defines the entities for storing flashcards in the database.
 
-use lh_core::models::{Card, CardType, Meaning};
 use crate::errors::PersistenceError;
+use lh_core::models::{Card, CardType, Meaning};
 
 /// Persistence entity for a flashcard.
 ///
@@ -26,10 +26,9 @@ pub struct CardEntity {
 impl CardEntity {
     /// Creates a new CardEntity from domain Card.
     pub fn from_domain(card: &Card) -> Result<Self, PersistenceError> {
-        let readings_json = serde_json::to_string(&card.word.readings)
-            .map_err(|e| PersistenceError::serialization_error(format!(
-                "Failed to serialize readings: {}", e
-            )))?;
+        let readings_json = serde_json::to_string(&card.word.readings).map_err(|e| {
+            PersistenceError::serialization_error(format!("Failed to serialize readings: {}", e))
+        })?;
 
         Ok(Self {
             word_name: card.word.name.clone(),
@@ -61,10 +60,13 @@ pub struct MeaningEntity {
 impl MeaningEntity {
     /// Converts domain Meaning to entity.
     pub fn from_domain(word_name: &str, meaning: &Meaning) -> Result<Self, PersistenceError> {
-        let word_translations_json = serde_json::to_string(&meaning.word_translations)
-            .map_err(|e| PersistenceError::serialization_error(format!(
-                "Failed to serialize word translations: {}", e
-            )))?;
+        let word_translations_json =
+            serde_json::to_string(&meaning.word_translations).map_err(|e| {
+                PersistenceError::serialization_error(format!(
+                    "Failed to serialize word translations: {}",
+                    e
+                ))
+            })?;
 
         Ok(Self {
             id: 0, // Will be set by database
@@ -78,9 +80,12 @@ impl MeaningEntity {
     /// Converts entity to domain Meaning.
     pub fn to_domain(&self) -> Result<Meaning, PersistenceError> {
         let word_translations: Vec<String> = serde_json::from_str(&self.word_translations)
-            .map_err(|e| PersistenceError::serialization_error(format!(
-                "Failed to deserialize word translations: {}", e
-            )))?;
+            .map_err(|e| {
+                PersistenceError::serialization_error(format!(
+                    "Failed to deserialize word translations: {}",
+                    e
+                ))
+            })?;
 
         Ok(Meaning::new_unchecked(
             self.definition.clone(),
@@ -102,21 +107,18 @@ impl CardWithRelations {
         let card_type = CardType::from_str(&self.card.card_type)
             .map_err(|e| PersistenceError::serialization_error(e.to_string()))?;
 
-        let word_readings: Vec<String> = serde_json::from_str(&self.card.word_readings)
-            .map_err(|e| PersistenceError::serialization_error(format!(
-                "Failed to deserialize word readings: {}", e
-            )))?;
+        let word_readings: Vec<String> =
+            serde_json::from_str(&self.card.word_readings).map_err(|e| {
+                PersistenceError::serialization_error(format!(
+                    "Failed to deserialize word readings: {}",
+                    e
+                ))
+            })?;
 
-        let word = lh_core::models::Word::new_unchecked(
-            self.card.word_name.clone(),
-            word_readings,
-        );
+        let word = lh_core::models::Word::new_unchecked(self.card.word_name.clone(), word_readings);
 
-        let meanings: Result<Vec<Meaning>, PersistenceError> = self
-            .meanings
-            .iter()
-            .map(|m| m.to_domain())
-            .collect();
+        let meanings: Result<Vec<Meaning>, PersistenceError> =
+            self.meanings.iter().map(|m| m.to_domain()).collect();
 
         Ok(Card::new_unchecked(
             card_type,
@@ -152,11 +154,8 @@ mod tests {
 
     #[test]
     fn test_meaning_entity_from_domain() {
-        let meaning = Meaning::new_unchecked(
-            "definition",
-            "traducción",
-            vec!["trans1".to_string()],
-        );
+        let meaning =
+            Meaning::new_unchecked("definition", "traducción", vec!["trans1".to_string()]);
         let entity = MeaningEntity::from_domain("test_word", &meaning).unwrap();
         assert_eq!(entity.word_name, "test_word");
         assert_eq!(entity.definition, "definition");

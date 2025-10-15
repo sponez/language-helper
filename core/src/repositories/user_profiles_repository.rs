@@ -2,9 +2,9 @@
 //!
 //! This module defines the repository trait for profile persistence operations.
 
-use async_trait::async_trait;
 use crate::errors::CoreError;
 use crate::models::profile::Profile;
+use async_trait::async_trait;
 
 /// Repository trait for profile persistence operations.
 #[async_trait]

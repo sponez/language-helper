@@ -28,11 +28,7 @@ use crate::i18n::I18n;
 /// let i18n = I18n::new("en-US");
 /// let text_widget = localized_text(&i18n, "user-back-button", 14);
 /// ```
-pub fn localized_text<'a>(
-    i18n: &I18n,
-    key: &str,
-    size: u16,
-) -> Text<'a> {
+pub fn localized_text<'a>(i18n: &I18n, key: &str, size: u16) -> Text<'a> {
     let label = i18n.get(key, None);
     iced::widget::text(label)
         .size(iced::Pixels(size as f32))
@@ -103,12 +99,7 @@ pub fn localized_text_with_arg<'a>(
 /// let i18n = I18n::new("en-US");
 /// let text_widget = localized_text_with_count(&i18n, "users-count", 5, 14);
 /// ```
-pub fn localized_text_with_count<'a>(
-    i18n: &I18n,
-    key: &str,
-    count: i32,
-    size: u16,
-) -> Text<'a> {
+pub fn localized_text_with_count<'a>(i18n: &I18n, key: &str, count: i32, size: u16) -> Text<'a> {
     let label = i18n.get_with_count(key, count);
     iced::widget::text(label)
         .size(iced::Pixels(size as f32))
@@ -130,13 +121,7 @@ mod tests {
     #[test]
     fn test_localized_text_with_arg_creation() {
         let i18n = I18n::new("en-US");
-        let text_widget = localized_text_with_arg(
-            &i18n,
-            "error-create-user",
-            "error",
-            "Test",
-            14
-        );
+        let text_widget = localized_text_with_arg(&i18n, "error-create-user", "error", "Test", 14);
         let _ = text_widget;
     }
 

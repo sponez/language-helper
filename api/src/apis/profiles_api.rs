@@ -2,11 +2,11 @@
 //!
 //! This module provides the trait definition for profile-specific database operations.
 
-use async_trait::async_trait;
 use crate::errors::api_error::ApiError;
+use crate::models::assistant_settings::AssistantSettingsDto;
 use crate::models::card::CardDto;
 use crate::models::card_settings::CardSettingsDto;
-use crate::models::assistant_settings::AssistantSettingsDto;
+use async_trait::async_trait;
 
 /// API for managing learning profile databases and content.
 ///
@@ -19,49 +19,112 @@ use crate::models::assistant_settings::AssistantSettingsDto;
 #[async_trait]
 pub trait ProfilesApi: Send + Sync {
     /// Creates a profile database file.
-    async fn create_profile_database(&self, username: &str, target_language: &str) -> Result<(), ApiError>;
+    async fn create_profile_database(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<(), ApiError>;
 
     /// Deletes a profile database file.
-    async fn delete_profile_database(&self, username: &str, target_language: &str) -> Result<bool, ApiError>;
+    async fn delete_profile_database(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<bool, ApiError>;
 
     /// Deletes the entire user data folder.
     async fn delete_user_folder(&self, username: &str) -> Result<bool, ApiError>;
 
     /// Gets card settings from a profile database.
-    async fn get_card_settings(&self, username: &str, target_language: &str) -> Result<CardSettingsDto, ApiError>;
+    async fn get_card_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<CardSettingsDto, ApiError>;
 
     /// Updates card settings in a profile database.
-    async fn update_card_settings(&self, username: &str, target_language: &str, settings: CardSettingsDto) -> Result<(), ApiError>;
+    async fn update_card_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+        settings: CardSettingsDto,
+    ) -> Result<(), ApiError>;
 
     /// Gets assistant settings from a profile database.
-    async fn get_assistant_settings(&self, username: &str, target_language: &str) -> Result<AssistantSettingsDto, ApiError>;
+    async fn get_assistant_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<AssistantSettingsDto, ApiError>;
 
     /// Updates assistant settings in a profile database.
-    async fn update_assistant_settings(&self, username: &str, target_language: &str, settings: AssistantSettingsDto) -> Result<(), ApiError>;
+    async fn update_assistant_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+        settings: AssistantSettingsDto,
+    ) -> Result<(), ApiError>;
 
     /// Clears assistant settings in a profile database (sets all AI fields to None).
-    async fn clear_assistant_settings(&self, username: &str, target_language: &str) -> Result<(), ApiError>;
+    async fn clear_assistant_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<(), ApiError>;
 
     /// Saves a card to the profile database (creates or updates based on word_name).
-    async fn save_card(&self, username: &str, target_language: &str, card: CardDto) -> Result<(), ApiError>;
+    async fn save_card(
+        &self,
+        username: &str,
+        target_language: &str,
+        card: CardDto,
+    ) -> Result<(), ApiError>;
 
     /// Gets all cards from the profile database.
-    async fn get_all_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError>;
+    async fn get_all_cards(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<Vec<CardDto>, ApiError>;
 
     /// Gets unlearned cards (streak below threshold).
-    async fn get_unlearned_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError>;
+    async fn get_unlearned_cards(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<Vec<CardDto>, ApiError>;
 
     /// Gets learned cards (streak at or above threshold).
-    async fn get_learned_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError>;
+    async fn get_learned_cards(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<Vec<CardDto>, ApiError>;
 
     /// Gets a single card by word name.
-    async fn get_card_by_word_name(&self, username: &str, target_language: &str, word_name: &str) -> Result<CardDto, ApiError>;
+    async fn get_card_by_word_name(
+        &self,
+        username: &str,
+        target_language: &str,
+        word_name: &str,
+    ) -> Result<CardDto, ApiError>;
 
     /// Updates a card's streak.
-    async fn update_card_streak(&self, username: &str, target_language: &str, word_name: &str, streak: i32) -> Result<(), ApiError>;
+    async fn update_card_streak(
+        &self,
+        username: &str,
+        target_language: &str,
+        word_name: &str,
+        streak: i32,
+    ) -> Result<(), ApiError>;
 
     /// Deletes a card from the database.
-    async fn delete_card(&self, username: &str, target_language: &str, word_name: &str) -> Result<bool, ApiError>;
+    async fn delete_card(
+        &self,
+        username: &str,
+        target_language: &str,
+        word_name: &str,
+    ) -> Result<bool, ApiError>;
 
     /// Generates inverted cards from an original card.
     ///
@@ -70,5 +133,10 @@ pub trait ProfilesApi: Send + Sync {
     /// - If not, create a new inverse card
     /// - Swap definition and translated_definition
     /// - Set card_type to opposite (Straight ↔ Reverse)
-    async fn get_inverted_cards(&self, username: &str, target_language: &str, card: CardDto) -> Result<Vec<CardDto>, ApiError>;
+    async fn get_inverted_cards(
+        &self,
+        username: &str,
+        target_language: &str,
+        card: CardDto,
+    ) -> Result<Vec<CardDto>, ApiError>;
 }

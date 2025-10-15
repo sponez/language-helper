@@ -1,9 +1,9 @@
 //! Profile repository adapter for mapping persistence errors to core errors.
 
-use async_trait::async_trait;
 use crate::errors::CoreError;
 use crate::models::profile::Profile;
 use crate::repositories::user_profiles_repository::UserProfilesRepository;
+use async_trait::async_trait;
 
 /// Trait representing a persistence-layer profile repository.
 #[async_trait]
@@ -25,18 +25,10 @@ pub trait PersistenceProfileRepository: Send + Sync {
     async fn find_all(&self) -> Result<Vec<Profile>, Self::Error>;
 
     /// Saves a profile.
-    async fn save(
-        &self,
-        username: &str,
-        profile: Profile
-    ) -> Result<Profile, Self::Error>;
+    async fn save(&self, username: &str, profile: Profile) -> Result<Profile, Self::Error>;
 
     /// Deletes a profile by ID.
-    async fn delete(
-        &self,
-        username: &str,
-        target_language: &str
-    ) -> Result<bool, Self::Error>;
+    async fn delete(&self, username: &str, target_language: &str) -> Result<bool, Self::Error>;
 }
 
 /// Adapter that wraps a persistence repository and maps errors.
@@ -52,9 +44,7 @@ impl<R> ProfileRepositoryAdapter<R> {
 }
 
 #[async_trait]
-impl<R: PersistenceProfileRepository> UserProfilesRepository
-    for ProfileRepositoryAdapter<R>
-{
+impl<R: PersistenceProfileRepository> UserProfilesRepository for ProfileRepositoryAdapter<R> {
     async fn find_by_username_and_target_language(
         &self,
         username: &str,

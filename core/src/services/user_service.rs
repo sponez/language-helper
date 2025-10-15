@@ -3,8 +3,8 @@
 //! This module provides the business logic for user operations.
 //! It uses the UserRepository trait for persistence operations.
 
-use crate::models::user::User;
 use crate::errors::CoreError;
+use crate::models::user::User;
 use crate::repositories::user_repository::UserRepository;
 
 /// Service for user business logic.
@@ -161,7 +161,12 @@ impl<R: UserRepository> UserService<R> {
         let user = User::new(username)?;
 
         // Business logic: check if user already exists
-        if self.repository.find_by_username(&user.username).await?.is_some() {
+        if self
+            .repository
+            .find_by_username(&user.username)
+            .await?
+            .is_some()
+        {
             return Err(CoreError::validation_error(format!(
                 "User with username '{}' already exists",
                 user.username

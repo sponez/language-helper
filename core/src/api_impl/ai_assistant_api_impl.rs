@@ -46,18 +46,15 @@ impl AiAssistantApi for AiAssistantApiImpl {
     }
 
     fn stop_model(&self, model_name: &str) -> Result<(), ApiError> {
-        ollama_client::stop_model(model_name)
-            .map_err(|e| ApiError::internal_error(e))
+        ollama_client::stop_model(model_name).map_err(|e| ApiError::internal_error(e))
     }
 
     fn check_server_status(&self) -> Result<bool, ApiError> {
-        ollama_client::check_server_status()
-            .map_err(|e| ApiError::internal_error(e))
+        ollama_client::check_server_status().map_err(|e| ApiError::internal_error(e))
     }
 
     fn start_server_and_wait(&self) -> Result<(), ApiError> {
-        ollama_client::start_server_and_wait()
-            .map_err(|e| ApiError::internal_error(e))
+        ollama_client::start_server_and_wait().map_err(|e| ApiError::internal_error(e))
     }
 
     fn get_available_models(&self) -> Result<Vec<String>, ApiError> {
@@ -66,13 +63,11 @@ impl AiAssistantApi for AiAssistantApiImpl {
     }
 
     fn pull_model(&self, model_name: &str) -> Result<(), ApiError> {
-        ollama_client::pull_model(model_name)
-            .map_err(|e| ApiError::internal_error(e))
+        ollama_client::pull_model(model_name).map_err(|e| ApiError::internal_error(e))
     }
 
     fn run_model(&self, model_name: &str) -> Result<(), ApiError> {
-        ollama_client::run_model(model_name)
-            .map_err(|e| ApiError::internal_error(e))
+        ollama_client::run_model(model_name).map_err(|e| ApiError::internal_error(e))
     }
 
     fn explain(
@@ -92,12 +87,22 @@ impl AiAssistantApi for AiAssistantApiImpl {
 
             if is_api_mode {
                 // External API mode
-                Self::explain_with_external_api(assistant_settings, &user_language, &profile_language, &message)
-                    .await
+                Self::explain_with_external_api(
+                    assistant_settings,
+                    &user_language,
+                    &profile_language,
+                    &message,
+                )
+                .await
             } else {
                 // Local Ollama mode
-                Self::explain_with_ollama(assistant_settings, &user_language, &profile_language, &message)
-                    .await
+                Self::explain_with_ollama(
+                    assistant_settings,
+                    &user_language,
+                    &profile_language,
+                    &message,
+                )
+                .await
             }
         })
     }
@@ -120,12 +125,24 @@ impl AiAssistantApi for AiAssistantApiImpl {
 
             if is_api_mode {
                 // External API mode
-                Self::fill_card_with_external_api(assistant_settings, &card_name, &card_type, &user_language, &profile_language)
-                    .await
+                Self::fill_card_with_external_api(
+                    assistant_settings,
+                    &card_name,
+                    &card_type,
+                    &user_language,
+                    &profile_language,
+                )
+                .await
             } else {
                 // Local Ollama mode
-                Self::fill_card_with_ollama(assistant_settings, &card_name, &card_type, &user_language, &profile_language)
-                    .await
+                Self::fill_card_with_ollama(
+                    assistant_settings,
+                    &card_name,
+                    &card_type,
+                    &user_language,
+                    &profile_language,
+                )
+                .await
             }
         })
     }
@@ -148,12 +165,24 @@ impl AiAssistantApi for AiAssistantApiImpl {
 
             if is_api_mode {
                 // External API mode
-                Self::merge_inverse_cards_with_external_api(assistant_settings, new_card, existing_cards, &user_language, &profile_language)
-                    .await
+                Self::merge_inverse_cards_with_external_api(
+                    assistant_settings,
+                    new_card,
+                    existing_cards,
+                    &user_language,
+                    &profile_language,
+                )
+                .await
             } else {
                 // Local Ollama mode
-                Self::merge_inverse_cards_with_ollama(assistant_settings, new_card, existing_cards, &user_language, &profile_language)
-                    .await
+                Self::merge_inverse_cards_with_ollama(
+                    assistant_settings,
+                    new_card,
+                    existing_cards,
+                    &user_language,
+                    &profile_language,
+                )
+                .await
             }
         })
     }
@@ -198,11 +227,7 @@ impl AiAssistantApiImpl {
     }
 
     /// Builds the comprehensive explain prompt with language learning instructions.
-    fn build_explain_prompt(
-        user_language: &str,
-        profile_language: &str,
-        message: &str,
-    ) -> String {
+    fn build_explain_prompt(user_language: &str, profile_language: &str, message: &str) -> String {
         // Convert locale codes to readable language names
         let user_lang_name = Self::map_locale_to_language_name(user_language);
         let profile_lang_name = Self::map_locale_to_language_name(profile_language);
@@ -457,7 +482,8 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
         let ollama_model = Self::map_to_ollama_model(&model_name);
 
         // Build the fill card prompt
-        let full_prompt = Self::build_fill_card_prompt(card_name, card_type, user_language, profile_language);
+        let full_prompt =
+            Self::build_fill_card_prompt(card_name, card_type, user_language, profile_language);
 
         // Create request
         let request = OllamaGenerateRequest {
@@ -518,7 +544,8 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
             .ok_or_else(|| ApiError::validation_error("No API model name configured"))?;
 
         // Build the fill card prompt
-        let full_prompt = Self::build_fill_card_prompt(card_name, card_type, user_language, profile_language);
+        let full_prompt =
+            Self::build_fill_card_prompt(card_name, card_type, user_language, profile_language);
 
         // Create request
         let request = ExternalApiRequest {
@@ -580,8 +607,8 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
 
     /// Parses a CardDto from JSON text returned by AI.
     fn parse_card_from_json(json_text: &str) -> Result<CardDto, ApiError> {
-        use serde::Deserialize;
         use lh_api::models::card::{CardType, MeaningDto, WordDto};
+        use serde::Deserialize;
 
         // Simplified structures for lenient parsing
         #[derive(Deserialize)]
@@ -625,18 +652,15 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
                 .unwrap_or(json_text)
                 .trim()
         } else if json_text.contains("```") {
-            json_text
-                .split("```")
-                .nth(1)
-                .unwrap_or(json_text)
-                .trim()
+            json_text.split("```").nth(1).unwrap_or(json_text).trim()
         } else {
             json_text.trim()
         };
 
         // Parse into simplified structure
-        let simple: SimpleCard = serde_json::from_str(json_str)
-            .map_err(|e| ApiError::internal_error(format!("Failed to parse AI JSON response: {}", e)))?;
+        let simple: SimpleCard = serde_json::from_str(json_str).map_err(|e| {
+            ApiError::internal_error(format!("Failed to parse AI JSON response: {}", e))
+        })?;
 
         // Convert to CardDto
         let card_type = match simple.card_type.as_deref() {
@@ -650,7 +674,8 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
             readings: simple.word.readings,
         };
 
-        let meanings_dto: Vec<MeaningDto> = simple.meanings
+        let meanings_dto: Vec<MeaningDto> = simple
+            .meanings
             .into_iter()
             .map(|m| MeaningDto {
                 definition: m.definition,
@@ -679,7 +704,8 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
         let new_translation = &new_card.word.name;
 
         // Serialize existing cards to JSON
-        let existing_cards_json = serde_json::to_string_pretty(existing_cards).unwrap_or_else(|_| "[]".to_string());
+        let existing_cards_json =
+            serde_json::to_string_pretty(existing_cards).unwrap_or_else(|_| "[]".to_string());
 
         format!(
             r#"You are a precise dictionary card synchronizer.
@@ -716,7 +742,12 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
         let ollama_model = Self::map_to_ollama_model(&model_name);
 
         // Build the merge prompt
-        let full_prompt = Self::build_merge_inverse_cards_prompt(&new_card, &existing_cards, user_language, profile_language);
+        let full_prompt = Self::build_merge_inverse_cards_prompt(
+            &new_card,
+            &existing_cards,
+            user_language,
+            profile_language,
+        );
 
         // Create request
         let request = OllamaGenerateRequest {
@@ -777,7 +808,12 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
             .ok_or_else(|| ApiError::validation_error("No API model name configured"))?;
 
         // Build the merge prompt
-        let full_prompt = Self::build_merge_inverse_cards_prompt(&new_card, &existing_cards, user_language, profile_language);
+        let full_prompt = Self::build_merge_inverse_cards_prompt(
+            &new_card,
+            &existing_cards,
+            user_language,
+            profile_language,
+        );
 
         // Create request
         let request = ExternalApiRequest {
@@ -839,8 +875,8 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
 
     /// Parses an array of CardDto from JSON text returned by AI.
     fn parse_card_array_from_json(json_text: &str) -> Result<Vec<CardDto>, ApiError> {
-        use serde::Deserialize;
         use lh_api::models::card::{CardType, MeaningDto, WordDto};
+        use serde::Deserialize;
 
         // Simplified structures for lenient parsing
         #[derive(Deserialize)]
@@ -884,18 +920,15 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
                 .unwrap_or(json_text)
                 .trim()
         } else if json_text.contains("```") {
-            json_text
-                .split("```")
-                .nth(1)
-                .unwrap_or(json_text)
-                .trim()
+            json_text.split("```").nth(1).unwrap_or(json_text).trim()
         } else {
             json_text.trim()
         };
 
         // Parse into simplified structures
-        let simple_cards: Vec<SimpleCard> = serde_json::from_str(json_str)
-            .map_err(|e| ApiError::internal_error(format!("Failed to parse AI JSON array response: {}", e)))?;
+        let simple_cards: Vec<SimpleCard> = serde_json::from_str(json_str).map_err(|e| {
+            ApiError::internal_error(format!("Failed to parse AI JSON array response: {}", e))
+        })?;
 
         // Convert to Vec<CardDto>
         let cards: Vec<CardDto> = simple_cards
@@ -912,7 +945,8 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
                     readings: simple.word.readings,
                 };
 
-                let meanings_dto: Vec<MeaningDto> = simple.meanings
+                let meanings_dto: Vec<MeaningDto> = simple
+                    .meanings
                     .into_iter()
                     .map(|m| MeaningDto {
                         definition: m.definition,

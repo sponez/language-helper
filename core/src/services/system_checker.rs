@@ -8,7 +8,7 @@ pub struct ModelRequirements {
     pub cpu_cores: usize,
     pub ram_gb: f32,
     pub min_gpu: Option<String>, // Minimum GPU requirement description (not checked, informational only)
-    pub total_memory_gb: f32, // Total system + video memory
+    pub total_memory_gb: f32,    // Total system + video memory
 }
 
 /// Individual requirement status
@@ -297,6 +297,9 @@ mod tests {
     #[test]
     fn test_get_compatible_models_includes_api() {
         let compatible = get_compatible_models();
-        assert!(compatible.contains(&"API".to_string()), "API should always be compatible");
+        assert!(
+            compatible.contains(&"API".to_string()),
+            "API should always be compatible"
+        );
     }
 }

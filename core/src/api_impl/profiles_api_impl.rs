@@ -76,7 +76,13 @@ fn dto_to_card(dto: CardDto) -> Result<Card, ApiError> {
     // If streak and created_at are provided (non-default values), use them
     // Otherwise create a new card with default values
     if dto.streak != 0 || dto.created_at != 0 {
-        Ok(Card::new_unchecked(card_type, word, meanings, dto.streak, dto.created_at))
+        Ok(Card::new_unchecked(
+            card_type,
+            word,
+            meanings,
+            dto.streak,
+            dto.created_at,
+        ))
     } else {
         Card::new(card_type, word, meanings).map_err(|e| ApiError::validation_error(e.to_string()))
     }
@@ -106,7 +112,11 @@ impl<R: ProfileRepository> ProfilesApiImpl<R> {
 
 #[async_trait]
 impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
-    async fn create_profile_database(&self, username: &str, target_language: &str) -> Result<(), ApiError> {
+    async fn create_profile_database(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<(), ApiError> {
         self.profile_service
             .create_profile_database(username, target_language)
             .await
@@ -114,7 +124,11 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
             .map_err(map_core_error_to_api_error)
     }
 
-    async fn delete_profile_database(&self, username: &str, target_language: &str) -> Result<bool, ApiError> {
+    async fn delete_profile_database(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<bool, ApiError> {
         self.profile_service
             .delete_profile_database(username, target_language)
             .await
@@ -128,8 +142,13 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
             .map_err(map_core_error_to_api_error)
     }
 
-    async fn get_card_settings(&self, username: &str, target_language: &str) -> Result<CardSettingsDto, ApiError> {
-        let settings = self.profile_service
+    async fn get_card_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<CardSettingsDto, ApiError> {
+        let settings = self
+            .profile_service
             .get_card_settings(username, target_language)
             .await
             .map_err(map_core_error_to_api_error)?;
@@ -142,7 +161,12 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         ))
     }
 
-    async fn update_card_settings(&self, username: &str, target_language: &str, settings: CardSettingsDto) -> Result<(), ApiError> {
+    async fn update_card_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+        settings: CardSettingsDto,
+    ) -> Result<(), ApiError> {
         // Convert DTO to domain model
         let domain_settings = CardSettings::new(
             settings.cards_per_set,
@@ -156,8 +180,13 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
             .map_err(map_core_error_to_api_error)
     }
 
-    async fn get_assistant_settings(&self, username: &str, target_language: &str) -> Result<AssistantSettingsDto, ApiError> {
-        let settings = self.profile_service
+    async fn get_assistant_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<AssistantSettingsDto, ApiError> {
+        let settings = self
+            .profile_service
             .get_assistant_settings(username, target_language)
             .await
             .map_err(map_core_error_to_api_error)?;
@@ -171,7 +200,12 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         ))
     }
 
-    async fn update_assistant_settings(&self, username: &str, target_language: &str, settings: AssistantSettingsDto) -> Result<(), ApiError> {
+    async fn update_assistant_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+        settings: AssistantSettingsDto,
+    ) -> Result<(), ApiError> {
         // Convert DTO to domain model
         let domain_settings = AssistantSettings::new(
             settings.ai_model,
@@ -186,14 +220,23 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
             .map_err(map_core_error_to_api_error)
     }
 
-    async fn clear_assistant_settings(&self, username: &str, target_language: &str) -> Result<(), ApiError> {
+    async fn clear_assistant_settings(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<(), ApiError> {
         self.profile_service
             .clear_assistant_settings(username, target_language)
             .await
             .map_err(map_core_error_to_api_error)
     }
 
-    async fn save_card(&self, username: &str, target_language: &str, card: CardDto) -> Result<(), ApiError> {
+    async fn save_card(
+        &self,
+        username: &str,
+        target_language: &str,
+        card: CardDto,
+    ) -> Result<(), ApiError> {
         let domain_card = dto_to_card(card)?;
         self.profile_service
             .save_card(username, target_language, domain_card)
@@ -201,8 +244,13 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
             .map_err(map_core_error_to_api_error)
     }
 
-    async fn get_all_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError> {
-        let cards = self.profile_service
+    async fn get_all_cards(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<Vec<CardDto>, ApiError> {
+        let cards = self
+            .profile_service
             .get_all_cards(username, target_language)
             .await
             .map_err(map_core_error_to_api_error)?;
@@ -210,8 +258,13 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         Ok(cards.into_iter().map(card_to_dto).collect())
     }
 
-    async fn get_unlearned_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError> {
-        let cards = self.profile_service
+    async fn get_unlearned_cards(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<Vec<CardDto>, ApiError> {
+        let cards = self
+            .profile_service
             .get_unlearned_cards(username, target_language)
             .await
             .map_err(map_core_error_to_api_error)?;
@@ -219,8 +272,13 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         Ok(cards.into_iter().map(card_to_dto).collect())
     }
 
-    async fn get_learned_cards(&self, username: &str, target_language: &str) -> Result<Vec<CardDto>, ApiError> {
-        let cards = self.profile_service
+    async fn get_learned_cards(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<Vec<CardDto>, ApiError> {
+        let cards = self
+            .profile_service
             .get_learned_cards(username, target_language)
             .await
             .map_err(map_core_error_to_api_error)?;
@@ -228,8 +286,14 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         Ok(cards.into_iter().map(card_to_dto).collect())
     }
 
-    async fn get_card_by_word_name(&self, username: &str, target_language: &str, word_name: &str) -> Result<CardDto, ApiError> {
-        let card = self.profile_service
+    async fn get_card_by_word_name(
+        &self,
+        username: &str,
+        target_language: &str,
+        word_name: &str,
+    ) -> Result<CardDto, ApiError> {
+        let card = self
+            .profile_service
             .get_card_by_word_name(username, target_language, word_name)
             .await
             .map_err(map_core_error_to_api_error)?;
@@ -237,26 +301,43 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         Ok(card_to_dto(card))
     }
 
-    async fn update_card_streak(&self, username: &str, target_language: &str, word_name: &str, streak: i32) -> Result<(), ApiError> {
+    async fn update_card_streak(
+        &self,
+        username: &str,
+        target_language: &str,
+        word_name: &str,
+        streak: i32,
+    ) -> Result<(), ApiError> {
         self.profile_service
             .update_card_streak(username, target_language, word_name, streak)
             .await
             .map_err(map_core_error_to_api_error)
     }
 
-    async fn delete_card(&self, username: &str, target_language: &str, word_name: &str) -> Result<bool, ApiError> {
+    async fn delete_card(
+        &self,
+        username: &str,
+        target_language: &str,
+        word_name: &str,
+    ) -> Result<bool, ApiError> {
         self.profile_service
             .delete_card(username, target_language, word_name)
             .await
             .map_err(map_core_error_to_api_error)
     }
 
-    async fn get_inverted_cards(&self, username: &str, target_language: &str, card: CardDto) -> Result<Vec<CardDto>, ApiError> {
+    async fn get_inverted_cards(
+        &self,
+        username: &str,
+        target_language: &str,
+        card: CardDto,
+    ) -> Result<Vec<CardDto>, ApiError> {
         // Convert DTO to domain Card
         let domain_card = dto_to_card(card)?;
 
         // Get inverted cards from service
-        let inverted_cards = self.profile_service
+        let inverted_cards = self
+            .profile_service
             .get_inverted_cards(username, target_language, &domain_card)
             .await
             .map_err(map_core_error_to_api_error)?;

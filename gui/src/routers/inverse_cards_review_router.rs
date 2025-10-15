@@ -69,7 +69,9 @@ impl InverseCardsReviewRouter {
         match message {
             Message::ShowCard(word_name) => {
                 // Find the card in pending list
-                let card = self.pending_cards.iter()
+                let card = self
+                    .pending_cards
+                    .iter()
                     .find(|c| c.word.name == word_name)
                     .cloned();
 
@@ -78,19 +80,21 @@ impl InverseCardsReviewRouter {
                     self.editing_card_word_name = Some(word_name.clone());
 
                     // Navigate to edit card view for an inverse card (skip inverse modal)
-                    let add_card_router: Box<dyn RouterNode> = Box::new(
-                        super::add_card_router::AddCardRouter::new_edit_with_flags(
+                    let add_card_router: Box<dyn RouterNode> =
+                        Box::new(super::add_card_router::AddCardRouter::new_edit_with_flags(
                             self.user_view.clone(),
                             self.profile.clone(),
                             Arc::clone(&self.app_api),
                             self.app_state.clone(),
                             card,
                             true, // is_inverse_card_edit = true
-                        )
-                    );
+                        ));
                     Some(RouterEvent::Push(add_card_router))
                 } else {
-                    eprintln!("Card with word_name '{}' not found in pending cards", word_name);
+                    eprintln!(
+                        "Card with word_name '{}' not found in pending cards",
+                        word_name
+                    );
                     None
                 }
             }
@@ -101,9 +105,11 @@ impl InverseCardsReviewRouter {
                 let api = Arc::clone(&self.app_api);
 
                 for card in self.pending_cards.drain(..) {
-                    let result = block_on(
-                        api.profile_api().save_card(&username, &target_language, card)
-                    );
+                    let result = block_on(api.profile_api().save_card(
+                        &username,
+                        &target_language,
+                        card,
+                    ));
 
                     if let Err(e) = result {
                         eprintln!("Failed to save card: {:?}", e);
@@ -130,30 +136,30 @@ impl InverseCardsReviewRouter {
 
         // Cards content area
         let cards_content = if self.pending_cards.is_empty() {
-            container(
-                localized_text(&i18n, "inverse-cards-no-pending", 14)
-            )
-            .padding(20)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
+            container(localized_text(&i18n, "inverse-cards-no-pending", 14))
+                .padding(20)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
         } else {
             // Build column of card containers
             let mut cards_column = column![].spacing(10).padding(10);
 
             for card in &self.pending_cards {
                 // Card container with word name, meaning count, and Show button
-                let word_name_text = text(&card.word.name).size(16).shaping(iced::widget::text::Shaping::Advanced);
-                let meaning_count_text = text(format!("({} meanings)", card.meanings.len())).size(14).shaping(iced::widget::text::Shaping::Advanced);
+                let word_name_text = text(&card.word.name)
+                    .size(16)
+                    .shaping(iced::widget::text::Shaping::Advanced);
+                let meaning_count_text = text(format!("({} meanings)", card.meanings.len()))
+                    .size(14)
+                    .shaping(iced::widget::text::Shaping::Advanced);
 
                 let word_name_clone = card.word.name.clone();
 
-                let show_button = button(
-                    localized_text(&i18n, "inverse-cards-show", 12)
-                )
-                .on_press(Message::ShowCard(word_name_clone))
-                .padding(6);
+                let show_button = button(localized_text(&i18n, "inverse-cards-show", 12))
+                    .on_press(Message::ShowCard(word_name_clone))
+                    .padding(6);
 
                 let card_row = row![
                     word_name_text,
@@ -190,22 +196,15 @@ impl InverseCardsReviewRouter {
             .width(Length::Fixed(150.0))
             .padding(10);
 
-        let buttons_row = row![
-            save_all_button,
-            cancel_button,
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
+        let buttons_row = row![save_all_button, cancel_button,]
+            .spacing(10)
+            .align_y(Alignment::Center);
 
         // Main layout
-        let main_content = column![
-            title,
-            cards_content,
-            buttons_row,
-        ]
-        .spacing(20)
-        .padding(20)
-        .align_x(Alignment::Center);
+        let main_content = column![title, cards_content, buttons_row,]
+            .spacing(20)
+            .padding(20)
+            .align_x(Alignment::Center);
 
         Container::new(main_content)
             .width(Length::Fill)
@@ -217,7 +216,8 @@ impl InverseCardsReviewRouter {
 
     /// Remove a card from the pending list (called when user saves it individually)
     pub fn remove_card(&mut self, word_name: &str) {
-        self.pending_cards.retain(|card| card.word.name != word_name);
+        self.pending_cards
+            .retain(|card| card.word.name != word_name);
     }
 }
 
@@ -227,9 +227,15 @@ impl RouterNode for InverseCardsReviewRouter {
         "inverse_cards_review"
     }
 
-    fn update(&mut self, message: &router::Message) -> (Option<RouterEvent>, iced::Task<router::Message>) {
+    fn update(
+        &mut self,
+        message: &router::Message,
+    ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::InverseCardsReview(msg) => { let event = InverseCardsReviewRouter::update(self, msg.clone()); (event, iced::Task::none()) },
+            router::Message::InverseCardsReview(msg) => {
+                let event = InverseCardsReviewRouter::update(self, msg.clone());
+                (event, iced::Task::none())
+            }
             _ => (None, iced::Task::none()),
         }
     }
@@ -249,7 +255,8 @@ impl RouterNode for InverseCardsReviewRouter {
     fn refresh(&mut self) {
         // Remove the card that was just edited (if any)
         if let Some(ref word_name) = self.editing_card_word_name {
-            self.pending_cards.retain(|card| &card.word.name != word_name);
+            self.pending_cards
+                .retain(|card| &card.word.name != word_name);
             self.editing_card_word_name = None;
         }
 

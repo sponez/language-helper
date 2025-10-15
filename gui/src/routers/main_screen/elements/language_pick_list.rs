@@ -30,16 +30,14 @@ pub enum LanguagePickListMessage {
 /// // Element will show "English" and can be mapped to parent message:
 /// // element.map(Message::LanguagePickList)
 /// ```
-pub fn language_pick_list<'a>(
-    current_language: &Language,
-) -> Element<'a, LanguagePickListMessage> {
+pub fn language_pick_list<'a>(current_language: &Language) -> Element<'a, LanguagePickListMessage> {
     pick_list(
         Language::ALL,
         Some(current_language.clone()),
         LanguagePickListMessage::LanguageSelected,
     )
-        .placeholder(current_language.name())
-        .width(150)
-        .text_shaping(iced::widget::text::Shaping::Advanced)
-        .into()
+    .placeholder(current_language.name())
+    .width(150)
+    .text_shaping(iced::widget::text::Shaping::Advanced)
+    .into()
 }

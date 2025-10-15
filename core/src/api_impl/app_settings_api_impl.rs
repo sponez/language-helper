@@ -8,8 +8,8 @@ use lh_api::apis::app_settings_api::AppSettingsApi;
 use lh_api::errors::api_error::ApiError;
 use lh_api::models::app_settings::AppSettingsDto;
 
-use crate::models::app_settings::AppSettings;
 use crate::errors::CoreError;
+use crate::models::app_settings::AppSettings;
 use crate::repositories::app_settings_repository::AppSettingsRepository;
 use crate::services::app_settings_service::AppSettingsService;
 
@@ -75,7 +75,9 @@ impl<R: AppSettingsRepository> AppSettingsApi for AppSettingsApiImpl<R> {
 
     async fn update_app_theme(&self, theme: &str) -> Result<(), ApiError> {
         // Get current settings to preserve the language
-        let current_settings = self.service.get_settings()
+        let current_settings = self
+            .service
+            .get_settings()
             .await
             .map_err(map_core_error_to_api_error)?;
 
@@ -89,7 +91,9 @@ impl<R: AppSettingsRepository> AppSettingsApi for AppSettingsApiImpl<R> {
 
     async fn update_app_language(&self, language: &str) -> Result<(), ApiError> {
         // Get current settings to preserve the theme
-        let current_settings = self.service.get_settings()
+        let current_settings = self
+            .service
+            .get_settings()
             .await
             .map_err(map_core_error_to_api_error)?;
 
