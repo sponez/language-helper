@@ -159,13 +159,16 @@ error-username-too-short = Username must be at least 5 characters
 error-username-too-long = Username must be no more than 50 characters
 error-language-not-selected = Please select a language
 error-user-not-found = User not found
-error-create-user = Error creating user: { $error }
-error-update-theme = Failed to update theme: { $error }
-error-update-language = Failed to update language: { $error }
+error-create-user = Failed to create user. Please try again.
+error-update-theme = Failed to update theme. Please try again.
+error-update-language = Failed to update language. Please try again.
 error-user-created-not-found = User created but not found
 error-invalid-number = Please enter a valid number
 error-cards-per-set-range = Cards per set must be between 1 and 100
 error-streak-length-range = Streak length must be between 1 and 50
+
+## Error Modal
+error-modal-close-button = Close
 
 ## Settings
 settings-theme = Theme

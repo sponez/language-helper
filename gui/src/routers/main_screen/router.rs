@@ -18,6 +18,7 @@ use crate::router::{self, RouterEvent, RouterNode};
 use super::elements::{
     add_new_user_button::{add_new_user_button, AddNewUserButtonMessage},
     create_new_user::modal_window::{CreateNewUserModal, ModalAction, ModalWindowMessage},
+    error_modal::{error_modal, ErrorModalMessage},
     language_pick_list::{language_pick_list, LanguagePickListMessage},
     theme_pick_list::{theme_pick_list, ThemePickListMessage},
     user_pick_list::{user_pick_list, UserPickListMessage},
@@ -36,8 +37,17 @@ pub enum Message {
     AddUserButton(AddNewUserButtonMessage),
     /// Messages from the create new user modal (wraps all modal messages)
     Modal(ModalWindowMessage),
+    /// Messages from the error modal
+    ErrorModal(ErrorModalMessage),
+
     /// Usernames received from API
     UsernamesReceived(Vec<String>),
+    /// User creation completed
+    UserCreated(Result<String, String>),
+    /// Theme updated in API
+    ThemeUpdated(Result<(), String>),
+    /// Language updated in API
+    LanguageUpdated(Result<(), String>),
 }
 
 /// State for the main screen router
@@ -51,6 +61,8 @@ pub struct MainScreenRouter {
 
     /// User list
     username_list: Vec<String>,
+    /// Error message to display (None = no error)
+    error_message: Option<String>,
 }
 
 impl MainScreenRouter {
@@ -66,14 +78,20 @@ impl MainScreenRouter {
     /// A tuple of (router, task) where the task will load usernames asynchronously
     pub fn new(app_api: Arc<dyn AppApi>, app_state: AppState) -> (Self, Task<Message>) {
         let router = Self {
-            app_api: app_api.clone(),
+            app_api: Arc::clone(&app_api),
             app_state,
             create_user_modal: None,
             username_list: Vec::new(),
+            error_message: None,
         };
 
         // Create task to load usernames
-        let task = Task::perform(Self::load_usernames(app_api), Message::UsernamesReceived);
+        let task = Task::perform(
+            Self::load_usernames(
+                Arc::clone(&router.app_api)
+            ),
+            Message::UsernamesReceived
+        );
 
         (router, task)
     }
@@ -89,6 +107,38 @@ impl MainScreenRouter {
         }
     }
 
+    /// Asynchronously creates a new user
+    async fn create_user(
+        app_api: Arc<dyn AppApi>,
+        username: &str,
+        _language: &str,
+    ) -> Result<String, String> {
+        match app_api.users_api().create_user(username).await {
+            Ok(_) => Ok(username.to_string()),
+            Err(_e) => Err("error-create-user".to_string()), // Return i18n key
+        }
+    }
+
+    /// Asynchronously updates app theme setting
+    async fn update_theme(app_api: Arc<dyn AppApi>, theme: String) -> Result<(), String> {
+        match app_api.app_settings_api().update_app_theme(&theme).await {
+            Ok(_) => Ok(()),
+            Err(_e) => Err("error-update-theme".to_string()), // Return i18n key
+        }
+    }
+
+    /// Asynchronously updates app language setting
+    async fn update_language(app_api: Arc<dyn AppApi>, language: String) -> Result<(), String> {
+        match app_api
+            .app_settings_api()
+            .update_app_language(&language)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(_e) => Err("error-update-language".to_string()), // Return i18n key
+        }
+    }
+
     /// Update the router state based on messages
     ///
     /// # Arguments
@@ -97,72 +147,162 @@ impl MainScreenRouter {
     ///
     /// # Returns
     ///
-    /// An optional RouterEvent for navigation
-    pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
+    /// A tuple of (Optional RouterEvent for navigation, Task for async operations)
+    pub fn update(&mut self, message: Message) -> (Option<RouterEvent>, Task<Message>) {
         match message {
             Message::ThemePicker(msg) => {
                 match msg {
                     ThemePickListMessage::Choosed(theme) => {
-                        self.app_state.set_theme(theme);
-                        // TODO: Save theme to app settings via API
+                        // Update local state immediately for responsive UI
+                        self.app_state.set_theme(theme.clone());
+
+                        // Save to API asynchronously
+                        let app_api = Arc::clone(&self.app_api);
+                        let theme_str = format!("{:?}", theme); // Convert theme to string
+                        let task = Task::perform(
+                            Self::update_theme(app_api, theme_str),
+                            Message::ThemeUpdated,
+                        );
+
+                        return (None, task);
                     }
                 }
-                None
             }
             Message::LanguagePicker(msg) => {
                 match msg {
                     LanguagePickListMessage::LanguageSelected(language) => {
+                        // Update local state immediately for responsive UI
                         self.app_state.set_language(language);
-                        // TODO: Save language to app settings via API
+
+                        // Save to API asynchronously
+                        let app_api = Arc::clone(&self.app_api);
+                        let language_str = language.to_locale_code().to_string();
+                        let task = Task::perform(
+                            Self::update_language(app_api, language_str),
+                            Message::LanguageUpdated,
+                        );
+
+                        return (None, task);
                     }
                 }
-                None
             }
             Message::UserPicker(msg) => {
-                match msg {
-                    UserPickListMessage::Choosed(_username) => {
-                        // TODO: Load user and navigate to UserRouter
+                        match msg {
+                            UserPickListMessage::Choosed(_username) => {
+                                // TODO: Load user and navigate to UserRouter
+                            }
+                        }
+                        (None, Task::none())
                     }
-                }
-                None
-            }
             Message::AddUserButton(msg) => {
-                match msg {
-                    AddNewUserButtonMessage::Pressed => {
-                        // Open modal - create fresh instance
-                        self.create_user_modal = Some(CreateNewUserModal::new());
+                        match msg {
+                            AddNewUserButtonMessage::Pressed => {
+                                // Open modal - create fresh instance
+                                self.create_user_modal = Some(CreateNewUserModal::new());
+                            }
+                        }
+                        (None, Task::none())
                     }
-                }
-                None
-            }
             Message::Modal(msg) => {
-                if let Some(modal) = &mut self.create_user_modal {
-                    let i18n = self.app_state.i18n();
-                    let action = modal.update(msg, &i18n);
+                        if let Some(modal) = &mut self.create_user_modal {
+                            let action = modal.update(msg, self.app_state.i18n());
 
-                    match action {
-                        ModalAction::CreateUser { username, language } => {
-                            // TODO: Create user via API
-                            println!("Creating user: {} with language: {}", username, language);
+                            match action {
+                                ModalAction::CreateUser { username, language } => {
+                                    // Close modal immediately
+                                    self.create_user_modal = None;
 
-                            // Close modal and destroy state
-                            self.create_user_modal = None;
+                                    let app_api = Arc::clone(&self.app_api);
+                                    let task = Task::perform(
+                                        async move {
+                                            Self::create_user(app_api, &username, language.name()).await
+                                        },
+                                        Message::UserCreated,
+                                    );
+
+                                    return (None, task);
+                                }
+                                ModalAction::Cancel => {
+                                    // Close modal and destroy state
+                                    self.create_user_modal = None;
+                                }
+                                ModalAction::None => {
+                                    // Modal still open, no action needed
+                                }
+                            }
                         }
-                        ModalAction::Cancel => {
-                            // Close modal and destroy state
-                            self.create_user_modal = None;
-                        }
-                        ModalAction::None => {
-                            // Modal still open, no action needed
-                        }
+                        (None, Task::none())
+                    }
+            Message::UsernamesReceived(usernames) => {
+                        // Update the username list with loaded data
+                        self.username_list = usernames;
+                        (None, Task::none())
+                    }
+            Message::UserCreated(result) => {
+                match result {
+                    Ok(username) => {
+                        println!("User '{}' created successfully", username);
+                        // Clear any previous error
+                        self.error_message = None;
+
+                        let task = Task::perform(
+                            Self::load_usernames(Arc::clone(&self.app_api)),
+                            Message::UsernamesReceived,
+                        );
+
+                        (None, task)
+                    }
+                    Err(error_key) => {
+                        eprintln!("Failed to create user: {}", error_key);
+                        // Localize the error message
+                        let i18n = self.app_state.i18n();
+                        let localized_error = i18n.get(&error_key, None);
+                        self.error_message = Some(localized_error);
+                        (None, Task::none())
                     }
                 }
-                None
             }
-            Message::UsernamesReceived(usernames) => {
-                // Update the username list with loaded data
-                self.username_list = usernames;
-                None
+            Message::ThemeUpdated(result) => {
+                match result {
+                    Ok(_) => {
+                        // Theme successfully saved to API
+                        self.error_message = None;
+                        (None, Task::none())
+                    }
+                    Err(error_key) => {
+                        eprintln!("Failed to save theme: {}", error_key);
+                        // Localize the error message
+                        let i18n = self.app_state.i18n();
+                        let localized_error = i18n.get(&error_key, None);
+                        self.error_message = Some(localized_error);
+                        (None, Task::none())
+                    }
+                }
+            }
+            Message::LanguageUpdated(result) => {
+                match result {
+                    Ok(_) => {
+                        // Language successfully saved to API
+                        self.error_message = None;
+                        (None, Task::none())
+                    }
+                    Err(error_key) => {
+                        eprintln!("Failed to save language: {}", error_key);
+                        // Localize the error message
+                        let i18n = self.app_state.i18n();
+                        let localized_error = i18n.get(&error_key, None);
+                        self.error_message = Some(localized_error);
+                        (None, Task::none())
+                    }
+                }
+            }
+            Message::ErrorModal(msg) => {
+                match msg {
+                    ErrorModalMessage::Close => {
+                        self.error_message = None;
+                        (None, Task::none())
+                    }
+                }
             }
         }
     }
@@ -173,8 +313,6 @@ impl MainScreenRouter {
     ///
     /// An Element containing the UI for this router
     pub fn view(&self) -> Element<'_, Message> {
-        let i18n = self.app_state.i18n();
-
         // Top-right corner: Theme and Language pickers
         let current_theme = self.app_state.theme();
         let theme_element = theme_pick_list(&current_theme).map(Message::ThemePicker);
@@ -189,7 +327,7 @@ impl MainScreenRouter {
 
         // Center: User picker + Add button
         let user_picker_element =
-            user_pick_list(&i18n, &self.username_list).map(Message::UserPicker);
+            user_pick_list(&self.username_list, self.app_state.i18n()).map(Message::UserPicker);
 
         let add_button_element = add_new_user_button().map(Message::AddUserButton);
 
@@ -212,15 +350,19 @@ impl MainScreenRouter {
         let base: Container<'_, Message> =
             container(content).width(Length::Fill).height(Length::Fill);
 
-        // If modal is open, render it on top using stack!
+        // If create user modal is open, render it on top
         if let Some(modal) = &self.create_user_modal {
-            let i18n = self.app_state.i18n();
-            let modal_view = modal.view(&i18n).map(Message::Modal);
-
-            modal_view.into()
-        } else {
-            base.into()
+            let modal_view = modal.view(self.app_state.i18n()).map(Message::Modal);
+            return modal_view.into();
         }
+
+        // If error modal is open, render it on top using stack
+        if let Some(ref error_msg) = self.error_message {
+            let error_overlay = error_modal(error_msg.clone(), self.app_state.i18n()).map(Message::ErrorModal);
+            return iced::widget::stack![base, error_overlay].into();
+        }
+
+        base.into()
     }
 }
 
@@ -236,10 +378,10 @@ impl RouterNode for MainScreenRouter {
     ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
             router::Message::MainScreen(msg) => {
-                let event = MainScreenRouter::update(self, msg.clone());
-                (event, iced::Task::none())
+                let (event, task) = MainScreenRouter::update(self, msg.clone());
+                let mapped_task = task.map(router::Message::MainScreen);
+                (event, mapped_task)
             }
-            _ => (None, iced::Task::none()),
         }
     }
 
@@ -252,10 +394,12 @@ impl RouterNode for MainScreenRouter {
     }
 
     fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
-        // Create task to reload usernames
-        let app_api = Arc::clone(&self.app_api);
-        let refresh_task = Task::perform(Self::load_usernames(app_api), Message::UsernamesReceived)
-            .map(router::Message::MainScreen);
+        let refresh_task = Task::perform(
+            Self::load_usernames(
+                Arc::clone(&self.app_api)
+            ),
+             Message::UsernamesReceived
+        ).map(router::Message::MainScreen);
 
         // Batch the incoming task with the refresh task
         Task::batch(vec![incoming_task, refresh_task])

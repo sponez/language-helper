@@ -68,7 +68,6 @@
 
 pub mod app_state;
 pub mod i18n;
-pub mod i18n_widgets;
 pub mod languages;
 pub mod mappers;
 pub mod models;

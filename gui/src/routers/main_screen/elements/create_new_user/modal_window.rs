@@ -2,6 +2,8 @@
 //!
 //! This component aggregates all sub-components and manages the modal state.
 
+use std::rc::Rc;
+
 use iced::widget::{column, container, row, text, Column, Container};
 use iced::{Alignment, Element, Length};
 
@@ -74,7 +76,7 @@ impl CreateNewUserModal {
     }
 
     /// Updates the validation error message based on current state
-    fn update_validation(&mut self, i18n: &I18n) {
+    fn update_validation(&mut self, i18n: Rc<I18n>) {
         let username_len = self.username.trim().len();
 
         if self.username.is_empty() {
@@ -100,7 +102,7 @@ impl CreateNewUserModal {
     /// # Returns
     ///
     /// A ModalAction indicating what the parent should do
-    pub fn update(&mut self, message: ModalWindowMessage, i18n: &I18n) -> ModalAction {
+    pub fn update(&mut self, message: ModalWindowMessage, i18n: Rc<I18n>) -> ModalAction {
         match message {
             ModalWindowMessage::UsernameInput(msg) => {
                 match msg {
@@ -148,7 +150,7 @@ impl CreateNewUserModal {
     /// # Returns
     ///
     /// An Element containing the modal UI
-    pub fn view(&self, i18n: &I18n) -> Element<'_, ModalWindowMessage> {
+    pub fn view(&self, i18n: Rc<I18n>) -> Element<'_, ModalWindowMessage> {
         // Title
         let title = title_text(&i18n.get("create-new-user-title", None));
 

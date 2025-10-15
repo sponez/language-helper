@@ -30,10 +30,7 @@
 use iced::{Element, Subscription, Task};
 
 use crate::routers::{
-    add_card_router, assistant_settings_router, card_settings_router, cards_menu_router,
-    explain_ai_router, inverse_cards_review_router, main_screen, manage_cards_router,
-    profile_list_router, profile_router, profile_settings_router, user_router,
-    user_settings_router,
+    main_screen,
 };
 
 /// Identifies a specific router type for navigation
@@ -98,30 +95,30 @@ impl std::fmt::Debug for RouterEvent {
 pub enum Message {
     /// Message for the user list router
     MainScreen(main_screen::router::Message),
-    /// Message for the user router
-    User(user_router::Message),
-    /// Message for the user settings router
-    UserSettings(user_settings_router::Message),
-    /// Message for the profile list router
-    ProfileList(profile_list_router::Message),
-    /// Message for the profile router
-    Profile(profile_router::Message),
-    /// Message for the profile settings router
-    ProfileSettings(profile_settings_router::Message),
-    /// Message for the card settings router
-    CardSettings(card_settings_router::Message),
-    /// Message for the assistant settings router
-    AssistantSettings(assistant_settings_router::Message),
-    /// Message for the explain AI router
-    ExplainAI(explain_ai_router::Message),
-    /// Message for the cards menu router
-    CardsMenu(cards_menu_router::Message),
-    /// Message for the manage cards router
-    ManageCards(manage_cards_router::Message),
-    /// Message for the add card router
-    AddCard(add_card_router::Message),
-    /// Message for the inverse cards review router
-    InverseCardsReview(inverse_cards_review_router::Message),
+    // /// Message for the user router
+    // User(user_router::Message),
+    // /// Message for the user settings router
+    // UserSettings(user_settings_router::Message),
+    // /// Message for the profile list router
+    // ProfileList(profile_list_router::Message),
+    // /// Message for the profile router
+    // Profile(profile_router::Message),
+    // /// Message for the profile settings router
+    // ProfileSettings(profile_settings_router::Message),
+    // /// Message for the card settings router
+    // CardSettings(card_settings_router::Message),
+    // /// Message for the assistant settings router
+    // AssistantSettings(assistant_settings_router::Message),
+    // /// Message for the explain AI router
+    // ExplainAI(explain_ai_router::Message),
+    // /// Message for the cards menu router
+    // CardsMenu(cards_menu_router::Message),
+    // /// Message for the manage cards router
+    // ManageCards(manage_cards_router::Message),
+    // /// Message for the add card router
+    // AddCard(add_card_router::Message),
+    // /// Message for the inverse cards review router
+    // InverseCardsReview(inverse_cards_review_router::Message),
 }
 
 /// Type-erased router node that can be stored in the stack.
