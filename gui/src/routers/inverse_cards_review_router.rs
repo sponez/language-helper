@@ -1,5 +1,6 @@
 //! Inverse Cards Review router for reviewing and editing generated inverse cards.
 
+use iced::Task;
 use std::sync::Arc;
 
 use iced::widget::{button, column, container, row, scrollable, text, Container};
@@ -248,7 +249,7 @@ impl RouterNode for InverseCardsReviewRouter {
         self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         // Remove the card that was just edited (if any)
         if let Some(ref word_name) = self.editing_card_word_name {
             self.pending_cards
@@ -259,6 +260,8 @@ impl RouterNode for InverseCardsReviewRouter {
         // Note: If the pending list becomes empty (all cards saved individually),
         // the router will show "No pending inverse cards" message.
         // The user can click "Save All" or "Cancel" to return to manage cards.
+
+        incoming_task
     }
 
     fn subscription(&self) -> iced::Subscription<router::Message> {

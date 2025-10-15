@@ -151,8 +151,19 @@ pub trait RouterNode {
     ///
     /// This is called automatically after any Pop or PopTo operation.
     /// Routers should reload their data from the API to ensure they display current information.
-    /// Default implementation does nothing.
-    fn refresh(&mut self) {}
+    ///
+    /// # Arguments
+    ///
+    /// * `incoming_task` - A task from the previous operation that should be batched with refresh tasks
+    ///
+    /// # Returns
+    ///
+    /// A Task that performs the refresh operation, batched with the incoming task
+    ///
+    /// Default implementation just returns the incoming task without any refresh.
+    fn refresh(&mut self, incoming_task: Task<Message>) -> Task<Message> {
+        incoming_task
+    }
 
     /// Get the router's subscriptions for async operations
     ///
@@ -211,7 +222,8 @@ impl RouterStack {
                         self.stack.pop();
                         // Always refresh the now-current router after popping
                         if let Some(current_router) = self.stack.last_mut() {
-                            current_router.refresh();
+                            let refresh_task = current_router.refresh(task);
+                            return Ok((false, refresh_task));
                         }
                     } else {
                         // Can't pop the root router - exit instead
@@ -232,14 +244,16 @@ impl RouterStack {
                             self.stack.truncate(index + 1);
                             // Refresh the target router
                             if let Some(current_router) = self.stack.last_mut() {
-                                current_router.refresh();
+                                let refresh_task = current_router.refresh(task);
+                                return Ok((false, refresh_task));
                             }
                         } else {
                             // Target not found - just do a regular pop
                             if self.stack.len() > 1 {
                                 self.stack.pop();
                                 if let Some(current_router) = self.stack.last_mut() {
-                                    current_router.refresh();
+                                    let refresh_task = current_router.refresh(task);
+                                    return Ok((false, refresh_task));
                                 }
                             } else {
                                 return Ok((true, task));
@@ -251,7 +265,8 @@ impl RouterStack {
                             self.stack.truncate(1);
                             // Refresh the root router
                             if let Some(root_router) = self.stack.last_mut() {
-                                root_router.refresh();
+                                let refresh_task = root_router.refresh(task);
+                                return Ok((false, refresh_task));
                             }
                         }
                     }
@@ -336,8 +351,9 @@ mod tests {
             iced::Theme::Dark
         }
 
-        fn refresh(&mut self) {
+        fn refresh(&mut self, incoming_task: Task<Message>) -> Task<Message> {
             *self.refresh_count.borrow_mut() += 1;
+            incoming_task
         }
     }
 
@@ -390,7 +406,7 @@ mod tests {
 
         // Refresh the root router (this should increment the counter)
         if let Some(current) = stack.stack.last_mut() {
-            current.refresh();
+            let _ = current.refresh(Task::none());
         }
 
         // Verify stack state after pop

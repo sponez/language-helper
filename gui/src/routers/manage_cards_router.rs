@@ -1,5 +1,6 @@
 //! Manage Cards router for viewing and managing flashcards.
 
+use iced::Task;
 use std::sync::Arc;
 
 use iced::widget::{button, column, container, row, scrollable, text, Container};
@@ -349,8 +350,9 @@ impl RouterNode for ManageCardsRouter {
         self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         self.refresh_data();
+        incoming_task
     }
 
     fn subscription(&self) -> iced::Subscription<router::Message> {

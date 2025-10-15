@@ -1,5 +1,6 @@
 //! AI Explain router for getting explanations from the AI assistant.
 
+use iced::Task;
 use std::sync::Arc;
 
 use iced::widget::{button, column, container, row, scrollable, text, text_input, Container};
@@ -237,8 +238,9 @@ impl RouterNode for ExplainAIRouter {
         self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         self.refresh_data();
+        incoming_task
     }
 
     fn subscription(&self) -> iced::Subscription<router::Message> {

@@ -1,5 +1,6 @@
 //! Assistant settings router for configuring AI model options.
 
+use iced::Task;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -363,7 +364,7 @@ impl AssistantSettingsRouter {
                         // Refresh running models list
                         self.check_running_models();
                         // Trigger refresh to update UI
-                        self.refresh();
+                        let _ = self.refresh(Task::none());
                     }
                     Err(e) => {
                         eprintln!("Failed to stop model '{}': {:?}", model_name, e);
@@ -1171,8 +1172,9 @@ impl AssistantSettingsRouter {
 
 impl AssistantSettingsRouter {
     /// Public refresh method for manual initialization
-    pub fn refresh(&mut self) {
+    pub fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         self.refresh_data();
+        incoming_task
     }
 
     /// Refresh data from the API
@@ -1211,8 +1213,9 @@ impl RouterNode for AssistantSettingsRouter {
         self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         self.refresh_data();
+        incoming_task
     }
 
     fn subscription(&self) -> iced::Subscription<router::Message> {

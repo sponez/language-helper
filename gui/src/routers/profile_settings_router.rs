@@ -1,5 +1,6 @@
 //! Profile settings router - a menu for accessing profile-related settings and actions.
 
+use iced::Task;
 use std::sync::Arc;
 
 use iced::widget::{button, column, container, row, Container};
@@ -294,7 +295,8 @@ impl RouterNode for ProfileSettingsRouter {
         self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         self.refresh_data();
+        incoming_task
     }
 }

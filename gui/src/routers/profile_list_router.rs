@@ -1,3 +1,4 @@
+use iced::Task;
 use std::sync::Arc;
 
 use iced::widget::{button, column, pick_list, Container, PickList};
@@ -307,7 +308,8 @@ impl RouterNode for ProfileListRouter {
         self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         self.refresh_data();
+        incoming_task
     }
 }

@@ -1,5 +1,6 @@
 //! Add/Edit card router for creating and modifying flashcards.
 
+use iced::Task;
 use std::sync::Arc;
 
 use iced::widget::{
@@ -1106,8 +1107,9 @@ impl RouterNode for AddCardRouter {
         self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         // No data to refresh for this screen
+        incoming_task
     }
 
     fn subscription(&self) -> iced::Subscription<router::Message> {

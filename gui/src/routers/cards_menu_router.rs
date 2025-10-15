@@ -1,5 +1,6 @@
 //! Cards menu router for accessing card-related features.
 
+use iced::Task;
 use std::sync::Arc;
 
 use iced::widget::{button, column, Container};
@@ -190,8 +191,9 @@ impl RouterNode for CardsMenuRouter {
         self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         self.refresh_data();
+        incoming_task
     }
 
     fn subscription(&self) -> iced::Subscription<router::Message> {

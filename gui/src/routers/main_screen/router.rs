@@ -6,8 +6,6 @@
 //! - Modal window for creating new users
 
 use std::sync::Arc;
-use std::thread::sleep;
-use std::time::Duration;
 
 use iced::widget::{column, container, row, Container};
 use iced::{Alignment, Element, Length, Task};
@@ -45,7 +43,6 @@ pub enum Message {
 /// State for the main screen router
 pub struct MainScreenRouter {
     /// API instance for backend communication (used for async tasks)
-    #[allow(dead_code)]
     app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n)
     app_state: AppState,
@@ -76,10 +73,7 @@ impl MainScreenRouter {
         };
 
         // Create task to load usernames
-        let task = Task::perform(
-            Self::load_usernames(app_api),
-            Message::UsernamesReceived,
-        );
+        let task = Task::perform(Self::load_usernames(app_api), Message::UsernamesReceived);
 
         (router, task)
     }
@@ -194,7 +188,8 @@ impl MainScreenRouter {
             .align_y(Alignment::Start);
 
         // Center: User picker + Add button
-        let user_picker_element = user_pick_list(&i18n, &self.username_list).map(Message::UserPicker);
+        let user_picker_element =
+            user_pick_list(&i18n, &self.username_list).map(Message::UserPicker);
 
         let add_button_element = add_new_user_button().map(Message::AddUserButton);
 
@@ -256,7 +251,13 @@ impl RouterNode for MainScreenRouter {
         self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
-        // TODO: Refresh user list from API
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
+        // Create task to reload usernames
+        let app_api = Arc::clone(&self.app_api);
+        let refresh_task = Task::perform(Self::load_usernames(app_api), Message::UsernamesReceived)
+            .map(router::Message::MainScreen);
+
+        // Batch the incoming task with the refresh task
+        Task::batch(vec![incoming_task, refresh_task])
     }
 }

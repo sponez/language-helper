@@ -3,6 +3,7 @@
 //! NOTE: This router currently stores settings in memory only.
 //! Persistence to the database will be added in a future iteration.
 
+use iced::Task;
 use std::sync::Arc;
 
 use iced::widget::{button, column, pick_list, row, text, text_input, Container};
@@ -337,7 +338,8 @@ impl RouterNode for CardSettingsRouter {
         self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         self.refresh_data();
+        incoming_task
     }
 }
