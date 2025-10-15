@@ -1208,11 +1208,7 @@ impl RouterNode for AssistantSettingsRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        iced::Theme::ALL
-            .iter()
-            .find(|t| t.to_string() == self.app_state.theme())
-            .cloned()
-            .unwrap_or(iced::Theme::Dark)
+        self.app_state.theme()
     }
 
     fn refresh(&mut self) {

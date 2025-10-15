@@ -164,11 +164,12 @@ impl ProfileListRouter {
                 .map(|p| p.target_language.clone())
                 .collect();
 
+            let current_language_code = self.app_state.language().to_locale_code();
             let available_languages: Vec<String> = Language::ALL
                 .iter()
                 .map(|l| l.to_locale_code().to_string())
                 .filter(|lang| {
-                    lang != &self.app_state.language() && !existing_profile_languages.contains(lang)
+                    lang != current_language_code && !existing_profile_languages.contains(lang)
                 })
                 .collect();
 
@@ -303,11 +304,7 @@ impl RouterNode for ProfileListRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        iced::Theme::ALL
-            .iter()
-            .find(|t| t.to_string() == self.app_state.theme())
-            .cloned()
-            .unwrap_or(iced::Theme::Dark)
+        self.app_state.theme()
     }
 
     fn refresh(&mut self) {

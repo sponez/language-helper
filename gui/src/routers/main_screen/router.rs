@@ -13,7 +13,6 @@ use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
-use crate::languages::Language;
 use crate::router::{self, RouterEvent, RouterNode};
 
 use super::elements::{
@@ -42,6 +41,7 @@ pub enum Message {
 /// State for the main screen router
 pub struct MainScreenRouter {
     /// API instance for backend communication
+    #[allow(dead_code)]
     app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n)
     app_state: AppState,
@@ -78,7 +78,7 @@ impl MainScreenRouter {
             Message::ThemePicker(msg) => {
                 match msg {
                     ThemePickListMessage::Choosed(theme) => {
-                        self.app_state.set_theme(theme.to_string());
+                        self.app_state.set_theme(theme);
                         // TODO: Save theme to app settings via API
                     }
                 }
@@ -87,8 +87,7 @@ impl MainScreenRouter {
             Message::LanguagePicker(msg) => {
                 match msg {
                     LanguagePickListMessage::LanguageSelected(language) => {
-                        self.app_state
-                            .set_language(language.to_locale_code().to_string());
+                        self.app_state.set_language(language);
                         // TODO: Save language to app settings via API
                     }
                 }
@@ -147,19 +146,10 @@ impl MainScreenRouter {
         let i18n = self.app_state.i18n();
 
         // Top-right corner: Theme and Language pickers
-        // Convert theme string to iced::Theme
-        let current_theme = iced::Theme::ALL
-            .iter()
-            .find(|t| t.to_string() == self.app_state.theme())
-            .cloned()
-            .unwrap_or(iced::Theme::Light);
-
+        let current_theme = self.app_state.theme();
         let theme_element = theme_pick_list(&current_theme).map(Message::ThemePicker);
 
-        // Convert current language string to Language enum for picker
-        let current_language =
-            Language::from_locale_code(&self.app_state.language()).unwrap_or(Language::English);
-
+        let current_language = self.app_state.language();
         let language_element = language_pick_list(&current_language).map(Message::LanguagePicker);
 
         let top_bar = row![theme_element, language_element]
@@ -230,12 +220,7 @@ impl RouterNode for MainScreenRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        // Try to get theme from string, fallback to Light if not found
-        iced::Theme::ALL
-            .iter()
-            .find(|t| t.to_string() == self.app_state.theme())
-            .cloned()
-            .unwrap_or(iced::Theme::Light)
+        self.app_state.theme()
     }
 
     fn refresh(&mut self) {

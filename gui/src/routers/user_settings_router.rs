@@ -54,18 +54,25 @@ impl UserSettingsRouter {
     pub fn update(&mut self, message: Message) -> Option<RouterEvent> {
         match message {
             Message::Back => Some(RouterEvent::Pop),
-            Message::ThemeSelected(new_theme) => {
-                self.app_state.set_theme(new_theme.clone());
+            Message::ThemeSelected(new_theme_str) => {
+                // Convert string to Theme
+                let new_theme = iced::Theme::ALL
+                    .iter()
+                    .find(|t| t.to_string() == new_theme_str)
+                    .cloned()
+                    .unwrap_or(iced::Theme::Dark);
+
+                self.app_state.set_theme(new_theme);
                 // Update user theme via API
                 match block_on(
                     self.app_api
                         .users_api()
-                        .update_user_theme(&self.user_view.username, &new_theme),
+                        .update_user_theme(&self.user_view.username, &new_theme_str),
                 ) {
                     Ok(_) => {
                         // Update the user_view settings to reflect the change
                         if let Some(ref mut settings) = self.user_view.settings {
-                            settings.theme = new_theme;
+                            settings.theme = new_theme_str;
                         }
                     }
                     Err(e) => {
@@ -124,12 +131,13 @@ impl UserSettingsRouter {
         // Main settings view
         let language_label = localized_text(&i18n, "user-settings-language-label", 16);
 
-        let language_display = localized_text(&i18n, &self.app_state.language(), 16);
+        let current_language = self.app_state.language();
+        let language_display = localized_text(&i18n, current_language.name(), 16);
 
         let theme_label = localized_text(&i18n, "user-settings-theme-label", 16);
 
         let themes: Vec<String> = iced::Theme::ALL.iter().map(|t| t.to_string()).collect();
-        let theme_selected: Option<String> = Some(self.app_state.theme());
+        let theme_selected: Option<String> = Some(self.app_state.theme().to_string());
         let theme_pick_list: PickList<'_, String, Vec<String>, String, Message> =
             pick_list(themes, theme_selected, Message::ThemeSelected)
                 .width(200)
@@ -268,11 +276,7 @@ impl RouterNode for UserSettingsRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        iced::Theme::ALL
-            .iter()
-            .find(|t| t.to_string() == self.app_state.theme())
-            .cloned()
-            .unwrap_or(iced::Theme::Dark)
+        self.app_state.theme()
     }
 
     fn refresh(&mut self) {
