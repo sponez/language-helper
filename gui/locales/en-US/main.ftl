@@ -26,5 +26,16 @@ user-settings-button = Settings
 # User Screen - Title
 user-account-title = Account: {$username} | Language: {$language}
 
+# User Settings Screen
+user-settings-language-label = Language:
+user-settings-theme-label = Theme:
+user-settings-delete-button = Delete User
+user-settings-back-button = Back
+user-settings-delete-warning = Are you sure you want to delete this user? This will delete all profiles and data.
+user-settings-delete-yes = Yes, Delete
+user-settings-delete-no = Cancel
+user-settings-api-error-theme = Failed to update theme
+user-settings-api-error-delete = Failed to delete user
+
 # Error Modal
 error-modal-close-button = Close

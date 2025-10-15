@@ -5,6 +5,7 @@
 
 pub mod main_screen;
 pub mod user;
+pub mod user_settings;
 
 // pub mod add_card_router;
 // pub mod assistant_settings_router;
@@ -16,4 +17,3 @@ pub mod user;
 // pub mod profile_list_router;
 // pub mod profile_router;
 // pub mod profile_settings_router;
-// pub mod user_settings_router;

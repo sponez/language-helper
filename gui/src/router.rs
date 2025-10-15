@@ -29,12 +29,12 @@
 
 use iced::{Element, Subscription, Task};
 
-use crate::routers::{main_screen, user};
+use crate::routers::{main_screen, user, user_settings};
 
 /// Identifies a specific router type for navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RouterTarget {
-    UserList,
+    MainScreen,
     User,
     UserSettings,
     ProfileList,
@@ -49,7 +49,7 @@ impl RouterTarget {
     /// Get the string identifier for this router target
     fn as_str(&self) -> &'static str {
         match self {
-            RouterTarget::UserList => "user_list",
+            RouterTarget::MainScreen => "main_screen",
             RouterTarget::User => "user",
             RouterTarget::UserSettings => "user_settings",
             RouterTarget::ProfileList => "profile_list",
@@ -95,8 +95,8 @@ pub enum Message {
     MainScreen(main_screen::message::Message),
     /// Message for the user router
     User(user::message::Message),
-    // /// Message for the user settings router
-    // UserSettings(user_settings_router::Message),
+    /// Message for the user settings router
+    UserSettings(user_settings::message::Message),
     // /// Message for the profile list router
     // ProfileList(profile_list_router::Message),
     // /// Message for the profile router
@@ -354,7 +354,7 @@ mod tests {
 
     #[test]
     fn test_router_target_as_str() {
-        assert_eq!(RouterTarget::UserList.as_str(), "user_list");
+        assert_eq!(RouterTarget::MainScreen.as_str(), "user_list");
         assert_eq!(RouterTarget::User.as_str(), "user");
         assert_eq!(RouterTarget::UserSettings.as_str(), "user_settings");
         assert_eq!(RouterTarget::ProfileList.as_str(), "profile_list");

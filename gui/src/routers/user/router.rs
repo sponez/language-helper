@@ -126,15 +126,14 @@ impl UserRouter {
             },
             Message::SettingsButton(msg) => match msg {
                 SettingsButtonMessage::Pressed => {
-                    // TODO: Uncomment when UserSettingsRouter is refactored
-                    // let user_settings_router: Box<dyn RouterNode> =
-                    //     Box::new(super::super::user_settings_router::UserSettingsRouter::new(
-                    //         self.user_view.clone(),
-                    //         Arc::clone(&self.app_api),
-                    //         Rc::clone(&self.app_state),
-                    //     ));
-                    // (Some(RouterEvent::Push(user_settings_router)), Task::none())
-                    (None, Task::none())
+                    let user_settings_router: Box<dyn RouterNode> = Box::new(
+                        crate::routers::user_settings::router::UserSettingsRouter::new(
+                            self.user_view.clone(),
+                            Arc::clone(&self.app_api),
+                            Rc::clone(&self.app_state),
+                        ),
+                    );
+                    (Some(RouterEvent::Push(user_settings_router)), Task::none())
                 }
             },
             Message::UserLoaded(user_view_opt) => {
@@ -223,17 +222,19 @@ impl RouterNode for UserRouter {
                 let mapped_task = task.map(router::Message::User);
                 (event, mapped_task)
             }
-            router::Message::MainScreen(msg) => {
-                match msg {
-                    main_screen::message::Message::UserLoaded(user_view_opt) => {
-                        // Convert MainScreen message to User message and handle it
-                        let (event, task) =
-                            UserRouter::update(self, Message::UserLoaded(user_view_opt.clone()));
-                        let mapped_task = task.map(router::Message::User);
-                        (event, mapped_task)
-                    }
-                    _ => (None, Task::none()),
+            router::Message::MainScreen(msg) => match msg {
+                main_screen::message::Message::UserLoaded(user_view_opt) => {
+                    // Convert MainScreen message to User message and handle it
+                    let (event, task) =
+                        UserRouter::update(self, Message::UserLoaded(user_view_opt.clone()));
+                    let mapped_task = task.map(router::Message::User);
+                    (event, mapped_task)
                 }
+                _ => (None, Task::none()),
+            },
+            router::Message::UserSettings(_msg) => {
+                // UserSettings messages don't affect UserRouter
+                (None, Task::none())
             }
         }
     }
