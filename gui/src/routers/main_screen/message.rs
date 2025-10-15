@@ -1,6 +1,7 @@
 use iced::Event;
 
 use crate::components::error_modal::error_modal::ErrorModalMessage;
+use crate::models::UserView;
 use crate::routers::main_screen::elements::{
     add_new_user_button::AddNewUserButtonMessage,
     create_new_user::modal_window::ModalWindowMessage, language_pick_list::LanguagePickListMessage,
@@ -33,4 +34,6 @@ pub enum Message {
     ThemeUpdated(Result<(), String>),
     /// Language updated in API
     LanguageUpdated(Result<(), String>),
+    /// User data loaded from API
+    UserLoaded(Option<UserView>),
 }

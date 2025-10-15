@@ -102,6 +102,20 @@ impl MainScreenRouter {
         }
     }
 
+    /// Asynchronously loads a user by username from the API
+    async fn load_user(app_api: Arc<dyn AppApi>, username: String) -> Option<crate::models::UserView> {
+        match app_api.users_api().get_user_by_username(&username).await {
+            Some(user_dto) => {
+                use crate::mappers::user_mapper;
+                Some(user_mapper::dto_to_view(&user_dto))
+            }
+            None => {
+                eprintln!("Failed to load user: {}", username);
+                None
+            }
+        }
+    }
+
     /// Asynchronously updates app theme setting
     async fn update_theme(app_api: Arc<dyn AppApi>, theme: String) -> Result<(), String> {
         match app_api.app_settings_api().update_app_theme(&theme).await {
@@ -183,11 +197,15 @@ impl MainScreenRouter {
             }
             Message::UserPicker(msg) => {
                 match msg {
-                    UserPickListMessage::Selected(_username) => {
-                        // TODO: Load user and navigate to UserRouter
+                    UserPickListMessage::Selected(username) => {
+                        // Load user data and navigate to UserRouter
+                        let task = Task::perform(
+                            Self::load_user(Arc::clone(&self.app_api), username),
+                            Message::UserLoaded,
+                        );
+                        return (None, task);
                     }
                 }
-                (None, Task::none())
             }
             Message::AddUserButton(msg) => {
                 match msg {
@@ -269,6 +287,25 @@ impl MainScreenRouter {
                     (None, Task::none())
                 }
             },
+            Message::UserLoaded(user_view_opt) => {
+                if let Some(user_view) = user_view_opt {
+                    // Create UserRouter and push it onto the navigation stack
+                    use crate::routers::user::router::UserRouter;
+                    let (user_router, _task) = UserRouter::new(
+                        user_view,
+                        Arc::clone(&self.app_api),
+                        std::rc::Rc::new(self.app_state.clone()),
+                    );
+                    let router_box: Box<dyn crate::router::RouterNode> = Box::new(user_router);
+                    // The task from UserRouter::new will be handled by the router stack
+                    // when the router is pushed, so we don't need to return it here
+                    (Some(RouterEvent::Push(router_box)), Task::none())
+                } else {
+                    // Failed to load user
+                    self.handle_api_error("Failed to load user", "error-load-user".to_string());
+                    (None, Task::none())
+                }
+            }
             Message::Event(event) => {
                 // If create user modal is open, forward keyboard events to it
                 if let Some(modal) = &mut self.create_user_modal {
@@ -382,6 +419,7 @@ impl RouterNode for MainScreenRouter {
                 let mapped_task = task.map(router::Message::MainScreen);
                 (event, mapped_task)
             }
+            _ => (None, Task::none()), // Ignore messages for other routers
         }
     }
 

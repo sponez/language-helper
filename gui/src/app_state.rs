@@ -10,6 +10,7 @@ use iced::Theme;
 use crate::i18n::I18n;
 use crate::languages::Language;
 
+#[derive(Clone)]
 pub struct AppState {
     /// Current theme
     theme: Theme,
