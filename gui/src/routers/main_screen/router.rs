@@ -102,20 +102,6 @@ impl MainScreenRouter {
         }
     }
 
-    /// Asynchronously loads a user by username from the API
-    async fn load_user(app_api: Arc<dyn AppApi>, username: String) -> Option<crate::models::UserView> {
-        match app_api.users_api().get_user_by_username(&username).await {
-            Some(user_dto) => {
-                use crate::mappers::user_mapper;
-                Some(user_mapper::dto_to_view(&user_dto))
-            }
-            None => {
-                eprintln!("Failed to load user: {}", username);
-                None
-            }
-        }
-    }
-
     /// Asynchronously updates app theme setting
     async fn update_theme(app_api: Arc<dyn AppApi>, theme: String) -> Result<(), String> {
         match app_api.app_settings_api().update_app_theme(&theme).await {
@@ -195,18 +181,26 @@ impl MainScreenRouter {
                     }
                 }
             }
-            Message::UserPicker(msg) => {
-                match msg {
-                    UserPickListMessage::Selected(username) => {
-                        // Load user data and navigate to UserRouter
-                        let task = Task::perform(
-                            Self::load_user(Arc::clone(&self.app_api), username),
-                            Message::UserLoaded,
-                        );
-                        return (None, task);
-                    }
+            Message::UserPicker(msg) => match msg {
+                UserPickListMessage::Selected(username) => {
+                    // Create UserRouter with minimal user view (just username)
+                    // The router will automatically load full user data on first update
+                    use crate::models::UserView;
+                    use crate::routers::user::router::UserRouter;
+
+                    let user_view = UserView::new(username);
+                    let user_router = UserRouter::new(
+                        user_view,
+                        Arc::clone(&self.app_api),
+                        std::rc::Rc::new(self.app_state.clone()),
+                    );
+
+                    let router_box: Box<dyn crate::router::RouterNode> = Box::new(user_router);
+
+                    // Push router - it will load user data automatically on first update
+                    (Some(RouterEvent::Push(router_box)), Task::none())
                 }
-            }
+            },
             Message::AddUserButton(msg) => {
                 match msg {
                     AddNewUserButtonMessage::Pressed => {
@@ -287,25 +281,6 @@ impl MainScreenRouter {
                     (None, Task::none())
                 }
             },
-            Message::UserLoaded(user_view_opt) => {
-                if let Some(user_view) = user_view_opt {
-                    // Create UserRouter and push it onto the navigation stack
-                    use crate::routers::user::router::UserRouter;
-                    let (user_router, _task) = UserRouter::new(
-                        user_view,
-                        Arc::clone(&self.app_api),
-                        std::rc::Rc::new(self.app_state.clone()),
-                    );
-                    let router_box: Box<dyn crate::router::RouterNode> = Box::new(user_router);
-                    // The task from UserRouter::new will be handled by the router stack
-                    // when the router is pushed, so we don't need to return it here
-                    (Some(RouterEvent::Push(router_box)), Task::none())
-                } else {
-                    // Failed to load user
-                    self.handle_api_error("Failed to load user", "error-load-user".to_string());
-                    (None, Task::none())
-                }
-            }
             Message::Event(event) => {
                 // If create user modal is open, forward keyboard events to it
                 if let Some(modal) = &mut self.create_user_modal {
@@ -582,13 +557,19 @@ mod tests {
     #[test]
     fn test_add_user_button_opens_modal() {
         let mut router = create_test_router();
-        assert!(router.create_user_modal.is_none(), "Modal should be closed initially");
+        assert!(
+            router.create_user_modal.is_none(),
+            "Modal should be closed initially"
+        );
 
         // Simulate clicking the add user button
         let button_msg = AddNewUserButtonMessage::Pressed;
         let (_event, _task) = router.update(Message::AddUserButton(button_msg));
 
-        assert!(router.create_user_modal.is_some(), "Modal should be open after button click");
+        assert!(
+            router.create_user_modal.is_some(),
+            "Modal should be open after button click"
+        );
     }
 
     #[test]
@@ -603,7 +584,11 @@ mod tests {
 
         // State should be updated immediately (optimistic update)
         let current_theme = router.app_state.theme();
-        assert_ne!(initial_theme.to_string(), current_theme.to_string(), "Theme should be updated");
+        assert_ne!(
+            initial_theme.to_string(),
+            current_theme.to_string(),
+            "Theme should be updated"
+        );
     }
 
     #[test]
@@ -614,7 +599,10 @@ mod tests {
         let error_result: Result<String, String> = Err("error-create-user".to_string());
         let (_event, _task) = router.update(Message::UserCreated(error_result));
 
-        assert!(router.error_message.is_some(), "Error message should be displayed");
+        assert!(
+            router.error_message.is_some(),
+            "Error message should be displayed"
+        );
     }
 
     #[test]
@@ -628,7 +616,10 @@ mod tests {
         let close_msg = ErrorModalMessage::Close;
         let (_event, _task) = router.update(Message::ErrorModal(close_msg));
 
-        assert!(router.error_message.is_none(), "Error message should be cleared");
+        assert!(
+            router.error_message.is_none(),
+            "Error message should be cleared"
+        );
     }
 
     #[test]
@@ -642,7 +633,10 @@ mod tests {
         let success_result: Result<String, String> = Ok("newuser".to_string());
         let (_event, _task) = router.update(Message::UserCreated(success_result));
 
-        assert!(router.error_message.is_none(), "Error should be cleared on success");
+        assert!(
+            router.error_message.is_none(),
+            "Error should be cleared on success"
+        );
     }
 
     #[test]
@@ -670,6 +664,10 @@ mod tests {
 
         // State should be updated immediately (optimistic update)
         let current_language = router.app_state.language();
-        assert_ne!(initial_language.name(), current_language.name(), "Language should be updated");
+        assert_ne!(
+            initial_language.name(),
+            current_language.name(),
+            "Language should be updated"
+        );
     }
 }

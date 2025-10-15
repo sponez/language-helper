@@ -53,50 +53,39 @@ pub struct UserRouter {
     app_state: Rc<AppState>,
     /// User-specific mutable state
     user_state: UserState,
+    /// Flag indicating whether initial data needs to be loaded
+    need_to_load: bool,
 }
 
 impl UserRouter {
-    /// Creates a new user router and starts loading fresh user data.
+    /// Creates a new user router.
+    ///
+    /// The router will load user data on first refresh (automatically called after push).
     ///
     /// # Arguments
     ///
-    /// * `user_view` - The initial user view model to display
+    /// * `user_view` - The initial user view model to display (can be minimal with just username)
     /// * `app_api` - The API instance for backend communication
     /// * `app_state` - Global application state (read-only reference)
     ///
     /// # Returns
     ///
-    /// A tuple of (UserRouter, Task) where the task will refresh user data asynchronously
-    pub fn new(
-        user_view: UserView,
-        app_api: Arc<dyn AppApi>,
-        app_state: Rc<AppState>,
-    ) -> (Self, Task<Message>) {
-        // Initialize user state from the view's settings
+    /// A new UserRouter instance with need_to_load=true
+    pub fn new(user_view: UserView, app_api: Arc<dyn AppApi>, app_state: Rc<AppState>) -> Self {
+        // Initialize user state from the view's settings (if any)
         let user_state = UserState::new(user_view.settings.as_ref());
 
-        let router = Self {
-            user_view: user_view.clone(),
-            app_api: Arc::clone(&app_api),
+        Self {
+            user_view,
+            app_api,
             app_state,
             user_state,
-        };
-
-        // Create async task to refresh user data
-        let username = user_view.username.clone();
-        let task = Task::perform(
-            Self::load_user_data(app_api, username),
-            Message::UserDataRefreshed,
-        );
-
-        (router, task)
+            need_to_load: true, // Flag set to trigger initial load on first refresh
+        }
     }
 
     /// Asynchronously loads fresh user data from the API
-    async fn load_user_data(
-        app_api: Arc<dyn AppApi>,
-        username: String,
-    ) -> Option<UserView> {
+    async fn load_user_data(app_api: Arc<dyn AppApi>, username: String) -> Option<UserView> {
         match app_api.users_api().get_user_by_username(&username).await {
             Some(user_dto) => {
                 use crate::mappers::user_mapper;
@@ -149,10 +138,10 @@ impl UserRouter {
                     (None, Task::none())
                 }
             },
-            Message::UserDataRefreshed(user_view_opt) => {
+            Message::UserLoaded(user_view_opt) => {
                 if let Some(user_view) = user_view_opt {
                     self.user_view = user_view;
-                    // Update user state from refreshed settings
+                    // Update user state from loaded settings (from database)
                     if let Some(ref settings) = self.user_view.settings {
                         self.user_state.update_from_settings(settings);
                     }
@@ -179,9 +168,10 @@ impl UserRouter {
 
         // Center: Username and action buttons
         let title_template = i18n.get("user-account-title", None);
-        let username_text = iced::widget::text(title_template.replace("{username}", &self.user_view.username))
-            .size(24)
-            .shaping(iced::widget::text::Shaping::Advanced);
+        let username_text =
+            iced::widget::text(title_template.replace("{username}", &self.user_view.username))
+                .size(24)
+                .shaping(iced::widget::text::Shaping::Advanced);
 
         let profiles_btn = profiles_button(&i18n).map(Message::ProfilesButton);
         let settings_btn = settings_button(&i18n).map(Message::SettingsButton);
@@ -219,13 +209,38 @@ impl RouterNode for UserRouter {
         &mut self,
         message: &router::Message,
     ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
-        match message {
-            router::Message::User(msg) => {
-                let (event, task) = UserRouter::update(self, msg.clone());
-                let mapped_task = task.map(router::Message::User);
-                (event, mapped_task)
+        // Check if we need to trigger initial data load
+        if self.need_to_load {
+            self.need_to_load = false; // Clear flag
+
+            // Trigger async load of user data
+            let username = self.user_view.username.clone();
+            let load_task = Task::perform(
+                Self::load_user_data(Arc::clone(&self.app_api), username),
+                Message::UserLoaded,
+            )
+            .map(router::Message::User);
+
+            // Process the incoming message normally and batch with load task
+            match message {
+                router::Message::User(msg) => {
+                    let (event, task) = UserRouter::update(self, msg.clone());
+                    let mapped_task = task.map(router::Message::User);
+                    let batched = Task::batch(vec![mapped_task, load_task]);
+                    (event, batched)
+                }
+                _ => (None, load_task), // Still load data even for other messages
             }
-            _ => (None, Task::none()), // Ignore messages not meant for this router
+        } else {
+            // Normal message processing
+            match message {
+                router::Message::User(msg) => {
+                    let (event, task) = UserRouter::update(self, msg.clone());
+                    let mapped_task = task.map(router::Message::User);
+                    (event, mapped_task)
+                }
+                _ => (None, Task::none()), // Ignore messages not meant for this router
+            }
         }
     }
 
@@ -238,11 +253,11 @@ impl RouterNode for UserRouter {
     }
 
     fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
-        // Create async task to refresh user data
+        // Reload user data from database (called when returning from sub-screens)
         let username = self.user_view.username.clone();
         let refresh_task = Task::perform(
             Self::load_user_data(Arc::clone(&self.app_api), username),
-            Message::UserDataRefreshed,
+            Message::UserLoaded,
         )
         .map(router::Message::User);
 
@@ -291,8 +306,7 @@ mod tests {
             settings: None,
             profiles: vec![],
         };
-        let (router, _task) = UserRouter::new(user_view, test_api, app_state);
-        router
+        UserRouter::new(user_view, test_api, app_state)
     }
 
     #[test]

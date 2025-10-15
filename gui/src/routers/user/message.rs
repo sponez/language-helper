@@ -15,6 +15,6 @@ pub enum Message {
     ProfilesButton(ProfilesButtonMessage),
     /// Message from the settings button component
     SettingsButton(SettingsButtonMessage),
-    /// User data has been refreshed from API
-    UserDataRefreshed(Option<UserView>),
+    /// User data loaded from API
+    UserLoaded(Option<UserView>),
 }
