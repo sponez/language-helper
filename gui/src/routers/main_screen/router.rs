@@ -6,9 +6,11 @@
 //! - Modal window for creating new users
 
 use std::sync::Arc;
+use std::thread::sleep;
+use std::time::Duration;
 
 use iced::widget::{column, container, row, Container};
-use iced::{Alignment, Element, Length};
+use iced::{Alignment, Element, Length, Task};
 
 use lh_api::app_api::AppApi;
 
@@ -36,31 +38,60 @@ pub enum Message {
     AddUserButton(AddNewUserButtonMessage),
     /// Messages from the create new user modal (wraps all modal messages)
     Modal(ModalWindowMessage),
+    /// Usernames received from API
+    UsernamesReceived(Vec<String>),
 }
 
 /// State for the main screen router
 pub struct MainScreenRouter {
-    /// API instance for backend communication
+    /// API instance for backend communication (used for async tasks)
     #[allow(dead_code)]
     app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n)
     app_state: AppState,
     /// Optional create new user modal (None = closed, Some = open)
     create_user_modal: Option<CreateNewUserModal>,
+
+    /// User list
+    username_list: Vec<String>,
 }
 
 impl MainScreenRouter {
-    /// Creates a new main screen router
+    /// Creates a new main screen router and starts loading usernames
     ///
     /// # Arguments
     ///
     /// * `app_api` - The API instance for backend communication
     /// * `app_state` - Global application state
-    pub fn new(app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
-        Self {
-            app_api,
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (router, task) where the task will load usernames asynchronously
+    pub fn new(app_api: Arc<dyn AppApi>, app_state: AppState) -> (Self, Task<Message>) {
+        let router = Self {
+            app_api: app_api.clone(),
             app_state,
             create_user_modal: None,
+            username_list: Vec::new(),
+        };
+
+        // Create task to load usernames
+        let task = Task::perform(
+            Self::load_usernames(app_api),
+            Message::UsernamesReceived,
+        );
+
+        (router, task)
+    }
+
+    /// Asynchronously loads usernames from the API
+    async fn load_usernames(app_api: Arc<dyn AppApi>) -> Vec<String> {
+        match app_api.users_api().get_usernames().await {
+            Ok(usernames) => usernames,
+            Err(e) => {
+                eprintln!("Failed to load usernames: {:?}", e);
+                Vec::new()
+            }
         }
     }
 
@@ -134,6 +165,11 @@ impl MainScreenRouter {
                 }
                 None
             }
+            Message::UsernamesReceived(usernames) => {
+                // Update the username list with loaded data
+                self.username_list = usernames;
+                None
+            }
         }
     }
 
@@ -158,10 +194,7 @@ impl MainScreenRouter {
             .align_y(Alignment::Start);
 
         // Center: User picker + Add button
-        // TODO: Fetch actual users from API
-        let users = vec!["User1".to_string(), "User2".to_string()];
-
-        let user_picker_element = user_pick_list(&i18n, &users).map(Message::UserPicker);
+        let user_picker_element = user_pick_list(&i18n, &self.username_list).map(Message::UserPicker);
 
         let add_button_element = add_new_user_button().map(Message::AddUserButton);
 
