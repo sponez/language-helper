@@ -6,7 +6,7 @@ use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
-use crate::iced_params::{LANGUAGES, THEMES};
+use crate::languages::Language;
 use crate::models::UserView;
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::runtime_util::block_on;
@@ -149,12 +149,12 @@ impl ProfileListRouter {
                 .map(|p| p.target_language.clone())
                 .collect();
 
-            let available_languages: Vec<String> = LANGUAGES
+            let available_languages: Vec<String> = Language::ALL
                 .iter()
+                .map(|l| l.to_locale_code().to_string())
                 .filter(|lang| {
-                    **lang != self.app_state.language() && !existing_profile_languages.contains(lang)
+                    lang != &self.app_state.language() && !existing_profile_languages.contains(lang)
                 })
-                .cloned()
                 .collect();
 
             let language_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
@@ -276,8 +276,9 @@ impl RouterNode for ProfileListRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        THEMES
-            .get(&self.app_state.theme())
+        iced::Theme::ALL
+            .iter()
+            .find(|t| t.to_string() == self.app_state.theme())
             .cloned()
             .unwrap_or(iced::Theme::Dark)
     }

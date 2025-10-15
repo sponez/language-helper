@@ -6,7 +6,7 @@ use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
-use crate::iced_params::{get_sorted_themes, THEMES};
+// Removed iced_params import
 use crate::models::UserView;
 use crate::router::{self, RouterEvent, RouterNode, RouterTarget};
 use crate::runtime_util::block_on;
@@ -120,7 +120,10 @@ impl UserSettingsRouter {
 
         let theme_label = localized_text(&i18n, "user-settings-theme-label", 16);
 
-        let themes: Vec<String> = get_sorted_themes();
+        let themes: Vec<String> = iced::Theme::ALL
+            .iter()
+            .map(|t| t.to_string())
+            .collect();
         let theme_selected: Option<String> = Some(self.app_state.theme());
         let theme_pick_list: PickList<'_, String, Vec<String>, String, Message> = pick_list(
             themes,
@@ -253,8 +256,9 @@ impl RouterNode for UserSettingsRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        THEMES
-            .get(&self.app_state.theme())
+        iced::Theme::ALL
+            .iter()
+            .find(|t| t.to_string() == self.app_state.theme())
             .cloned()
             .unwrap_or(iced::Theme::Dark)
     }

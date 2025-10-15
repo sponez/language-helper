@@ -8,7 +8,7 @@ use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
-use crate::iced_params::THEMES;
+// Removed iced_params import
 use crate::models::{ProfileView, UserView};
 use crate::router::{self, RouterEvent, RouterNode, RouterTarget};
 use crate::runtime_util::block_on;
@@ -449,8 +449,9 @@ impl RouterNode for ProfileRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        THEMES
-            .get(&self.app_state.theme())
+        iced::Theme::ALL
+            .iter()
+            .find(|t| t.to_string() == self.app_state.theme())
             .cloned()
             .unwrap_or(iced::Theme::Dark)
     }

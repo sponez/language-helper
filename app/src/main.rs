@@ -26,7 +26,7 @@ use lh_persistence::{
 
 use gui::app_state::AppState;
 use gui::router::{Message, RouterNode, RouterStack};
-use gui::routers::user_list_router::UserListRouter;
+use gui::routers::main_screen::router::MainScreenRouter;
 use gui::runtime_util::block_on;
 
 mod config;
@@ -62,7 +62,7 @@ impl LanguageHelperApp {
         // Create global app state
         let app_state = AppState::new(app_settings.theme, app_settings.language);
 
-        let root_router: Box<dyn RouterNode> = Box::new(UserListRouter::new(
+        let root_router: Box<dyn RouterNode> = Box::new(MainScreenRouter::new(
             app_api_rc,
             app_state,
         ));

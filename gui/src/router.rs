@@ -29,7 +29,7 @@
 
 use iced::{Element, Subscription, Task};
 
-use crate::routers::{add_card_router, assistant_settings_router, card_settings_router, cards_menu_router, explain_ai_router, inverse_cards_review_router, manage_cards_router, profile_list_router, profile_router, profile_settings_router, user_list_router, user_router, user_settings_router};
+use crate::routers::{add_card_router, assistant_settings_router, card_settings_router, cards_menu_router, explain_ai_router, inverse_cards_review_router, main_screen, manage_cards_router, profile_list_router, profile_router, profile_settings_router, user_router, user_settings_router};
 
 /// Identifies a specific router type for navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,7 +92,7 @@ impl std::fmt::Debug for RouterEvent {
 #[derive(Debug, Clone)]
 pub enum Message {
     /// Message for the user list router
-    UserList(user_list_router::Message),
+    MainScreen(main_screen::router::Message),
     /// Message for the user router
     User(user_router::Message),
     /// Message for the user settings router

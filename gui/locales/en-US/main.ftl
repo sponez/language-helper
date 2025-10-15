@@ -146,8 +146,18 @@ inverse-cards-show = Show
 inverse-cards-save-all = Save All
 inverse-cards-cancel = Cancel
 
+## Create New User Modal
+create-new-user-title = Create a new user
+username-placeholder = Enter username
+choose-language-placeholder = Choose user language
+ok-button = OK
+cancel-button = Cancel
+
 ## Error Messages
 error-username-empty = Username cannot be empty
+error-username-too-short = Username must be at least 5 characters
+error-username-too-long = Username must be no more than 50 characters
+error-language-not-selected = Please select a language
 error-user-not-found = User not found
 error-create-user = Error creating user: { $error }
 error-update-theme = Failed to update theme: { $error }

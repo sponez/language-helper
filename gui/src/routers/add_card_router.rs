@@ -9,7 +9,6 @@ use lh_api::models::card::{CardDto, CardType, MeaningDto, WordDto};
 
 use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
-use crate::iced_params::THEMES;
 use crate::models::{ProfileView, UserView};
 use crate::router::{self, RouterEvent, RouterNode};
 
@@ -1076,8 +1075,9 @@ impl RouterNode for AddCardRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        THEMES
-            .get(&self.app_state.theme())
+        iced::Theme::ALL
+            .iter()
+            .find(|t| t.to_string() == self.app_state.theme())
             .cloned()
             .unwrap_or(iced::Theme::Dark)
     }
