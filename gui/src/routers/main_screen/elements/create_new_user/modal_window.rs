@@ -1,6 +1,40 @@
 //! Modal window for creating a new user.
 //!
-//! This component aggregates all sub-components and manages the modal state.
+//! This component provides a self-contained modal dialog for user creation with:
+//! - Username input field with real-time validation
+//! - Language selection dropdown
+//! - OK/Cancel buttons with state-aware enabling
+//! - Keyboard shortcuts (Enter to submit, Escape to cancel)
+//! - Localized error messages
+//!
+//! # Validation Rules
+//!
+//! - **Username**: Must be 5-50 characters (after trimming whitespace)
+//! - **Language**: Must be selected before submission
+//! - Validation runs on every input change with immediate feedback
+//!
+//! # Usage
+//!
+//! ```rust,no_run
+//! use std::sync::Arc;
+//! use create_new_user::modal_window::CreateNewUserModal;
+//!
+//! // Create modal with API dependency
+//! let modal = CreateNewUserModal::new(Arc::clone(&app_api));
+//!
+//! // In update function:
+//! let (should_close, task) = modal.update(&i18n, message);
+//! if should_close {
+//!     // Close the modal
+//! }
+//! // Execute the task
+//! ```
+//!
+//! # Component Architecture
+//!
+//! The modal owns its dependencies (`app_api`) and returns simple tuples:
+//! - `(bool, Task)` - First element indicates if modal should close
+//! - Parent router handles modal visibility based on return value
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -15,9 +49,9 @@ use crate::i18n::I18n;
 use crate::languages::Language;
 use crate::routers::main_screen::message::Message;
 
+use super::super::language_pick_list::{language_pick_list, LanguagePickListMessage};
 use super::elements::{
     cancel_button::{cancel_button, CancelButtonMessage},
-    language_pick_list::{language_pick_list, LanguagePickListMessage},
     ok_button::{ok_button, OkButtonMessage},
     title_text::title_text,
     username_input::{username_input, UsernameInputMessage},
@@ -25,6 +59,8 @@ use super::elements::{
 
 /// State for the Create New User modal
 pub struct CreateNewUserModal {
+    /// API instance for backend communication
+    app_api: Arc<dyn AppApi>,
     /// The username being entered
     username: String,
     /// The selected language (if any)
@@ -48,8 +84,13 @@ pub enum ModalWindowMessage {
 
 impl CreateNewUserModal {
     /// Creates a new Create New User modal
-    pub fn new() -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `app_api` - The API instance for backend communication
+    pub fn new(app_api: Arc<dyn AppApi>) -> Self {
         Self {
+            app_api,
             username: String::new(),
             selected_language: None,
             error_message: None,
@@ -83,13 +124,20 @@ impl CreateNewUserModal {
         }
     }
 
-    fn ok(&self, app_api: &Arc<dyn AppApi>) -> (bool, Task<Message>) {
+    /// Attempts to create the user with current form data
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (should_close, task) where:
+    /// - `should_close`: true if validation passed and user creation started
+    /// - `task`: Async task to create user, or none if validation failed
+    fn ok(&self) -> (bool, Task<Message>) {
         if self.is_valid() {
             let username = self.username.trim().to_string();
-            let app_api_clonned = Arc::clone(app_api);
+            let app_api = Arc::clone(&self.app_api);
             let task = Task::perform(
                 async move {
-                    match app_api_clonned.users_api().create_user(&username).await {
+                    match app_api.users_api().create_user(&username).await {
                         Ok(_) => Ok(username),
                         Err(_e) => Err("error-create-user".to_string()),
                     }
@@ -103,27 +151,38 @@ impl CreateNewUserModal {
         (false, Task::none())
     }
 
+    /// Cancels user creation and closes the modal
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (true, Task::none()) indicating modal should close
     fn cancel(&self) -> (bool, Task<Message>) {
         (true, Task::none())
     }
 
-    /// Handles keyboard events
+    /// Handles keyboard events for modal shortcuts
+    ///
+    /// Supported shortcuts:
+    /// - **Enter**: Submit form (if valid)
+    /// - **Escape**: Cancel and close modal
     ///
     /// # Arguments
     ///
-    /// * `event` - The keyboard event
+    /// * `event` - The event to handle
     ///
     /// # Returns
     ///
-    /// A ModalAction indicating what the parent should do
-    pub fn handle_event(&self, event: Event, app_api: &Arc<dyn AppApi>) -> (bool, Task<Message>) {
+    /// A tuple of (should_close, task) where:
+    /// - `should_close`: true if modal should be closed
+    /// - `task`: Async task to execute (e.g., user creation)
+    pub fn handle_event(&self, event: Event) -> (bool, Task<Message>) {
         if let Event::Keyboard(iced::keyboard::Event::KeyPressed {
             key, modifiers: _, ..
         }) = event
         {
             match key {
                 Key::Named(Named::Enter) => {
-                    return self.ok(app_api);
+                    return self.ok();
                 }
                 Key::Named(Named::Escape) => {
                     return self.cancel();
@@ -141,17 +200,18 @@ impl CreateNewUserModal {
     ///
     /// # Arguments
     ///
-    /// * `message` - The message to process
     /// * `i18n` - Internationalization context for validation messages
+    /// * `message` - The message to process
     ///
     /// # Returns
     ///
-    /// A ModalAction indicating what the parent should do
+    /// A tuple of (should_close, task) where:
+    /// - `should_close`: true if modal should be closed
+    /// - `task`: Async task to execute (e.g., user creation)
     pub fn update(
         &mut self,
         i18n: &Rc<I18n>,
         message: ModalWindowMessage,
-        app_api: &Arc<dyn AppApi>,
     ) -> (bool, Task<Message>) {
         match message {
             ModalWindowMessage::UsernameInput(msg) => {
@@ -165,7 +225,7 @@ impl CreateNewUserModal {
             }
             ModalWindowMessage::LanguagePicker(msg) => {
                 match msg {
-                    LanguagePickListMessage::Selected(language) => {
+                    LanguagePickListMessage::LanguageSelected(language) => {
                         self.selected_language = Some(language);
                         self.update_validation(i18n);
                     }
@@ -173,7 +233,7 @@ impl CreateNewUserModal {
                 (false, Task::none())
             }
             ModalWindowMessage::OkButton(msg) => match msg {
-                OkButtonMessage::Pressed => self.ok(app_api),
+                OkButtonMessage::Pressed => self.ok(),
             },
             ModalWindowMessage::CancelButton(msg) => match msg {
                 CancelButtonMessage::Pressed => (true, Task::none()),
@@ -201,8 +261,8 @@ impl CreateNewUserModal {
 
         // Language picker
         let language_element = language_pick_list(
-            &i18n.get("choose-language-placeholder", None),
             self.selected_language,
+            Some(&i18n.get("choose-language-placeholder", None)),
         )
         .map(ModalWindowMessage::LanguagePicker);
 
@@ -260,8 +320,226 @@ impl CreateNewUserModal {
     }
 }
 
-impl Default for CreateNewUserModal {
-    fn default() -> Self {
-        Self::new()
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lh_api::apis::{
+        ai_assistant_api::AiAssistantApi, app_settings_api::AppSettingsApi,
+        profiles_api::ProfilesApi, system_requirements_api::SystemRequirementsApi,
+        user_api::UsersApi,
+    };
+
+    // Simple test helper struct that implements AppApi minimally for testing
+    struct TestAppApi;
+
+    impl lh_api::app_api::AppApi for TestAppApi {
+        fn users_api(&self) -> &dyn UsersApi {
+            unimplemented!("Not used in validation tests")
+        }
+        fn app_settings_api(&self) -> &dyn AppSettingsApi {
+            unimplemented!("Not used in validation tests")
+        }
+        fn profile_api(&self) -> &dyn ProfilesApi {
+            unimplemented!("Not used in validation tests")
+        }
+        fn system_requirements_api(&self) -> &dyn SystemRequirementsApi {
+            unimplemented!("Not used in validation tests")
+        }
+        fn ai_assistant_api(&self) -> &dyn AiAssistantApi {
+            unimplemented!("Not used in validation tests")
+        }
+    }
+
+    /// Helper to create a modal for testing
+    fn create_test_modal() -> CreateNewUserModal {
+        let test_api = TestAppApi;
+        CreateNewUserModal::new(Arc::new(test_api))
+    }
+
+    #[test]
+    fn test_new_modal_is_invalid() {
+        let modal = create_test_modal();
+        assert!(
+            !modal.is_valid(),
+            "New modal should be invalid (empty username, no language)"
+        );
+    }
+
+    #[test]
+    fn test_username_too_short() {
+        let mut modal = create_test_modal();
+        modal.username = "abc".to_string(); // 3 characters
+        modal.selected_language = Some(Language::English);
+        assert!(
+            !modal.is_valid(),
+            "Username with 3 characters should be invalid"
+        );
+    }
+
+    #[test]
+    fn test_username_exactly_5_chars() {
+        let mut modal = create_test_modal();
+        modal.username = "abcde".to_string(); // Exactly 5 characters
+        modal.selected_language = Some(Language::English);
+        assert!(
+            modal.is_valid(),
+            "Username with exactly 5 characters should be valid"
+        );
+    }
+
+    #[test]
+    fn test_username_exactly_50_chars() {
+        let mut modal = create_test_modal();
+        modal.username = "a".repeat(50); // Exactly 50 characters
+        modal.selected_language = Some(Language::English);
+        assert!(
+            modal.is_valid(),
+            "Username with exactly 50 characters should be valid"
+        );
+    }
+
+    #[test]
+    fn test_username_too_long() {
+        let mut modal = create_test_modal();
+        modal.username = "a".repeat(51); // 51 characters
+        modal.selected_language = Some(Language::English);
+        assert!(
+            !modal.is_valid(),
+            "Username with 51 characters should be invalid"
+        );
+    }
+
+    #[test]
+    fn test_username_with_whitespace_trimmed() {
+        let mut modal = create_test_modal();
+        modal.username = "  validuser  ".to_string(); // Valid after trim
+        modal.selected_language = Some(Language::English);
+        assert!(
+            modal.is_valid(),
+            "Username should be trimmed before validation"
+        );
+    }
+
+    #[test]
+    fn test_whitespace_only_username_invalid() {
+        let mut modal = create_test_modal();
+        modal.username = "     ".to_string(); // Whitespace only
+        modal.selected_language = Some(Language::English);
+        assert!(
+            !modal.is_valid(),
+            "Whitespace-only username should be invalid"
+        );
+    }
+
+    #[test]
+    fn test_valid_username_but_no_language() {
+        let mut modal = create_test_modal();
+        modal.username = "validuser".to_string();
+        modal.selected_language = None;
+        assert!(
+            !modal.is_valid(),
+            "Valid username without language should be invalid"
+        );
+    }
+
+    #[test]
+    fn test_valid_username_and_language() {
+        let mut modal = create_test_modal();
+        modal.username = "validuser".to_string();
+        modal.selected_language = Some(Language::English);
+        assert!(
+            modal.is_valid(),
+            "Valid username with language should be valid"
+        );
+    }
+
+    #[test]
+    fn test_empty_username_no_error_message() {
+        let mut modal = create_test_modal();
+        let mock_i18n = Rc::new(I18n::new("en"));
+
+        modal.username = "".to_string();
+        modal.update_validation(&mock_i18n);
+
+        assert!(
+            modal.error_message.is_none(),
+            "Empty username should not show error"
+        );
+    }
+
+    #[test]
+    fn test_short_username_shows_error() {
+        let mut modal = create_test_modal();
+        let mock_i18n = Rc::new(I18n::new("en"));
+
+        modal.username = "abc".to_string();
+        modal.update_validation(&mock_i18n);
+
+        assert!(
+            modal.error_message.is_some(),
+            "Short username should show error"
+        );
+    }
+
+    #[test]
+    fn test_long_username_shows_error() {
+        let mut modal = create_test_modal();
+        let mock_i18n = Rc::new(I18n::new("en"));
+
+        modal.username = "a".repeat(51);
+        modal.update_validation(&mock_i18n);
+
+        assert!(
+            modal.error_message.is_some(),
+            "Long username should show error"
+        );
+    }
+
+    #[test]
+    fn test_no_language_selected_shows_error() {
+        let mut modal = create_test_modal();
+        let mock_i18n = Rc::new(I18n::new("en"));
+
+        modal.username = "validuser".to_string();
+        modal.selected_language = None;
+        modal.update_validation(&mock_i18n);
+
+        assert!(
+            modal.error_message.is_some(),
+            "Missing language should show error"
+        );
+    }
+
+    #[test]
+    fn test_valid_state_no_error() {
+        let mut modal = create_test_modal();
+        let mock_i18n = Rc::new(I18n::new("en"));
+
+        modal.username = "validuser".to_string();
+        modal.selected_language = Some(Language::English);
+        modal.update_validation(&mock_i18n);
+
+        assert!(
+            modal.error_message.is_none(),
+            "Valid state should not show error"
+        );
+    }
+
+    #[test]
+    fn test_cancel_returns_close() {
+        let modal = create_test_modal();
+        let (should_close, _task) = modal.cancel();
+        assert!(should_close, "Cancel should return true to close modal");
+    }
+
+    #[test]
+    fn test_ok_with_invalid_state_does_not_close() {
+        let modal = create_test_modal();
+        // Modal is invalid by default
+        let (should_close, _task) = modal.ok();
+        assert!(
+            !should_close,
+            "OK with invalid state should not close modal"
+        );
     }
 }

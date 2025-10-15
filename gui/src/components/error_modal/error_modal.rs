@@ -27,10 +27,7 @@ pub enum ErrorModalMessage {
 /// # Returns
 ///
 /// An Element containing the modal UI with backdrop and centered card
-pub fn error_modal(
-    i18n: &Rc<I18n>,
-    error_message: &str
-) -> Element<'static, ErrorModalMessage> {
+pub fn error_modal(i18n: &Rc<I18n>, error_message: &str) -> Element<'static, ErrorModalMessage> {
     let error_text = text(error_message.to_string())
         .size(16)
         .shaping(iced::widget::text::Shaping::Advanced);

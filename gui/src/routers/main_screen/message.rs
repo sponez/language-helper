@@ -1,13 +1,10 @@
 use iced::Event;
 
-use crate::routers::{
-    error_banner::error_modal::ErrorModalMessage,
-    main_screen::elements::{
-        add_new_user_button::AddNewUserButtonMessage,
-        create_new_user::modal_window::ModalWindowMessage,
-        language_pick_list::LanguagePickListMessage, theme_pick_list::ThemePickListMessage,
-        user_pick_list::UserPickListMessage,
-    },
+use crate::components::error_modal::error_modal::ErrorModalMessage;
+use crate::routers::main_screen::elements::{
+    add_new_user_button::AddNewUserButtonMessage,
+    create_new_user::modal_window::ModalWindowMessage, language_pick_list::LanguagePickListMessage,
+    theme_pick_list::ThemePickListMessage, user_pick_list::UserPickListMessage,
 };
 
 /// Messages that can be sent within the main screen router
@@ -25,8 +22,8 @@ pub enum Message {
     Modal(ModalWindowMessage),
     /// Messages from the error modal
     ErrorModal(ErrorModalMessage),
-    /// Keyboard and other events
-    KeyboardButtonPressed(Event),
+    /// Keyboard, mouse, and window events
+    Event(Event),
 
     /// Usernames received from API
     UsernamesReceived(Vec<String>),

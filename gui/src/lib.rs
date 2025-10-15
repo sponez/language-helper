@@ -67,6 +67,7 @@
 //! ```
 
 pub mod app_state;
+pub mod components;
 pub mod i18n;
 pub mod languages;
 pub mod mappers;
