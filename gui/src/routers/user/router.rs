@@ -26,7 +26,8 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-use iced::widget::{column, container, row, Container};
+use fluent_bundle::FluentArgs;
+use iced::widget::{column, container, row, stack, Container};
 use iced::{Alignment, Element, Length, Task};
 
 use lh_api::app_api::AppApi;
@@ -34,6 +35,7 @@ use lh_api::app_api::AppApi;
 use crate::app_state::AppState;
 use crate::models::UserView;
 use crate::router::{self, RouterEvent, RouterNode};
+use crate::routers::main_screen;
 use crate::routers::user::message::Message;
 use crate::states::UserState;
 
@@ -53,14 +55,12 @@ pub struct UserRouter {
     app_state: Rc<AppState>,
     /// User-specific mutable state
     user_state: UserState,
-    /// Flag indicating whether initial data needs to be loaded
-    need_to_load: bool,
 }
 
 impl UserRouter {
     /// Creates a new user router.
     ///
-    /// The router will load user data on first refresh (automatically called after push).
+    /// The router will receive user data via MainScreen::UserLoaded message after push.
     ///
     /// # Arguments
     ///
@@ -70,7 +70,7 @@ impl UserRouter {
     ///
     /// # Returns
     ///
-    /// A new UserRouter instance with need_to_load=true
+    /// A new UserRouter instance
     pub fn new(user_view: UserView, app_api: Arc<dyn AppApi>, app_state: Rc<AppState>) -> Self {
         // Initialize user state from the view's settings (if any)
         let user_state = UserState::new(user_view.settings.as_ref());
@@ -80,7 +80,6 @@ impl UserRouter {
             app_api,
             app_state,
             user_state,
-            need_to_load: true, // Flag set to trigger initial load on first refresh
         }
     }
 
@@ -140,11 +139,17 @@ impl UserRouter {
             },
             Message::UserLoaded(user_view_opt) => {
                 if let Some(user_view) = user_view_opt {
+                    println!("UserLoaded: Loading user data for {}", user_view.username);
                     self.user_view = user_view;
                     // Update user state from loaded settings (from database)
                     if let Some(ref settings) = self.user_view.settings {
+                        println!("UserLoaded: Updating language to {}", settings.language);
                         self.user_state.update_from_settings(settings);
+                    } else {
+                        println!("UserLoaded: No settings found, using defaults");
                     }
+                } else {
+                    println!("UserLoaded: Failed to load user data");
                 }
                 (None, Task::none())
             }
@@ -159,40 +164,43 @@ impl UserRouter {
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
 
-        // Top-left: Back button
-        let back_btn = back_button(&i18n).map(Message::BackButton);
-        let top_bar = row![back_btn]
-            .spacing(10)
-            .padding(10)
-            .align_y(Alignment::Start);
-
-        // Center: Username and action buttons
-        let title_template = i18n.get("user-account-title", None);
-        let username_text =
-            iced::widget::text(title_template.replace("{username}", &self.user_view.username))
-                .size(24)
-                .shaping(iced::widget::text::Shaping::Advanced);
+        // Center content: Username and action buttons (positioned absolutely in center)
+        let mut args = FluentArgs::new();
+        args.set("username", &self.user_view.username);
+        args.set("language", &self.user_state.language);
+        let title_text = i18n.get("user-account-title", Some(&args));
+        let username_text = iced::widget::text(title_text)
+            .size(24)
+            .shaping(iced::widget::text::Shaping::Advanced);
 
         let profiles_btn = profiles_button(&i18n).map(Message::ProfilesButton);
         let settings_btn = settings_button(&i18n).map(Message::SettingsButton);
 
-        let center_content = column![username_text, profiles_btn, settings_btn,]
-            .spacing(20)
-            .align_x(Alignment::Center);
+        let center_content = Container::new(
+            column![username_text, profiles_btn, settings_btn,]
+                .spacing(20)
+                .align_x(Alignment::Center),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(Alignment::Center)
+        .align_y(Alignment::Center);
 
-        // Main layout: top bar (left-aligned) + center content (centered)
-        let content = column![
-            Container::new(top_bar)
-                .width(Length::Fill)
-                .align_x(Alignment::Start),
-            Container::new(center_content)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .align_x(Alignment::Center)
-                .align_y(Alignment::Center),
-        ];
+        // Top-left: Back button (positioned absolutely in top-left)
+        let back_btn = back_button(&i18n).map(Message::BackButton);
+        let top_bar = Container::new(
+            row![back_btn]
+                .spacing(10)
+                .padding(10)
+                .align_y(Alignment::Start),
+        )
+        .width(Length::Fill)
+        .align_x(Alignment::Start)
+        .align_y(Alignment::Start);
 
-        container(content)
+        // Use stack to overlay back button on top of centered content
+        // This prevents the back button from pushing the center content down
+        container(stack![center_content, top_bar])
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
@@ -209,37 +217,23 @@ impl RouterNode for UserRouter {
         &mut self,
         message: &router::Message,
     ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
-        // Check if we need to trigger initial data load
-        if self.need_to_load {
-            self.need_to_load = false; // Clear flag
-
-            // Trigger async load of user data
-            let username = self.user_view.username.clone();
-            let load_task = Task::perform(
-                Self::load_user_data(Arc::clone(&self.app_api), username),
-                Message::UserLoaded,
-            )
-            .map(router::Message::User);
-
-            // Process the incoming message normally and batch with load task
-            match message {
-                router::Message::User(msg) => {
-                    let (event, task) = UserRouter::update(self, msg.clone());
-                    let mapped_task = task.map(router::Message::User);
-                    let batched = Task::batch(vec![mapped_task, load_task]);
-                    (event, batched)
-                }
-                _ => (None, load_task), // Still load data even for other messages
+        match message {
+            router::Message::User(msg) => {
+                let (event, task) = UserRouter::update(self, msg.clone());
+                let mapped_task = task.map(router::Message::User);
+                (event, mapped_task)
             }
-        } else {
-            // Normal message processing
-            match message {
-                router::Message::User(msg) => {
-                    let (event, task) = UserRouter::update(self, msg.clone());
-                    let mapped_task = task.map(router::Message::User);
-                    (event, mapped_task)
+            router::Message::MainScreen(msg) => {
+                match msg {
+                    main_screen::message::Message::UserLoaded(user_view_opt) => {
+                        // Convert MainScreen message to User message and handle it
+                        let (event, task) =
+                            UserRouter::update(self, Message::UserLoaded(user_view_opt.clone()));
+                        let mapped_task = task.map(router::Message::User);
+                        (event, mapped_task)
+                    }
+                    _ => (None, Task::none()),
                 }
-                _ => (None, Task::none()), // Ignore messages not meant for this router
             }
         }
     }
@@ -269,7 +263,6 @@ impl RouterNode for UserRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::languages::Language;
     use lh_api::apis::{
         ai_assistant_api::AiAssistantApi, app_settings_api::AppSettingsApi,
         profiles_api::ProfilesApi, system_requirements_api::SystemRequirementsApi,
@@ -300,7 +293,7 @@ mod tests {
     /// Helper to create a test router
     fn create_test_router() -> UserRouter {
         let test_api = Arc::new(TestAppApi);
-        let app_state = Rc::new(AppState::new("Dark".to_string(), "en".to_string()));
+        let app_state = Rc::new(AppState::new("Dark".to_string(), "English".to_string()));
         let user_view = UserView {
             username: "testuser".to_string(),
             settings: None,

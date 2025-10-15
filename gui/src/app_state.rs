@@ -8,7 +8,7 @@ use std::rc::Rc;
 use iced::Theme;
 
 use crate::i18n::I18n;
-use crate::languages::Language;
+use crate::languages::{language_name_to_enum, Language};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -26,6 +26,7 @@ impl AppState {
     /// Creates a new AppState with the given theme and language strings.
     ///
     /// Converts string representations to proper types (Theme and Language).
+    /// Language string should be the language name (e.g., "English"), not locale code.
     pub fn new(theme_str: String, language_str: String) -> Self {
         // Convert string to Theme
         let theme = Theme::ALL
@@ -34,8 +35,8 @@ impl AppState {
             .cloned()
             .unwrap_or(Theme::Dark);
 
-        // Convert string to Language
-        let language = Language::from_locale_code(&language_str).unwrap_or(Language::English);
+        // Convert language name to Language enum
+        let language = language_name_to_enum(&language_str).unwrap_or(Language::English);
 
         let i18n = Rc::new(I18n::new(language.to_locale_code()));
 
@@ -89,6 +90,7 @@ impl AppState {
     ///
     /// This is more efficient than calling set_theme and set_language separately.
     /// Takes string representations for compatibility with database/API layer.
+    /// Language string should be the language name (e.g., "English"), not locale code.
     pub fn update_settings(&mut self, theme_str: String, language_str: String) {
         // Convert string to Theme
         self.theme = Theme::ALL
@@ -97,8 +99,8 @@ impl AppState {
             .cloned()
             .unwrap_or(Theme::Dark);
 
-        // Convert string to Language
-        self.language = Language::from_locale_code(&language_str).unwrap_or(Language::English);
+        // Convert language name to Language enum
+        self.language = language_name_to_enum(&language_str).unwrap_or(Language::English);
 
         self.i18n = Rc::new(I18n::new(self.language.to_locale_code()));
     }

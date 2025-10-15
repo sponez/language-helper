@@ -27,7 +27,7 @@
 
 use std::sync::Arc;
 
-use iced::widget::{column, container, row, Container};
+use iced::widget::{container, row, stack, Container};
 use iced::{event, Alignment, Element, Length, Subscription, Task};
 
 use lh_api::app_api::AppApi;
@@ -102,6 +102,23 @@ impl MainScreenRouter {
         }
     }
 
+    /// Asynchronously loads full user data from the API
+    async fn load_user_data(
+        app_api: Arc<dyn AppApi>,
+        username: String,
+    ) -> Option<crate::models::UserView> {
+        match app_api.users_api().get_user_by_username(&username).await {
+            Some(user_dto) => {
+                use crate::mappers::user_mapper;
+                Some(user_mapper::dto_to_view(&user_dto))
+            }
+            None => {
+                eprintln!("Failed to load user data for: {}", username);
+                None
+            }
+        }
+    }
+
     /// Asynchronously updates app theme setting
     async fn update_theme(app_api: Arc<dyn AppApi>, theme: String) -> Result<(), String> {
         match app_api.app_settings_api().update_app_theme(&theme).await {
@@ -171,7 +188,7 @@ impl MainScreenRouter {
 
                         // Save to API asynchronously
                         let app_api = Arc::clone(&self.app_api);
-                        let language_str = language.to_locale_code().to_string();
+                        let language_str = language.name().to_string();
                         let task = Task::perform(
                             Self::update_language(app_api, language_str),
                             Message::LanguageUpdated,
@@ -184,11 +201,10 @@ impl MainScreenRouter {
             Message::UserPicker(msg) => match msg {
                 UserPickListMessage::Selected(username) => {
                     // Create UserRouter with minimal user view (just username)
-                    // The router will automatically load full user data on first update
                     use crate::models::UserView;
                     use crate::routers::user::router::UserRouter;
 
-                    let user_view = UserView::new(username);
+                    let user_view = UserView::new(username.clone());
                     let user_router = UserRouter::new(
                         user_view,
                         Arc::clone(&self.app_api),
@@ -197,8 +213,14 @@ impl MainScreenRouter {
 
                     let router_box: Box<dyn crate::router::RouterNode> = Box::new(user_router);
 
-                    // Push router - it will load user data automatically on first update
-                    (Some(RouterEvent::Push(router_box)), Task::none())
+                    // Create task to load user data and send it as a MainScreen message
+                    let load_task = Task::perform(
+                        Self::load_user_data(Arc::clone(&self.app_api), username),
+                        Message::UserLoaded,
+                    );
+
+                    // Push router and execute load task
+                    (Some(RouterEvent::Push(router_box)), load_task)
                 }
             },
             Message::AddUserButton(msg) => {
@@ -275,6 +297,11 @@ impl MainScreenRouter {
                     }
                 }
             }
+            Message::UserLoaded(_user_view_opt) => {
+                // User data loaded - this message will be routed to UserRouter
+                // MainScreen doesn't need to do anything with it
+                (None, Task::none())
+            }
             Message::ErrorModal(msg) => match msg {
                 ErrorModalMessage::Close => {
                     self.error_message = None;
@@ -326,40 +353,42 @@ impl MainScreenRouter {
     ///
     /// An Element containing the UI for this router
     pub fn view(&self) -> Element<'_, Message> {
-        // Top-right corner: Theme and Language pickers
-        let theme_element = theme_pick_list(&self.app_state.theme()).map(Message::ThemePicker);
-        let language_element =
-            language_pick_list(Some(self.app_state.language()), None).map(Message::LanguagePicker);
-
-        let top_bar = row![theme_element, language_element]
-            .spacing(10)
-            .padding(10)
-            .align_y(Alignment::Start);
-
-        // Center: User picker + Add button
+        // Center: User picker + Add button (positioned absolutely in center)
         let user_picker_element =
             user_pick_list(&self.username_list, &self.app_state.i18n()).map(Message::UserPicker);
 
         let add_button_element = add_new_button().map(Message::AddUserButton);
 
-        let center_content = row![user_picker_element, add_button_element]
-            .spacing(10)
-            .align_y(Alignment::Center);
-
-        // Main layout: top bar aligned right, center content centered
-        let content = column![
-            Container::new(top_bar)
-                .width(Length::Fill)
-                .align_x(Alignment::End),
-            Container::new(center_content)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .align_x(Alignment::Center)
+        let center_content = Container::new(
+            row![user_picker_element, add_button_element]
+                .spacing(10)
                 .align_y(Alignment::Center),
-        ];
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(Alignment::Center)
+        .align_y(Alignment::Center);
 
-        let base: Container<'_, Message> =
-            container(content).width(Length::Fill).height(Length::Fill);
+        // Top-right corner: Theme and Language pickers (positioned absolutely in top-right)
+        let theme_element = theme_pick_list(&self.app_state.theme()).map(Message::ThemePicker);
+        let language_element =
+            language_pick_list(Some(self.app_state.language()), None).map(Message::LanguagePicker);
+
+        let top_bar = Container::new(
+            row![theme_element, language_element]
+                .spacing(10)
+                .padding(10)
+                .align_y(Alignment::Start),
+        )
+        .width(Length::Fill)
+        .align_x(Alignment::End)
+        .align_y(Alignment::Start);
+
+        // Use stack to overlay top bar on top of centered content
+        // This prevents the top bar from pushing the center content down
+        let base: Container<'_, Message> = container(stack![center_content, top_bar])
+            .width(Length::Fill)
+            .height(Length::Fill);
 
         // If create user modal is open, render it on top
         if let Some(modal) = &self.create_user_modal {

@@ -1,208 +1,30 @@
-# Language Helper - English (US) Localization
-
-## User List Screen
-user-list-title = Select User
-user-list-select-placeholder = Select a username...
-user-list-add-new = + Add new user
-user-list-enter-username = Enter new username:
-user-list-username-placeholder = Enter username...
-user-list-ok-button = OK
-user-list-exit-button = Exit
-
-## User Screen
-user-account-title = Account: { $username }
-user-settings-button = Settings
-user-profiles-button = Profiles
-user-back-button = Back
-
-## User Settings Screen
-user-settings-language-label = User Language:
-user-settings-theme-label = Theme:
-user-settings-delete-button = Delete User
-user-settings-delete-warning = Are you sure you want to delete this user? This action cannot be undone.
-user-settings-delete-yes = Yes
-user-settings-delete-no = No
-
-## Profile List Screen
-profile-list-title = Learning Profiles
-profile-list-create-new = + Create New Profile
-profile-list-select-language = Select target language for new profile:
-profile-list-create-button = Create
-profile-list-cancel-button = Cancel
-
-## Profile Screen
-profile-cards-button = Cards
-profile-explain-ai-button = Explain with AI
-profile-chat-ai-button = Chat with AI
-profile-settings-button = Settings
-profile-back-button = Back
-profile-back-where = Where would you like to go?
-profile-back-to-profiles = To Profile Selection
-profile-back-to-user = To User Selection
-profile-exit = Exit
-
-## Profile Settings Screen
-profile-settings-title = Profile settings
-profile-settings-cards-per-set = Cards per set:
-profile-settings-test-method = Test answer method:
-profile-settings-test-method-manual = Manual text entry
-profile-settings-test-method-self = Self review
-profile-settings-streak-length = Streak length for remembering:
-profile-settings-card-settings-button = Card settings
-profile-settings-assistant-settings-button = Assistant settings
-profile-settings-save = Save
-profile-settings-delete-profile = Delete profile
-profile-settings-delete-warning = Are you sure you want to delete this profile? All cards and progress will be permanently lost.
-profile-settings-delete-confirm = Yes, delete
-profile-settings-delete-cancel = No, keep it
-profile-settings-back = Back
-profile-settings-saved = Settings saved successfully
-
-## Card Settings Screen
-card-settings-title = Card Settings
-card-settings-save = Save
-card-settings-back = Back
-
-## Assistant Settings Screen
-assistant-settings-title = Assistant Settings
-assistant-settings-model-label = Model Strength:
-assistant-settings-tiny = Tiny (1B)
-assistant-settings-light = Light (3-4B)
-assistant-settings-weak = Weak (3B)
-assistant-settings-medium = Medium (7B)
-assistant-settings-strong = Strong (14B)
-assistant-settings-api = API
-assistant-settings-requirements-title = System Requirements:
-assistant-settings-incompatible = This model cannot run on your system due to missing requirements.
-assistant-settings-no-data = System requirements information not available.
-assistant-settings-ollama-status = Ollama Status:
-assistant-settings-ollama-not-installed = Ollama is not installed. To install, go to ollama.com
-assistant-settings-ollama-installed = Ollama is installed
-assistant-settings-api-endpoint = API Endpoint:
-assistant-settings-api-key = API Key:
-assistant-settings-api-model = Model Name:
-assistant-settings-start-assistant = Start Assistant
-assistant-settings-stop-assistant = Stop Assistant
-assistant-settings-change-assistant = Change Assistant
-assistant-settings-save-api = Save API Config
-assistant-settings-back = Back
-
-## Explain AI Screen
-explain-ai-title = Explain with AI
-explain-ai-input-label = Enter a phrase or word to explain:
-explain-ai-send = Send
-explain-ai-response-label = AI Response:
-explain-ai-back = Back
-
-## Cards Menu Screen
-cards-menu-title = Cards
-cards-menu-manage = Manage Cards
-cards-menu-learn = Learn
-cards-menu-test = Test
-cards-menu-repeat = Repeat
-cards-menu-back = Back
-
-## Manage Cards Screen
-manage-cards-title = Manage Cards
-manage-cards-unlearned-tab = Unlearned
-manage-cards-learned-tab = Learned
-manage-cards-no-unlearned = No unlearned cards yet
-manage-cards-no-learned = No learned cards yet
-manage-cards-add-new = Add New
-manage-cards-back = Back
-
-## Add Card Screen
-add-card-title = Add New Card
-add-card-fill-ai = Fill with AI
-add-card-type-label = Card Type:
-add-card-type-straight = Straight
-add-card-type-reverse = Reverse
-add-card-word-label = Word:
-add-card-word-placeholder = Enter word...
-add-card-readings-label = Readings:
-add-card-reading-placeholder = Enter reading...
-add-card-add-reading = Add Reading
-add-card-meanings-label = Meanings:
-add-card-definition-label = Definition:
-add-card-definition-placeholder = Enter definition...
-add-card-translated-def-label = Translated Definition:
-add-card-translated-def-placeholder = Enter translated definition...
-add-card-translations-label = Translations:
-add-card-translation-placeholder = Enter translation...
-add-card-add-translation = Add Translation
-add-card-add-meaning = Add Meaning
-add-card-remove-meaning = Remove Meaning
-add-card-save = Save
-add-card-cancel = Cancel
-add-card-inverse-modal-title = Update inverse cards?
-add-card-inverse-manually = Manually
-add-card-inverse-with-assistant = With Assistant
-add-card-inverse-no = No
-
-## Inverse Cards Review Screen
-inverse-cards-review-title = Review Inverse Cards
-inverse-cards-no-pending = No pending inverse cards
-inverse-cards-show = Show
-inverse-cards-save-all = Save All
-inverse-cards-cancel = Cancel
-
-## Create New User Modal
-create-new-user-title = Create a new user
-username-placeholder = Enter username
-choose-language-placeholder = Choose user language
+# Main Screen - Create New User Modal
+create-new-user-title = Create New User
+username-placeholder = Username
+choose-language-placeholder = Choose a language
 ok-button = OK
 cancel-button = Cancel
 
-## Error Messages
-error-username-empty = Username cannot be empty
+# Main Screen - User Selection
+user-list-select-placeholder = Select a user
+
+# Main Screen - Validation Errors
 error-username-too-short = Username must be at least 5 characters
-error-username-too-long = Username must be no more than 50 characters
+error-username-too-long = Username cannot exceed 50 characters
 error-language-not-selected = Please select a language
-error-user-not-found = User not found
-error-create-user = Failed to create user. Please try again.
-error-update-theme = Failed to update theme. Please try again.
-error-update-language = Failed to update language. Please try again.
-error-user-created-not-found = User created but not found
-error-invalid-number = Please enter a valid number
-error-cards-per-set-range = Cards per set must be between 1 and 100
-error-streak-length-range = Streak length must be between 1 and 50
 
-## Error Modal
+# Main Screen - API Errors
+error-create-user = Failed to create user
+error-update-theme = Failed to update theme
+error-update-language = Failed to update language
+
+# User Screen - Navigation
+user-back-button = Back
+user-profiles-button = Profiles
+user-settings-button = Settings
+
+# User Screen - Title
+user-account-title = Account: {$username} | Language: {$language}
+
+# Error Modal
 error-modal-close-button = Close
-
-## Settings
-settings-theme = Theme
-settings-language = Language
-
-## Pluralization Examples
-users-count =
-    { $count ->
-        [0] No users
-        [1] 1 user
-       *[other] { $count } users
-    }
-
-items-remaining =
-    { $count ->
-        [0] No items remaining
-        [1] 1 item remaining
-       *[other] { $count } items remaining
-    }
-
-## Common UI Elements
-ok = OK
-cancel = Cancel
-save = Save
-delete = Delete
-edit = Edit
-add = Add
-close = Close
-confirm = Confirm
-yes = Yes
-no = No
-
-## General Messages
-welcome = Welcome to Language Helper
-loading = Loading...
-success = Success
-failed = Failed

@@ -150,7 +150,7 @@ impl<
         })
     }
 
-    async fn create_user(&self, username: &str) -> Result<UserDto, ApiError> {
+    async fn create_user(&self, username: &str, language: &str) -> Result<UserDto, ApiError> {
         // Create user
         let user = self
             .user_service
@@ -158,10 +158,10 @@ impl<
             .await
             .map_err(map_core_error_to_api_error)?;
 
-        // Create settings for the new user
+        // Create settings for the new user with their chosen language
         let settings = self
             .user_settings_service
-            .create_user_settings(username)
+            .create_user_settings(username, language)
             .await
             .map(map_user_settings_to_dto)
             .map_err(map_core_error_to_api_error)?;
@@ -565,7 +565,7 @@ mod tests {
         };
         let api = create_test_api(repo);
 
-        let result = api.create_user("newuser").await;
+        let result = api.create_user("newuser", "English").await;
 
         // Note: This test will fail because our mock repositories don't share state.
         // In production, the same repository instance is used, so when a user is created,
@@ -595,7 +595,7 @@ mod tests {
         };
         let api = create_test_api(repo);
 
-        let result = api.create_user("alice").await;
+        let result = api.create_user("alice", "English").await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -617,7 +617,7 @@ mod tests {
         };
         let api = create_test_api(repo);
 
-        let result = api.create_user("").await;
+        let result = api.create_user("", "English").await;
 
         assert!(result.is_err());
         match result.unwrap_err() {

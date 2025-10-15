@@ -34,7 +34,7 @@ impl UserState {
             // Default values if no settings provided
             Self {
                 theme: "Dark".to_string(),
-                language: "en".to_string(),
+                language: "English".to_string(),
             }
         }
     }

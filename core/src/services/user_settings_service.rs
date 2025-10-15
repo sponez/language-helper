@@ -113,12 +113,13 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
 
     /// Creates user settings for a new user.
     ///
-    /// This method creates user settings by duplicating the current app settings
-    /// as defaults. The user must exist before creating settings.
+    /// This method creates user settings with the specified language preference.
+    /// The theme is inherited from app settings as a default. The user must exist before creating settings.
     ///
     /// # Arguments
     ///
     /// * `username` - The username for the new settings
+    /// * `user_language` - The user's language preference (language name, not locale code)
     ///
     /// # Returns
     ///
@@ -140,13 +141,17 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
     /// # use lh_core::repositories::app_settings_repository::AppSettingsRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
     /// # async fn example(service: &UserSettingsService<impl UserSettingsRepository, impl AppSettingsRepository, impl UserRepository>) {
-    /// match service.create_user_settings("jane_doe").await {
+    /// match service.create_user_settings("jane_doe", "English").await {
     ///     Ok(settings) => println!("Created settings: {:?}", settings),
     ///     Err(e) => eprintln!("Failed to create settings: {}", e),
     /// }
     /// # }
     /// ```
-    pub async fn create_user_settings(&self, username: &str) -> Result<UserSettings, CoreError> {
+    pub async fn create_user_settings(
+        &self,
+        username: &str,
+        user_language: &str,
+    ) -> Result<UserSettings, CoreError> {
         // Business logic: ensure user exists
         if self
             .user_repository
@@ -170,11 +175,12 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
             )));
         }
 
-        // Get app settings to use as defaults
+        // Get app settings to use theme as default
         let app_settings = self.app_settings_repository.get().await.unwrap_or_default();
 
         // Domain validation happens in UserSettings::new()
-        let settings = UserSettings::new(app_settings.ui_theme, app_settings.default_ui_language)?;
+        // Use app theme but user's chosen language
+        let settings = UserSettings::new(app_settings.ui_theme, user_language)?;
 
         self.settings_repository.save(username, settings).await
     }

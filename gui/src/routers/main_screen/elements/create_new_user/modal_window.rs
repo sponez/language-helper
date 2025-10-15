@@ -134,10 +134,11 @@ impl CreateNewUserModal {
     fn ok(&self) -> (bool, Task<Message>) {
         if self.is_valid() {
             let username = self.username.trim().to_string();
+            let language = self.selected_language.as_ref().unwrap().name().to_string();
             let app_api = Arc::clone(&self.app_api);
             let task = Task::perform(
                 async move {
-                    match app_api.users_api().create_user(&username).await {
+                    match app_api.users_api().create_user(&username, &language).await {
                         Ok(_) => Ok(username),
                         Err(_e) => Err("error-create-user".to_string()),
                     }
