@@ -81,11 +81,7 @@ impl Profile {
     /// # Returns
     ///
     /// A new `Profile` instance without validation.
-    pub fn new_unchecked(
-        target_language: String,
-        created_at: i64,
-        last_activity_at: i64,
-    ) -> Self {
+    pub fn new_unchecked(target_language: String, created_at: i64, last_activity_at: i64) -> Self {
         Self {
             target_language,
             created_at,

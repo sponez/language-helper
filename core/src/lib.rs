@@ -42,7 +42,7 @@
 //! ```
 
 pub mod api_impl;
-pub mod models;
 pub mod errors;
+pub mod models;
 pub mod repositories;
 pub mod services;

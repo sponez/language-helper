@@ -27,14 +27,14 @@
 //! Each router only knows about its immediate children and can push them
 //! onto the stack. Routers never need to know about parent or sibling routers.
 
-use iced::{Element, Subscription};
+use iced::{Element, Subscription, Task};
 
-use crate::routers::{assistant_settings_router, card_settings_router, explain_ai_router, profile_list_router, profile_router, profile_settings_router, user_list_router, user_router, user_settings_router};
+use crate::routers::{main_screen, user, user_settings};
 
 /// Identifies a specific router type for navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RouterTarget {
-    UserList,
+    MainScreen,
     User,
     UserSettings,
     ProfileList,
@@ -42,13 +42,14 @@ pub enum RouterTarget {
     ProfileSettings,
     CardSettings,
     AssistantSettings,
+    ManageCards,
 }
 
 impl RouterTarget {
     /// Get the string identifier for this router target
     fn as_str(&self) -> &'static str {
         match self {
-            RouterTarget::UserList => "user_list",
+            RouterTarget::MainScreen => "main_screen",
             RouterTarget::User => "user",
             RouterTarget::UserSettings => "user_settings",
             RouterTarget::ProfileList => "profile_list",
@@ -56,6 +57,7 @@ impl RouterTarget {
             RouterTarget::ProfileSettings => "profile_settings",
             RouterTarget::CardSettings => "card_settings",
             RouterTarget::AssistantSettings => "assistant_settings",
+            RouterTarget::ManageCards => "manage_cards",
         }
     }
 }
@@ -90,23 +92,31 @@ impl std::fmt::Debug for RouterEvent {
 #[derive(Debug, Clone)]
 pub enum Message {
     /// Message for the user list router
-    UserList(user_list_router::Message),
+    MainScreen(main_screen::message::Message),
     /// Message for the user router
-    User(user_router::Message),
+    User(user::message::Message),
     /// Message for the user settings router
-    UserSettings(user_settings_router::Message),
-    /// Message for the profile list router
-    ProfileList(profile_list_router::Message),
-    /// Message for the profile router
-    Profile(profile_router::Message),
-    /// Message for the profile settings router
-    ProfileSettings(profile_settings_router::Message),
-    /// Message for the card settings router
-    CardSettings(card_settings_router::Message),
-    /// Message for the assistant settings router
-    AssistantSettings(assistant_settings_router::Message),
-    /// Message for the explain AI router
-    ExplainAI(explain_ai_router::Message),
+    UserSettings(user_settings::message::Message),
+    // /// Message for the profile list router
+    // ProfileList(profile_list_router::Message),
+    // /// Message for the profile router
+    // Profile(profile_router::Message),
+    // /// Message for the profile settings router
+    // ProfileSettings(profile_settings_router::Message),
+    // /// Message for the card settings router
+    // CardSettings(card_settings_router::Message),
+    // /// Message for the assistant settings router
+    // AssistantSettings(assistant_settings_router::Message),
+    // /// Message for the explain AI router
+    // ExplainAI(explain_ai_router::Message),
+    // /// Message for the cards menu router
+    // CardsMenu(cards_menu_router::Message),
+    // /// Message for the manage cards router
+    // ManageCards(manage_cards_router::Message),
+    // /// Message for the add card router
+    // AddCard(add_card_router::Message),
+    // /// Message for the inverse cards review router
+    // InverseCardsReview(inverse_cards_review_router::Message),
 }
 
 /// Type-erased router node that can be stored in the stack.
@@ -120,7 +130,11 @@ pub trait RouterNode {
     fn router_name(&self) -> &'static str;
 
     /// Update with a global message
-    fn update(&mut self, message: &Message) -> Option<RouterEvent>;
+    ///
+    /// Returns a tuple of:
+    /// - Optional router event (Push, Pop, PopTo, Exit)
+    /// - A Task to execute (use Task::none() if no async work needed)
+    fn update(&mut self, message: &Message) -> (Option<RouterEvent>, Task<Message>);
 
     /// Render view with global message type
     fn view(&self) -> Element<'_, Message>;
@@ -132,8 +146,19 @@ pub trait RouterNode {
     ///
     /// This is called automatically after any Pop or PopTo operation.
     /// Routers should reload their data from the API to ensure they display current information.
-    /// Default implementation does nothing.
-    fn refresh(&mut self) {}
+    ///
+    /// # Arguments
+    ///
+    /// * `incoming_task` - A task from the previous operation that should be batched with refresh tasks
+    ///
+    /// # Returns
+    ///
+    /// A Task that performs the refresh operation, batched with the incoming task
+    ///
+    /// Default implementation just returns the incoming task without any refresh.
+    fn refresh(&mut self, incoming_task: Task<Message>) -> Task<Message> {
+        incoming_task
+    }
 
     /// Get the router's subscriptions for async operations
     ///
@@ -173,13 +198,16 @@ impl RouterStack {
     ///
     /// # Returns
     ///
-    /// - `Ok(true)` if the application should exit
-    /// - `Ok(false)` if the update completed normally
+    /// A tuple of:
+    /// - `Ok(true)` if the application should exit, `Ok(false)` otherwise
+    /// - A Task to execute
     /// - `Err` if the stack is empty (should never happen)
-    pub fn update(&mut self, message: Message) -> Result<bool, &'static str> {
+    pub fn update(&mut self, message: Message) -> Result<(bool, Task<Message>), &'static str> {
         let router = self.stack.last_mut().ok_or("Router stack is empty")?;
 
-        if let Some(event) = router.update(&message) {
+        let (event, task) = router.update(&message);
+
+        if let Some(event) = event {
             match event {
                 RouterEvent::Push(new_router) => {
                     self.stack.push(new_router);
@@ -189,18 +217,21 @@ impl RouterStack {
                         self.stack.pop();
                         // Always refresh the now-current router after popping
                         if let Some(current_router) = self.stack.last_mut() {
-                            current_router.refresh();
+                            let refresh_task = current_router.refresh(task);
+                            return Ok((false, refresh_task));
                         }
                     } else {
                         // Can't pop the root router - exit instead
-                        return Ok(true);
+                        return Ok((true, task));
                     }
                 }
                 RouterEvent::PopTo(target) => {
                     if let Some(target_router) = target {
                         // Find the target router in the stack
                         let target_name = target_router.as_str();
-                        let target_index = self.stack.iter()
+                        let target_index = self
+                            .stack
+                            .iter()
                             .position(|r| r.router_name() == target_name);
 
                         if let Some(index) = target_index {
@@ -208,17 +239,19 @@ impl RouterStack {
                             self.stack.truncate(index + 1);
                             // Refresh the target router
                             if let Some(current_router) = self.stack.last_mut() {
-                                current_router.refresh();
+                                let refresh_task = current_router.refresh(task);
+                                return Ok((false, refresh_task));
                             }
                         } else {
                             // Target not found - just do a regular pop
                             if self.stack.len() > 1 {
                                 self.stack.pop();
                                 if let Some(current_router) = self.stack.last_mut() {
-                                    current_router.refresh();
+                                    let refresh_task = current_router.refresh(task);
+                                    return Ok((false, refresh_task));
                                 }
                             } else {
-                                return Ok(true);
+                                return Ok((true, task));
                             }
                         }
                     } else {
@@ -227,18 +260,19 @@ impl RouterStack {
                             self.stack.truncate(1);
                             // Refresh the root router
                             if let Some(root_router) = self.stack.last_mut() {
-                                root_router.refresh();
+                                let refresh_task = root_router.refresh(task);
+                                return Ok((false, refresh_task));
                             }
                         }
                     }
                 }
                 RouterEvent::Exit => {
-                    return Ok(true);
+                    return Ok((true, task));
                 }
             }
         }
 
-        Ok(false)
+        Ok((false, task))
     }
 
     /// Render the view of the current (topmost) router.
@@ -293,10 +327,6 @@ mod tests {
                 refresh_count: std::cell::RefCell::new(0),
             }
         }
-
-        fn get_refresh_count(&self) -> usize {
-            *self.refresh_count.borrow()
-        }
     }
 
     impl RouterNode for MockRouter {
@@ -304,8 +334,8 @@ mod tests {
             self.name
         }
 
-        fn update(&mut self, _message: &Message) -> Option<RouterEvent> {
-            None
+        fn update(&mut self, _message: &Message) -> (Option<RouterEvent>, Task<Message>) {
+            (None, Task::none())
         }
 
         fn view(&self) -> Element<'_, Message> {
@@ -316,14 +346,15 @@ mod tests {
             iced::Theme::Dark
         }
 
-        fn refresh(&mut self) {
+        fn refresh(&mut self, incoming_task: Task<Message>) -> Task<Message> {
             *self.refresh_count.borrow_mut() += 1;
+            incoming_task
         }
     }
 
     #[test]
     fn test_router_target_as_str() {
-        assert_eq!(RouterTarget::UserList.as_str(), "user_list");
+        assert_eq!(RouterTarget::MainScreen.as_str(), "main_screen");
         assert_eq!(RouterTarget::User.as_str(), "user");
         assert_eq!(RouterTarget::UserSettings.as_str(), "user_settings");
         assert_eq!(RouterTarget::ProfileList.as_str(), "profile_list");
@@ -370,7 +401,7 @@ mod tests {
 
         // Refresh the root router (this should increment the counter)
         if let Some(current) = stack.stack.last_mut() {
-            current.refresh();
+            let _ = current.refresh(Task::none());
         }
 
         // Verify stack state after pop
@@ -399,8 +430,7 @@ mod tests {
         assert_eq!(stack.stack.len(), 4);
 
         // PopTo should find "user" and truncate above it
-        let target_index = stack.stack.iter()
-            .position(|r| r.router_name() == "user");
+        let target_index = stack.stack.iter().position(|r| r.router_name() == "user");
 
         assert_eq!(target_index, Some(1));
 

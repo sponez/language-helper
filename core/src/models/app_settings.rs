@@ -28,37 +28,11 @@ pub struct AppSettings {
 }
 
 impl AppSettings {
-    /// Valid UI theme values (all iced built-in themes).
-    pub const VALID_THEMES: &'static [&'static str] = &[
-        "Dark",
-        "Light",
-        "CatppuccinFrappe",
-        "CatppuccinLatte",
-        "CatppuccinMacchiato",
-        "CatppuccinMocha",
-        "Dracula",
-        "Ferra",
-        "GruvboxDark",
-        "GruvboxLight",
-        "KanagawaDragon",
-        "KanagawaLotus",
-        "KanagawaWave",
-        "Moonfly",
-        "Nightfly",
-        "Nord",
-        "Oxocarbon",
-        "SolarizedDark",
-        "SolarizedLight",
-        "TokyoNight",
-        "TokyoNightLight",
-        "TokyoNightStorm",
-    ];
-
-    /// Creates a new AppSettings instance with validation.
+    /// Creates a new AppSettings instance with basic validation.
     ///
     /// # Arguments
     ///
-    /// * `ui_theme` - The UI theme preference
+    /// * `ui_theme` - The UI theme preference (any string, validated by GUI layer)
     /// * `default_ui_language` - Default language code for the UI
     ///
     /// # Returns
@@ -73,16 +47,13 @@ impl AppSettings {
     ///
     /// let settings = AppSettings::new("Dark".to_string(), "en".to_string()).unwrap();
     /// assert_eq!(settings.ui_theme, "Dark");
-    ///
-    /// // Invalid theme
-    /// assert!(AppSettings::new("Invalid".to_string(), "en".to_string()).is_err());
     /// ```
     pub fn new<UT, UL>(ui_theme: UT, default_ui_language: UL) -> Result<Self, CoreError>
     where
         UT: AsRef<str> + Into<String>,
-        UL: AsRef<str> + Into<String>
+        UL: AsRef<str> + Into<String>,
     {
-        Self::validate_theme(ui_theme.as_ref())?;
+        Self::validate_not_empty("UI theme", ui_theme.as_ref())?;
         Self::validate_language_code(default_ui_language.as_ref())?;
         Ok(Self {
             ui_theme: ui_theme.into(),
@@ -109,22 +80,12 @@ impl AppSettings {
         }
     }
 
-    /// Validates the UI theme.
-    ///
-    /// # Arguments
-    ///
-    /// * `theme` - The theme to validate
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - If validation passes
-    /// * `Err(CoreError)` - If validation fails
-    fn validate_theme(theme: &str) -> Result<(), CoreError> {
-        if !Self::VALID_THEMES.contains(&theme) {
+    /// Validates that a field is not empty.
+    fn validate_not_empty(field_name: &str, value: &str) -> Result<(), CoreError> {
+        if value.is_empty() {
             return Err(CoreError::validation_error(format!(
-                "Invalid theme '{}'. Must be one of: {:?}",
-                theme,
-                Self::VALID_THEMES
+                "{} cannot be empty",
+                field_name
             )));
         }
         Ok(())
@@ -144,9 +105,9 @@ impl AppSettings {
         if code.is_empty() {
             return Err(CoreError::validation_error("Language code cannot be empty"));
         }
-        if code.len() > 10 {
+        if code.len() > 50 {
             return Err(CoreError::validation_error(
-                "Language code cannot exceed 10 characters",
+                "Language code cannot exceed 50 characters",
             ));
         }
         Ok(())
@@ -181,16 +142,18 @@ mod tests {
     }
 
     #[test]
-    fn test_valid_themes() {
-        for theme in AppSettings::VALID_THEMES {
+    fn test_any_theme_accepted() {
+        // Core should accept any non-empty theme string
+        let themes = vec!["Dark", "Light", "CustomTheme", "MyAwesomeTheme"];
+        for theme in themes {
             let result = AppSettings::new(theme.to_string(), "en".to_string());
-            assert!(result.is_ok(), "Theme '{}' should be valid", theme);
+            assert!(result.is_ok(), "Theme '{}' should be accepted", theme);
         }
     }
 
     #[test]
-    fn test_invalid_theme() {
-        let result = AppSettings::new("InvalidTheme".to_string(), "en".to_string());
+    fn test_empty_theme_rejected() {
+        let result = AppSettings::new("".to_string(), "en".to_string());
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
@@ -210,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_language_code_too_long() {
-        let result = AppSettings::new("Dark".to_string(), "a".repeat(11));
+        let result = AppSettings::new("Dark".to_string(), "a".repeat(51));
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),

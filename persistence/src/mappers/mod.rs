@@ -4,7 +4,7 @@
 //! entities and core-layer models. This keeps the persistence entities clean
 //! and maintains proper dependency direction (persistence depends on core, not vice versa).
 
+pub mod app_settings_mapper;
+pub mod profile_mapper;
 pub mod user_mapper;
 pub mod user_settings_mapper;
-pub mod profile_mapper;
-pub mod app_settings_mapper;

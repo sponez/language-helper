@@ -131,7 +131,8 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
         target_language: &str,
     ) -> Result<Profile, CoreError> {
         self.profile_repository
-            .find_by_username_and_target_language(username, target_language).await?
+            .find_by_username_and_target_language(username, target_language)
+            .await?
             .ok_or_else(|| CoreError::not_found("Profile", target_language))
     }
 
@@ -175,7 +176,12 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
         target_language: &str,
     ) -> Result<Profile, CoreError> {
         // Business logic: ensure user exists
-        if self.user_repository.find_by_username(username).await?.is_none() {
+        if self
+            .user_repository
+            .find_by_username(username)
+            .await?
+            .is_none()
+        {
             return Err(CoreError::not_found("User", username));
         }
 
@@ -227,7 +233,8 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     ) -> Result<Profile, CoreError> {
         let mut profile = self
             .profile_repository
-            .find_by_username_and_target_language(username, target_language).await?
+            .find_by_username_and_target_language(username, target_language)
+            .await?
             .ok_or_else(|| CoreError::not_found("Profile", target_language))?;
 
         profile.update_last_activity();
@@ -265,8 +272,15 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// }
     /// # }
     /// ```
-    pub async fn delete_profile(&self, username: &str, target_language: &str) -> Result<(), CoreError> {
-        let deleted = self.profile_repository.delete(username, target_language).await?;
+    pub async fn delete_profile(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<(), CoreError> {
+        let deleted = self
+            .profile_repository
+            .delete(username, target_language)
+            .await?;
         if !deleted {
             return Err(CoreError::not_found("Profile", target_language));
         }

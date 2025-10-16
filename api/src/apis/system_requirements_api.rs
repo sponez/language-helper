@@ -25,7 +25,10 @@ pub trait SystemRequirementsApi: Send + Sync {
     /// # Errors
     ///
     /// Returns an error if the system check fails.
-    fn check_model_compatibility(&self, model_name: &str) -> Result<SystemCompatibilityDto, ApiError>;
+    fn check_model_compatibility(
+        &self,
+        model_name: &str,
+    ) -> Result<SystemCompatibilityDto, ApiError>;
 
     /// Gets a list of all models that are compatible with the current system.
     ///
@@ -51,7 +54,10 @@ pub trait SystemRequirementsApi: Send + Sync {
     /// # Errors
     ///
     /// Returns an error if the system check fails.
-    fn check_multiple_models(&self, model_names: &[&str]) -> Result<Vec<SystemCompatibilityDto>, ApiError>;
+    fn check_multiple_models(
+        &self,
+        model_names: &[&str],
+    ) -> Result<Vec<SystemCompatibilityDto>, ApiError>;
 
     /// Checks if Ollama is installed and accessible.
     ///

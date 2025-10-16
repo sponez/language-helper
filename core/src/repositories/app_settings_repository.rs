@@ -2,9 +2,9 @@
 //!
 //! This module defines the repository trait for app settings persistence operations.
 
-use async_trait::async_trait;
-use crate::models::app_settings::AppSettings;
 use crate::errors::CoreError;
+use crate::models::app_settings::AppSettings;
+use async_trait::async_trait;
 
 /// Repository trait for app settings persistence operations.
 #[async_trait]

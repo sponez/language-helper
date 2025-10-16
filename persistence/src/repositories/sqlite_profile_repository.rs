@@ -311,11 +311,7 @@ impl SqliteProfileRepository {
     /// * `Ok(true)` - If the profile was deleted
     /// * `Ok(false)` - If the profile didn't exist
     /// * `Err(PersistenceError)` - If the delete operation fails
-    pub fn delete(
-        &self,
-        username: &str,
-        target_language: &str
-    ) -> Result<bool, PersistenceError> {
+    pub fn delete(&self, username: &str, target_language: &str) -> Result<bool, PersistenceError> {
         let conn = self.connection.lock().map_err(|e| {
             PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
         })?;
@@ -491,11 +487,7 @@ impl PersistenceProfileRepository for SqliteProfileRepository {
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    async fn delete(
-        &self,
-        username: &str,
-        target_language: &str
-    ) -> Result<bool, Self::Error> {
+    async fn delete(&self, username: &str, target_language: &str) -> Result<bool, Self::Error> {
         let username = username.to_string();
         let target_language = target_language.to_string();
         let conn = self.connection.clone();

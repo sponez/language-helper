@@ -64,8 +64,7 @@ impl AppConfig {
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("data/users.db"));
 
-        let data_dir = std::env::var("LH_DATA_DIR")
-            .unwrap_or_else(|_| "data".to_string());
+        let data_dir = std::env::var("LH_DATA_DIR").unwrap_or_else(|_| "data".to_string());
 
         Self {
             database_path,

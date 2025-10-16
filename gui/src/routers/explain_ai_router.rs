@@ -1,14 +1,15 @@
 //! AI Explain router for getting explanations from the AI assistant.
 
-use std::rc::Rc;
+use iced::Task;
+use std::sync::Arc;
 
-use iced::widget::{button, column, container, row, text, text_input, scrollable, Container};
+use iced::widget::{button, column, container, row, scrollable, text, text_input, Container};
 use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
-use crate::iced_params::THEMES;
+// Removed iced_params import
 use crate::models::{ProfileView, UserView};
 use crate::router::{self, RouterEvent, RouterNode};
 
@@ -27,9 +28,10 @@ pub struct ExplainAIRouter {
     /// User view with all user data
     user_view: UserView,
     /// Currently selected profile
+    #[allow(dead_code)]
     profile: ProfileView,
     /// API instance for backend communication
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Target language being learned
@@ -41,7 +43,12 @@ pub struct ExplainAIRouter {
 }
 
 impl ExplainAIRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(
+        user_view: UserView,
+        profile: ProfileView,
+        app_api: Arc<dyn AppApi>,
+        app_state: AppState,
+    ) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -72,6 +79,7 @@ impl ExplainAIRouter {
                 }
 
                 // Temporarily show loading message (will be visible briefly before blocking call completes)
+                // Note: This is a dynamic message that will be replaced, so we use English as fallback
                 self.response_text = "Response is being generated...".to_string();
 
                 // Get assistant settings and call explain API using blocking runtime
@@ -80,7 +88,9 @@ impl ExplainAIRouter {
                 let message_text = self.input_text.clone();
 
                 // Get user's interface language (defaults to "en-US" if not set)
-                let user_language = self.user_view.settings
+                let user_language = self
+                    .user_view
+                    .settings
                     .as_ref()
                     .map(|s| s.language.clone())
                     .unwrap_or_else(|| "en-US".to_string());
@@ -88,7 +98,8 @@ impl ExplainAIRouter {
                 let runtime = tokio::runtime::Runtime::new().unwrap();
                 let result = runtime.block_on(async {
                     // Load assistant settings
-                    let settings = self.app_api
+                    let settings = self
+                        .app_api
                         .profile_api()
                         .get_assistant_settings(&username, &target_language)
                         .await?;
@@ -112,46 +123,25 @@ impl ExplainAIRouter {
 
                 None
             }
-            Message::Back => {
-                Some(RouterEvent::Pop)
-            }
+            Message::Back => Some(RouterEvent::Pop),
         }
     }
 
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Title
-        let title = localized_text(
-            &i18n,
-            "explain-ai-title",
-            current_font,
-            24,
-        );
+        let title = localized_text(&i18n, "explain-ai-title", 24);
 
         // Input section - phrase input with Send button on the right
-        let input_label = localized_text(
-            &i18n,
-            "explain-ai-input-label",
-            current_font,
-            16,
-        );
+        let input_label = localized_text(&i18n, "explain-ai-input-label", 16);
 
-        let phrase_input = text_input(
-            "Enter a phrase to explain...",
-            &self.input_text,
-        )
-        .on_input(Message::InputChanged)
-        .padding(10)
-        .width(Length::Fill);
+        let phrase_input = text_input("Enter a phrase to explain...", &self.input_text)
+            .on_input(Message::InputChanged)
+            .padding(10)
+            .width(Length::Fill);
 
-        let send_text = localized_text(
-            &i18n,
-            "explain-ai-send",
-            current_font,
-            14,
-        );
+        let send_text = localized_text(&i18n, "explain-ai-send", 14);
 
         // Disable send button when input is empty
         let send_button = button(send_text)
@@ -163,66 +153,36 @@ impl ExplainAIRouter {
             .padding(10)
             .width(Length::Fixed(120.0));
 
-        let input_row = row![
-            phrase_input,
-            send_button,
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
+        let input_row = row![phrase_input, send_button,]
+            .spacing(10)
+            .align_y(Alignment::Center);
 
-        let input_section = column![
-            input_label,
-            input_row,
-        ]
-        .spacing(10)
-        .padding(20);
+        let input_section = column![input_label, input_row,].spacing(10).padding(20);
 
         // Response section - scrollable area for AI output
-        let response_label = localized_text(
-            &i18n,
-            "explain-ai-response-label",
-            current_font,
-            16,
-        );
+        let response_label = localized_text(&i18n, "explain-ai-response-label", 16);
 
         let response_content = if self.response_text.is_empty() {
-            let mut placeholder = text("AI response will appear here...");
-            if let Some(font) = current_font {
-                placeholder = placeholder.font(font);
-            }
-            placeholder = placeholder.size(14);
-            placeholder
+            // Show localized placeholder
+            localized_text(&i18n, "explain-ai-placeholder", 14)
         } else {
-            let mut response = text(&self.response_text);
-            if let Some(font) = current_font {
-                response = response.font(font);
-            }
-            response = response.size(14);
-            response
+            // Show dynamic response with shaping
+            text(&self.response_text)
+                .size(14)
+                .shaping(iced::widget::text::Shaping::Advanced)
         };
 
-        let response_scrollable = scrollable(
-            container(response_content)
-                .padding(15)
-                .width(Length::Fill)
-        )
-        .height(Length::Fill);
+        let response_scrollable =
+            scrollable(container(response_content).padding(15).width(Length::Fill))
+                .height(Length::Fill);
 
-        let response_section = column![
-            response_label,
-            response_scrollable,
-        ]
-        .spacing(10)
-        .padding(20)
-        .height(Length::Fill);
+        let response_section = column![response_label, response_scrollable,]
+            .spacing(10)
+            .padding(20)
+            .height(Length::Fill);
 
         // Back button
-        let back_text = localized_text(
-            &i18n,
-            "explain-ai-back",
-            current_font,
-            14,
-        );
+        let back_text = localized_text(&i18n, "explain-ai-back", 14);
 
         let back_button = button(back_text)
             .on_press(Message::Back)
@@ -230,15 +190,10 @@ impl ExplainAIRouter {
             .width(Length::Fixed(120.0));
 
         // Main layout
-        let main_content = column![
-            title,
-            input_section,
-            response_section,
-            back_button,
-        ]
-        .spacing(10)
-        .padding(20)
-        .align_x(Alignment::Center);
+        let main_content = column![title, input_section, response_section, back_button,]
+            .spacing(10)
+            .padding(20)
+            .align_x(Alignment::Center);
 
         Container::new(main_content)
             .width(Length::Fill)
@@ -262,10 +217,16 @@ impl RouterNode for ExplainAIRouter {
         "explain_ai"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(
+        &mut self,
+        message: &router::Message,
+    ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::ExplainAI(msg) => ExplainAIRouter::update(self, msg.clone()),
-            _ => None,
+            router::Message::ExplainAI(msg) => {
+                let event = ExplainAIRouter::update(self, msg.clone());
+                (event, iced::Task::none())
+            }
+            _ => (None, iced::Task::none()),
         }
     }
 
@@ -274,14 +235,12 @@ impl RouterNode for ExplainAIRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        THEMES
-            .get(&self.app_state.theme())
-            .cloned()
-            .unwrap_or(iced::Theme::Dark)
+        self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         self.refresh_data();
+        incoming_task
     }
 
     fn subscription(&self) -> iced::Subscription<router::Message> {

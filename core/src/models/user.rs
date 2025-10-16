@@ -66,7 +66,7 @@ impl User {
     {
         Self::validate_username(username.as_ref())?;
         Ok(Self {
-            username: username.into()
+            username: username.into(),
         })
     }
 

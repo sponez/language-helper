@@ -151,12 +151,8 @@ mod tests {
 
     #[test]
     fn test_profile_entity_with_fields() {
-        let entity = ProfileEntity::with_fields(
-            "user1".to_string(),
-            "french".to_string(),
-            1000,
-            2000,
-        );
+        let entity =
+            ProfileEntity::with_fields("user1".to_string(), "french".to_string(), 1000, 2000);
 
         assert_eq!(entity.username, "user1");
         assert_eq!(entity.target_language, "french");

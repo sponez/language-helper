@@ -3,11 +3,16 @@
 //! This is the main entry point for the Language Helper application.
 //! It sets up the dependency injection, initializes all layers, and runs the GUI.
 
-use std::rc::Rc;
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use iced::{window, Element, Subscription, Task};
+use std::sync::Arc;
 
-use lh_core::api_impl::{AiAssistantApiImpl, AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl, SystemRequirementsApiImpl, UsersApiImpl};
+use iced::{Element, Subscription, Task};
+
+use lh_core::api_impl::{
+    AiAssistantApiImpl, AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl, SystemRequirementsApiImpl,
+    UsersApiImpl,
+};
 use lh_core::repositories::adapters::{
     AppSettingsRepositoryAdapter, ProfileDbRepositoryAdapter, ProfileRepositoryAdapter,
     UserRepositoryAdapter, UserSettingsRepositoryAdapter,
@@ -24,7 +29,7 @@ use lh_persistence::{
 
 use gui::app_state::AppState;
 use gui::router::{Message, RouterNode, RouterStack};
-use gui::routers::user_list_router::UserListRouter;
+use gui::routers::main_screen::router::MainScreenRouter;
 use gui::runtime_util::block_on;
 
 mod config;
@@ -44,16 +49,14 @@ impl LanguageHelperApp {
     ///
     /// # Arguments
     ///
-    /// * `app_api` - The application API providing access to business logic
+    /// * `app_api_rc` - The application API providing access to business logic (wrapped in Arc for cloning)
     ///
     /// # Returns
     ///
     /// A tuple containing:
     /// - The new `LanguageHelperApp` instance
     /// - An initial task (currently none)
-    fn new(app_api: Box<dyn lh_api::app_api::AppApi>) -> (Self, Task<Message>) {
-        let app_api_rc: Rc<dyn lh_api::app_api::AppApi> = Rc::from(app_api);
-
+    fn new(app_api_rc: Arc<dyn lh_api::app_api::AppApi>) -> (Self, Task<Message>) {
         // Load initial app settings to create AppState
         let app_settings = block_on(app_api_rc.app_settings_api().get_app_settings())
             .expect("Failed to load app settings");
@@ -61,13 +64,15 @@ impl LanguageHelperApp {
         // Create global app state
         let app_state = AppState::new(app_settings.theme, app_settings.language);
 
-        let root_router: Box<dyn RouterNode> = Box::new(UserListRouter::new(
-            app_api_rc,
-            app_state,
-        ));
+        // Create MainScreenRouter - it returns (router, task)
+        let (main_screen_router, init_task) = MainScreenRouter::new(app_api_rc, app_state);
+        let root_router: Box<dyn RouterNode> = Box::new(main_screen_router);
         let router_stack = RouterStack::new(root_router);
 
-        (Self { router_stack }, Task::none())
+        // Map the init task from MainScreen Message to router Message
+        let mapped_task = init_task.map(Message::MainScreen);
+
+        (Self { router_stack }, mapped_task)
     }
 
     /// Handles application messages and updates state.
@@ -84,13 +89,19 @@ impl LanguageHelperApp {
     /// A task to be executed by the Iced runtime. If the application should exit,
     /// returns a task to close the window.
     fn update(&mut self, message: Message) -> Task<Message> {
-        let should_exit = self.router_stack.update(message).unwrap_or(false);
-
-        if should_exit {
-            // Close the window to exit the application
-            window::get_latest().and_then(|id| window::close(id))
-        } else {
-            Task::none()
+        match self.router_stack.update(message) {
+            Ok((should_exit, task)) => {
+                if should_exit {
+                    // Exit the application
+                    Task::batch(vec![task, iced::exit()])
+                } else {
+                    task
+                }
+            }
+            Err(e) => {
+                eprintln!("Router stack error: {}", e);
+                Task::none()
+            }
         }
     }
 
@@ -108,6 +119,15 @@ impl LanguageHelperApp {
 
     fn theme(&self) -> iced::Theme {
         self.router_stack.theme()
+    }
+
+    /// Returns the application window title.
+    ///
+    /// # Returns
+    ///
+    /// The title string for the application window
+    fn title(&self) -> String {
+        String::from("Language Helper")
     }
 
     /// Returns subscriptions for the current router.
@@ -221,37 +241,44 @@ fn main() -> iced::Result {
     let app_settings_api = AppSettingsApiImpl::new(app_settings_service);
     let system_requirements_api = SystemRequirementsApiImpl::new();
     let ai_assistant_api = AiAssistantApiImpl::new();
-    let app_api = AppApiImpl::new(users_api, app_settings_api, profiles_api, system_requirements_api, ai_assistant_api);
+    let app_api = AppApiImpl::new(
+        users_api,
+        app_settings_api,
+        profiles_api,
+        system_requirements_api,
+        ai_assistant_api,
+    );
 
-    // 5. Box the AppApi for trait object usage
-    let app_api_boxed: Box<dyn lh_api::app_api::AppApi> = Box::new(app_api);
+    // 5. Wrap the AppApi in Arc for cloning in the boot closure
+    let app_api_rc: Arc<dyn lh_api::app_api::AppApi> = Arc::new(app_api);
 
     // 6. Load embedded fonts
     let fonts = vec![
         // Noto Sans for Latin/Cyrillic
-        include_bytes!("../../gui/assets/fonts/NotoSans-Regular.ttf").as_slice(),
+        include_bytes!("assets/fonts/NotoSans-Regular.ttf").as_slice(),
         // Noto Sans Arabic
-        include_bytes!("../../gui/assets/fonts/NotoSansArabic-Regular.ttf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansArabic-Regular.ttf").as_slice(),
         // Noto Sans Devanagari (Hindi)
-        include_bytes!("../../gui/assets/fonts/NotoSansDevanagari-Regular.ttf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansDevanagari-Regular.ttf").as_slice(),
         // Noto Sans Bengali
-        include_bytes!("../../gui/assets/fonts/NotoSansBengali-Regular.ttf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansBengali-Regular.ttf").as_slice(),
         // Noto Sans SC (Chinese Simplified)
-        include_bytes!("../../gui/assets/fonts/NotoSansSC-Regular.otf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansSC-Regular.otf").as_slice(),
         // Noto Sans JP (Japanese)
-        include_bytes!("../../gui/assets/fonts/NotoSansJP-Regular.otf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansJP-Regular.otf").as_slice(),
         // Noto Sans KR (Korean)
-        include_bytes!("../../gui/assets/fonts/NotoSansKR-Regular.otf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansKR-Regular.otf").as_slice(),
         // Noto Sans Thai
-        include_bytes!("../../gui/assets/fonts/NotoSansThai-Regular.ttf").as_slice(),
+        include_bytes!("assets/fonts/NotoSansThai-Regular.ttf").as_slice(),
     ];
 
     // 7. Run the iced application with the injected dependencies and fonts
     iced::application(
-        "Language Helper",
+        move || LanguageHelperApp::new(app_api_rc.clone()),
         LanguageHelperApp::update,
         LanguageHelperApp::view,
     )
+    .title(LanguageHelperApp::title)
     .theme(LanguageHelperApp::theme)
     .subscription(LanguageHelperApp::subscription)
     .font(fonts[0]) // Noto Sans (default)
@@ -262,5 +289,5 @@ fn main() -> iced::Result {
     .font(fonts[5]) // Japanese (JP)
     .font(fonts[6]) // Korean (KR)
     .font(fonts[7]) // Thai
-    .run_with(|| LanguageHelperApp::new(app_api_boxed))
+    .run()
 }

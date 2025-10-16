@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// Request body for Ollama generate API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OllamaGenerateRequest {
-    /// Model name (e.g., "llama3.2", "qwen2.5:7b-instruct-q5_K_M")
+    /// Model name
     pub model: String,
     /// The prompt/question to send to the model
     pub prompt: String,

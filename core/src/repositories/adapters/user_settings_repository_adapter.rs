@@ -1,9 +1,9 @@
 //! UserSettings repository adapter for mapping persistence errors to core errors.
 
-use async_trait::async_trait;
-use crate::models::user_settings::UserSettings;
 use crate::errors::CoreError;
+use crate::models::user_settings::UserSettings;
 use crate::repositories::user_settings_repository::UserSettingsRepository;
+use async_trait::async_trait;
 
 /// Trait representing a persistence-layer user settings repository.
 #[async_trait]
@@ -15,7 +15,11 @@ pub trait PersistenceUserSettingsRepository: Send + Sync {
     async fn find_by_username(&self, username: &str) -> Result<Option<UserSettings>, Self::Error>;
 
     /// Saves user settings.
-    async fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, Self::Error>;
+    async fn save(
+        &self,
+        username: &str,
+        settings: UserSettings,
+    ) -> Result<UserSettings, Self::Error>;
 
     /// Deletes user settings by username.
     async fn delete(&self, username: &str) -> Result<bool, Self::Error>;
@@ -44,7 +48,11 @@ impl<R: PersistenceUserSettingsRepository> UserSettingsRepository
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    async fn save(&self, username: &str, settings: UserSettings) -> Result<UserSettings, CoreError> {
+    async fn save(
+        &self,
+        username: &str,
+        settings: UserSettings,
+    ) -> Result<UserSettings, CoreError> {
         self.repository
             .save(username, settings)
             .await

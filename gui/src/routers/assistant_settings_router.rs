@@ -1,10 +1,10 @@
 //! Assistant settings router for configuring AI model options.
 
+use iced::Task;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
-use futures::stream;
 use iced::widget::{button, column, container, pick_list, row, text, text_input, Container};
 use iced::{Alignment, Background, Color, Element, Length, Subscription};
 use lh_api::app_api::AppApi;
@@ -12,7 +12,6 @@ use lh_api::models::system_requirements::{OllamaStatusDto, SystemCompatibilityDt
 
 use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
-use crate::iced_params::THEMES;
 use crate::models::{ProfileView, UserView};
 use crate::router::{self, RouterEvent, RouterNode};
 
@@ -86,7 +85,7 @@ pub struct AssistantSettingsRouter {
     #[allow(dead_code)]
     profile: ProfileView,
     /// API instance for backend communication
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Selected model strength
@@ -118,7 +117,12 @@ pub struct AssistantSettingsRouter {
 }
 
 impl AssistantSettingsRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(
+        user_view: UserView,
+        profile: ProfileView,
+        app_api: Arc<dyn AppApi>,
+        app_state: AppState,
+    ) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -129,37 +133,50 @@ impl AssistantSettingsRouter {
         let target_language = profile.target_language.clone();
 
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        let loaded_settings = runtime.block_on(async {
-            app_api.profile_api().get_assistant_settings(&username, &target_language).await
-        }).ok();
+        let loaded_settings = runtime
+            .block_on(async {
+                app_api
+                    .profile_api()
+                    .get_assistant_settings(&username, &target_language)
+                    .await
+            })
+            .ok();
 
         // Set initial values based on loaded settings
-        let (selected_model, api_endpoint, api_key, api_model_name) = if let Some(settings_dto) = loaded_settings {
-            let selected = if let Some(ref ai_model) = settings_dto.ai_model {
-                // Map lowercase to proper case
-                match ai_model.to_lowercase().as_str() {
-                    "api" => "API".to_string(),
-                    "tiny" => "Tiny".to_string(),
-                    "light" => "Light".to_string(),
-                    "weak" => "Weak".to_string(),
-                    "medium" => "Medium".to_string(),
-                    "strong" => "Strong".to_string(),
-                    _ => ai_model.clone(),
-                }
-            } else {
-                "API".to_string() // Default if no model selected
-            };
+        let (selected_model, api_endpoint, api_key, api_model_name) =
+            if let Some(settings_dto) = loaded_settings {
+                let selected = if let Some(ref ai_model) = settings_dto.ai_model {
+                    // Map lowercase to proper case
+                    match ai_model.to_lowercase().as_str() {
+                        "api" => "API".to_string(),
+                        "tiny" => "Tiny".to_string(),
+                        "light" => "Light".to_string(),
+                        "weak" => "Weak".to_string(),
+                        "medium" => "Medium".to_string(),
+                        "strong" => "Strong".to_string(),
+                        _ => ai_model.clone(),
+                    }
+                } else {
+                    "API".to_string() // Default if no model selected
+                };
 
-            (
-                selected,
-                settings_dto.api_endpoint.unwrap_or_else(|| "https://api.openai.com/v1/responses".to_string()),
-                settings_dto.api_key.unwrap_or_default(),
-                settings_dto.api_model_name.unwrap_or_default(),
-            )
-        } else {
-            // No settings found - use defaults with OpenAI endpoint
-            ("API".to_string(), "https://api.openai.com/v1/responses".to_string(), String::new(), String::new())
-        };
+                (
+                    selected,
+                    settings_dto
+                        .api_endpoint
+                        .unwrap_or_else(|| "https://api.openai.com/v1/responses".to_string()),
+                    settings_dto.api_key.unwrap_or_default(),
+                    settings_dto.api_model_name.unwrap_or_default(),
+                )
+            } else {
+                // No settings found - use defaults with OpenAI endpoint
+                (
+                    "API".to_string(),
+                    "https://api.openai.com/v1/responses".to_string(),
+                    String::new(),
+                    String::new(),
+                )
+            };
 
         let router = Self {
             user_view,
@@ -196,7 +213,11 @@ impl AssistantSettingsRouter {
         // Check all models
         let all_models = vec!["Tiny", "Light", "Weak", "Medium", "Strong", "API"];
 
-        match self.app_api.system_requirements_api().check_multiple_models(&all_models) {
+        match self
+            .app_api
+            .system_requirements_api()
+            .check_multiple_models(&all_models)
+        {
             Ok(compatibility_list) => {
                 // Store compatibility info for each model
                 let mut compat_map = self.model_compatibility.borrow_mut();
@@ -278,7 +299,8 @@ impl AssistantSettingsRouter {
                 // Show modal and begin launch sequence
                 *self.show_launch_modal.borrow_mut() = true;
                 *self.launch_status.borrow_mut() = LaunchStatus::CheckingServer;
-                *self.launch_progress_message.borrow_mut() = "Checking Ollama server status...".to_string();
+                *self.launch_progress_message.borrow_mut() =
+                    "Checking Ollama server status...".to_string();
                 *self.launch_error_message.borrow_mut() = None;
 
                 // Get the model name we want to launch
@@ -290,7 +312,8 @@ impl AssistantSettingsRouter {
                         if !is_running {
                             // Server not running - start it asynchronously
                             *self.launch_status.borrow_mut() = LaunchStatus::StartingServer;
-                            *self.launch_progress_message.borrow_mut() = "Starting Ollama server, please wait...".to_string();
+                            *self.launch_progress_message.borrow_mut() =
+                                "Starting Ollama server, please wait...".to_string();
                             *self.async_operation.borrow_mut() = AsyncOperation::StartingServer;
                         } else {
                             // Server running - check models
@@ -299,7 +322,8 @@ impl AssistantSettingsRouter {
                     }
                     Err(e) => {
                         *self.launch_status.borrow_mut() = LaunchStatus::Error;
-                        *self.launch_error_message.borrow_mut() = Some(format!("Failed to check server status: {:?}", e));
+                        *self.launch_error_message.borrow_mut() =
+                            Some(format!("Failed to check server status: {:?}", e));
                     }
                 }
 
@@ -322,7 +346,10 @@ impl AssistantSettingsRouter {
 
                         let runtime = tokio::runtime::Runtime::new().unwrap();
                         let clear_result = runtime.block_on(async {
-                            self.app_api.profile_api().clear_assistant_settings(&username, &target_language).await
+                            self.app_api
+                                .profile_api()
+                                .clear_assistant_settings(&username, &target_language)
+                                .await
                         });
 
                         match clear_result {
@@ -337,7 +364,7 @@ impl AssistantSettingsRouter {
                         // Refresh running models list
                         self.check_running_models();
                         // Trigger refresh to update UI
-                        self.refresh();
+                        let _ = self.refresh(Task::none());
                     }
                     Err(e) => {
                         eprintln!("Failed to stop model '{}': {:?}", model_name, e);
@@ -386,7 +413,8 @@ impl AssistantSettingsRouter {
                         if !is_running {
                             // Server not running - start it asynchronously
                             *self.launch_status.borrow_mut() = LaunchStatus::StartingServer;
-                            *self.launch_progress_message.borrow_mut() = "Starting Ollama server, please wait...".to_string();
+                            *self.launch_progress_message.borrow_mut() =
+                                "Starting Ollama server, please wait...".to_string();
                             *self.async_operation.borrow_mut() = AsyncOperation::StartingServer;
                         } else {
                             // Server running - check models
@@ -395,7 +423,8 @@ impl AssistantSettingsRouter {
                     }
                     Err(e) => {
                         *self.launch_status.borrow_mut() = LaunchStatus::Error;
-                        *self.launch_error_message.borrow_mut() = Some(format!("Failed to check server status: {:?}", e));
+                        *self.launch_error_message.borrow_mut() =
+                            Some(format!("Failed to check server status: {:?}", e));
                     }
                 }
 
@@ -418,7 +447,10 @@ impl AssistantSettingsRouter {
                 // Save to database
                 let runtime = tokio::runtime::Runtime::new().unwrap();
                 let result = runtime.block_on(async {
-                    self.app_api.profile_api().update_assistant_settings(&username, &target_language, settings_dto).await
+                    self.app_api
+                        .profile_api()
+                        .update_assistant_settings(&username, &target_language, settings_dto)
+                        .await
                 });
 
                 match result {
@@ -438,7 +470,8 @@ impl AssistantSettingsRouter {
                 let model_name = self.get_ollama_model_name(&self.selected_model);
 
                 *self.launch_status.borrow_mut() = LaunchStatus::PullingModel;
-                *self.launch_progress_message.borrow_mut() = "Pull in progress, please wait...".to_string();
+                *self.launch_progress_message.borrow_mut() =
+                    "Pull in progress, please wait...".to_string();
                 *self.async_operation.borrow_mut() = AsyncOperation::PullingModel(model_name);
 
                 None
@@ -471,7 +504,8 @@ impl AssistantSettingsRouter {
                     }
                     Err(e) => {
                         *self.launch_status.borrow_mut() = LaunchStatus::Error;
-                        *self.launch_error_message.borrow_mut() = Some(format!("Failed to start server: {}", e));
+                        *self.launch_error_message.borrow_mut() =
+                            Some(format!("Failed to start server: {}", e));
                     }
                 }
                 None
@@ -484,12 +518,15 @@ impl AssistantSettingsRouter {
                         // Model pulled successfully, now launch it
                         let model_name = self.get_ollama_model_name(&self.selected_model);
                         *self.launch_status.borrow_mut() = LaunchStatus::LaunchingModel;
-                        *self.launch_progress_message.borrow_mut() = format!("Launching model '{}'...", model_name);
-                        *self.async_operation.borrow_mut() = AsyncOperation::LaunchingModel(model_name);
+                        *self.launch_progress_message.borrow_mut() =
+                            format!("Launching model '{}'...", model_name);
+                        *self.async_operation.borrow_mut() =
+                            AsyncOperation::LaunchingModel(model_name);
                     }
                     Err(e) => {
                         *self.launch_status.borrow_mut() = LaunchStatus::Error;
-                        *self.launch_error_message.borrow_mut() = Some(format!("Failed to download model: {}", e));
+                        *self.launch_error_message.borrow_mut() =
+                            Some(format!("Failed to download model: {}", e));
                     }
                 }
                 None
@@ -500,7 +537,8 @@ impl AssistantSettingsRouter {
                 match result {
                     Ok(_) => {
                         *self.launch_status.borrow_mut() = LaunchStatus::Complete;
-                        *self.launch_progress_message.borrow_mut() = "Model launched successfully!".to_string();
+                        *self.launch_progress_message.borrow_mut() =
+                            "Model launched successfully!".to_string();
 
                         // Refresh running models
                         self.check_running_models();
@@ -522,7 +560,14 @@ impl AssistantSettingsRouter {
                         // Save to database
                         let runtime = tokio::runtime::Runtime::new().unwrap();
                         let save_result = runtime.block_on(async {
-                            self.app_api.profile_api().update_assistant_settings(&username, &target_language, settings_dto).await
+                            self.app_api
+                                .profile_api()
+                                .update_assistant_settings(
+                                    &username,
+                                    &target_language,
+                                    settings_dto,
+                                )
+                                .await
                         });
 
                         match save_result {
@@ -536,7 +581,8 @@ impl AssistantSettingsRouter {
                     }
                     Err(e) => {
                         *self.launch_status.borrow_mut() = LaunchStatus::Error;
-                        *self.launch_error_message.borrow_mut() = Some(format!("Failed to launch model: {}", e));
+                        *self.launch_error_message.borrow_mut() =
+                            Some(format!("Failed to launch model: {}", e));
                     }
                 }
                 None
@@ -548,9 +594,7 @@ impl AssistantSettingsRouter {
                 }
                 None
             }
-            Message::Back => {
-                Some(RouterEvent::Pop)
-            }
+            Message::Back => Some(RouterEvent::Pop),
         }
     }
 
@@ -564,12 +608,16 @@ impl AssistantSettingsRouter {
             }
             "Tiny" | "Light" | "Weak" | "Medium" | "Strong" => {
                 // For local models, check if compatible and Ollama installed
-                let is_compatible = self.model_compatibility.borrow()
+                let is_compatible = self
+                    .model_compatibility
+                    .borrow()
                     .get(&self.selected_model)
                     .map(|c| c.is_compatible)
                     .unwrap_or(false);
 
-                let ollama_installed = self.ollama_status.borrow()
+                let ollama_installed = self
+                    .ollama_status
+                    .borrow()
                     .as_ref()
                     .map(|s| s.is_installed)
                     .unwrap_or(false);
@@ -588,7 +636,8 @@ impl AssistantSettingsRouter {
                     let expected_model_name = self.get_ollama_model_name(&self.selected_model);
 
                     // Check if the expected model is running
-                    let is_selected_running = running_models.iter()
+                    let is_selected_running = running_models
+                        .iter()
                         .any(|m| m.contains(&expected_model_name));
 
                     if is_selected_running {
@@ -616,17 +665,22 @@ impl AssistantSettingsRouter {
                 if !model_available {
                     // Model not available - prompt user to download
                     *self.launch_status.borrow_mut() = LaunchStatus::PromptingPull;
-                    *self.launch_progress_message.borrow_mut() = format!("Model '{}' is not installed. Do you want to download it?", model_name);
+                    *self.launch_progress_message.borrow_mut() = format!(
+                        "Model '{}' is not installed. Do you want to download it?",
+                        model_name
+                    );
                 } else {
                     // Model is available, launch it asynchronously
                     *self.launch_status.borrow_mut() = LaunchStatus::LaunchingModel;
-                    *self.launch_progress_message.borrow_mut() = format!("Launching model '{}'...", model_name);
+                    *self.launch_progress_message.borrow_mut() =
+                        format!("Launching model '{}'...", model_name);
                     *self.async_operation.borrow_mut() = AsyncOperation::LaunchingModel(model_name);
                 }
             }
             Err(e) => {
                 *self.launch_status.borrow_mut() = LaunchStatus::Error;
-                *self.launch_error_message.borrow_mut() = Some(format!("Failed to check models: {:?}", e));
+                *self.launch_error_message.borrow_mut() =
+                    Some(format!("Failed to check models: {:?}", e));
             }
         }
     }
@@ -634,75 +688,20 @@ impl AssistantSettingsRouter {
     /// Map model strength to Ollama model name
     fn get_ollama_model_name(&self, model: &str) -> String {
         match model {
-            "Tiny" => "phi3:3.8b-mini-4k-instruct-q4_K_M".to_string(),
+            "Tiny" => "phi4-mini".to_string(),
             "Light" => "phi4".to_string(),
-            "Weak" => "llama3.2:3b-instruct-q8_0".to_string(),
-            "Medium" => "qwen2.5:7b-instruct-q5_K_M".to_string(),
-            "Strong" => "qwen2.5:14b-instruct-q4_K_M".to_string(),
+            "Weak" => "gemma2:2b".to_string(),
+            "Medium" => "aya:8b".to_string(),
+            "Strong" => "gemma2:9b".to_string(),
             _ => model.to_string(),
         }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let async_op = self.async_operation.borrow().clone();
-
-        match async_op {
-            AsyncOperation::None => Subscription::none(),
-            AsyncOperation::StartingServer => {
-                Subscription::run_with_id(
-                    "start_server",
-                    stream::once(async move {
-                        // Call the blocking operation directly - the ollama commands will block
-                        // but we're running in an async context so other UI operations can continue
-                        let result = tokio::task::spawn_blocking(|| {
-                            // Use the ollama_client directly instead of going through app_api
-                            use lh_core::services::ollama_client;
-                            ollama_client::start_server_and_wait()
-                        }).await;
-
-                        match result {
-                            Ok(Ok(_)) => Message::ServerStarted(Ok(())),
-                            Ok(Err(e)) => Message::ServerStarted(Err(e)),
-                            Err(e) => Message::ServerStarted(Err(format!("Task panicked: {}", e))),
-                        }
-                    })
-                )
-            }
-            AsyncOperation::PullingModel(model_name) => {
-                Subscription::run_with_id(
-                    format!("pull_model_{}", model_name),
-                    stream::once(async move {
-                        let result = tokio::task::spawn_blocking(move || {
-                            use lh_core::services::ollama_client;
-                            ollama_client::pull_model(&model_name)
-                        }).await;
-
-                        match result {
-                            Ok(Ok(_)) => Message::ModelPulled(Ok(())),
-                            Ok(Err(e)) => Message::ModelPulled(Err(e)),
-                            Err(e) => Message::ModelPulled(Err(format!("Task panicked: {}", e))),
-                        }
-                    })
-                )
-            }
-            AsyncOperation::LaunchingModel(model_name) => {
-                Subscription::run_with_id(
-                    format!("launch_model_{}", model_name),
-                    stream::once(async move {
-                        let result = tokio::task::spawn_blocking(move || {
-                            use lh_core::services::ollama_client;
-                            ollama_client::run_model(&model_name)
-                        }).await;
-
-                        match result {
-                            Ok(Ok(_)) => Message::ModelLaunched(Ok(())),
-                            Ok(Err(e)) => Message::ModelLaunched(Err(e)),
-                            Err(e) => Message::ModelLaunched(Err(format!("Task panicked: {}", e))),
-                        }
-                    })
-                )
-            }
-        }
+        // TODO: Fix subscription API for Iced 0.14
+        // The async model launching functionality is temporarily disabled
+        // due to API changes in Iced 0.14-dev that require pure functions for subscriptions
+        Subscription::none()
     }
 
     pub fn view(&self) -> Element<'_, Message> {
@@ -714,23 +713,12 @@ impl AssistantSettingsRouter {
         }
 
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Title
-        let title = localized_text(
-            &i18n,
-            "assistant-settings-title",
-            current_font,
-            24,
-        );
+        let title = localized_text(&i18n, "assistant-settings-title", 24);
 
         // Model selection label
-        let model_label = localized_text(
-            &i18n,
-            "assistant-settings-model-label",
-            current_font,
-            16,
-        );
+        let model_label = localized_text(&i18n, "assistant-settings-model-label", 16);
 
         // Model options - show ALL models with status indicators
         let all_models = vec!["Tiny", "Light", "Weak", "Medium", "Strong", "API"];
@@ -748,7 +736,9 @@ impl AssistantSettingsRouter {
                 };
 
                 // Add status indicator
-                let is_compatible = self.model_compatibility.borrow()
+                let is_compatible = self
+                    .model_compatibility
+                    .borrow()
                     .get(model)
                     .map(|c| c.is_compatible)
                     .unwrap_or(false);
@@ -772,7 +762,9 @@ impl AssistantSettingsRouter {
             _ => self.selected_model.clone(),
         };
 
-        let is_current_compatible = self.model_compatibility.borrow()
+        let is_current_compatible = self
+            .model_compatibility
+            .borrow()
             .get(&self.selected_model)
             .map(|c| c.is_compatible)
             .unwrap_or(false);
@@ -815,36 +807,30 @@ impl AssistantSettingsRouter {
                 }
             },
         )
-        .width(Length::Fixed(200.0));
+        .width(Length::Fixed(200.0))
+        .text_shaping(iced::widget::text::Shaping::Advanced);
 
-        let model_row = row![
-            model_label,
-            model_picker,
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
+        let model_row = row![model_label, model_picker,]
+            .spacing(10)
+            .align_y(Alignment::Center);
 
         // Content based on selected model
         let content_section = match self.selected_model.as_str() {
             "Tiny" | "Light" | "Weak" | "Medium" | "Strong" => {
                 // Show system requirements with status indicators
-                let compat = self.model_compatibility.borrow()
+                let compat = self
+                    .model_compatibility
+                    .borrow()
                     .get(&self.selected_model)
                     .cloned();
 
-                let mut requirements_column = column![]
-                    .spacing(10)
-                    .padding(20)
-                    .align_x(Alignment::Start);
+                let mut requirements_column =
+                    column![].spacing(10).padding(20).align_x(Alignment::Start);
 
                 if let Some(compat_info) = compat {
                     // Title
-                    let requirements_title = localized_text(
-                        &i18n,
-                        "assistant-settings-requirements-title",
-                        current_font,
-                        18,
-                    );
+                    let requirements_title =
+                        localized_text(&i18n, "assistant-settings-requirements-title", 18);
                     requirements_column = requirements_column.push(requirements_title);
 
                     // Display each requirement detail
@@ -855,9 +841,15 @@ impl AssistantSettingsRouter {
                         let (_status_symbol, status_color, requirement_text) = if is_gpu {
                             // GPU requirement - show as informational (blue/gray)
                             let gpu_text = if requirement.required == "Not required" {
-                                format!("ℹ {}: {}", requirement.requirement_type, requirement.required)
+                                format!(
+                                    "ℹ {}: {}",
+                                    requirement.requirement_type, requirement.required
+                                )
                             } else {
-                                format!("ℹ {}: {}", requirement.requirement_type, requirement.required)
+                                format!(
+                                    "ℹ {}: {}",
+                                    requirement.requirement_type, requirement.required
+                                )
                             };
                             ("", Color::from_rgb(0.4, 0.4, 0.8), gpu_text) // Blue-ish for info
                         } else {
@@ -879,13 +871,11 @@ impl AssistantSettingsRouter {
                             (status_symbol, status_color, req_text)
                         };
 
-                        let mut requirement_text_widget = text(requirement_text)
+                        // Dynamic content - use shaping
+                        let requirement_text_widget = text(requirement_text)
                             .size(14)
-                            .color(status_color);
-
-                        if let Some(font) = current_font {
-                            requirement_text_widget = requirement_text_widget.font(font);
-                        }
+                            .color(status_color)
+                            .shaping(iced::widget::text::Shaping::Advanced);
 
                         let requirement_row = row![requirement_text_widget]
                             .spacing(5)
@@ -896,12 +886,8 @@ impl AssistantSettingsRouter {
 
                     // Overall compatibility message
                     if !compat_info.is_compatible {
-                        let incompatible_message = localized_text(
-                            &i18n,
-                            "assistant-settings-incompatible",
-                            current_font,
-                            14,
-                        );
+                        let incompatible_message =
+                            localized_text(&i18n, "assistant-settings-incompatible", 14);
                         requirements_column = requirements_column
                             .push(text("").size(10)) // Spacer
                             .push(incompatible_message);
@@ -910,62 +896,51 @@ impl AssistantSettingsRouter {
                     // Ollama status display
                     requirements_column = requirements_column.push(text("").size(10)); // Spacer
 
-                    let ollama_is_installed = self.ollama_status.borrow()
+                    let ollama_is_installed = self
+                        .ollama_status
+                        .borrow()
                         .as_ref()
                         .map(|s| s.is_installed)
                         .unwrap_or(false);
 
                     if ollama_is_installed {
-                        // Show installed message in green
-                        let ollama_message = self.ollama_status.borrow()
+                        // Show installed message in green (dynamic content - use shaping)
+                        let ollama_message = self
+                            .ollama_status
+                            .borrow()
                             .as_ref()
                             .map(|s| s.message.clone())
                             .unwrap_or_default();
 
-                        let mut ollama_text_widget = text(ollama_message)
+                        let ollama_text_widget = text(ollama_message)
                             .size(14)
-                            .color(Color::from_rgb(0.0, 0.8, 0.0));
-
-                        if let Some(font) = current_font {
-                            ollama_text_widget = ollama_text_widget.font(font);
-                        }
+                            .color(Color::from_rgb(0.0, 0.8, 0.0))
+                            .shaping(iced::widget::text::Shaping::Advanced);
 
                         requirements_column = requirements_column.push(ollama_text_widget);
                     } else {
                         // Show "not installed" message with clickable link
-                        let mut not_installed_text = text("Ollama is not installed. To install, go to ")
+                        let not_installed_prefix =
+                            localized_text(&i18n, "assistant-settings-ollama-not-installed", 14);
+
+                        let link_text = text("ollama.com")
                             .size(14)
-                            .color(Color::from_rgb(0.8, 0.6, 0.0));
+                            .color(Color::from_rgb(0.2, 0.4, 0.8))
+                            .shaping(iced::widget::text::Shaping::Advanced);
 
-                        if let Some(font) = current_font {
-                            not_installed_text = not_installed_text.font(font);
-                        }
+                        let link_button = button(link_text)
+                            .on_press(Message::OpenUrl("https://ollama.com".to_string()))
+                            .style(button::text);
 
-                        let link_button = button(
-                            text("ollama.com")
-                                .size(14)
-                                .color(Color::from_rgb(0.2, 0.4, 0.8)) // Blue for link
-                        )
-                        .on_press(Message::OpenUrl("https://ollama.com".to_string()))
-                        .style(button::text);
-
-                        let ollama_row = row![
-                            not_installed_text,
-                            link_button,
-                        ]
-                        .spacing(5)
-                        .align_y(Alignment::Center);
+                        let ollama_row = row![not_installed_prefix, link_button,]
+                            .spacing(5)
+                            .align_y(Alignment::Center);
 
                         requirements_column = requirements_column.push(ollama_row);
                     }
                 } else {
                     // No compatibility data available
-                    let no_data_message = localized_text(
-                        &i18n,
-                        "assistant-settings-no-data",
-                        current_font,
-                        14,
-                    );
+                    let no_data_message = localized_text(&i18n, "assistant-settings-no-data", 14);
                     requirements_column = requirements_column.push(no_data_message);
                 }
 
@@ -973,12 +948,7 @@ impl AssistantSettingsRouter {
             }
             "API" => {
                 // Show API configuration fields
-                let endpoint_label = localized_text(
-                    &i18n,
-                    "assistant-settings-api-endpoint",
-                    current_font,
-                    16,
-                );
+                let endpoint_label = localized_text(&i18n, "assistant-settings-api-endpoint", 16);
 
                 // Hardcode OpenAI API endpoint (read-only)
                 let display_endpoint = if self.api_endpoint.is_empty() {
@@ -987,154 +957,95 @@ impl AssistantSettingsRouter {
                     &self.api_endpoint
                 };
 
-                let endpoint_input = text_input(
-                    "https://api.openai.com/v1/responses",
-                    display_endpoint,
-                )
-                // No on_input handler - field is read-only
-                .padding(10)
-                .width(Length::Fixed(300.0));
+                let endpoint_input =
+                    text_input("https://api.openai.com/v1/responses", display_endpoint)
+                        // No on_input handler - field is read-only
+                        .padding(10)
+                        .width(Length::Fixed(300.0));
 
-                let endpoint_row = row![
-                    endpoint_label,
-                    endpoint_input,
-                ]
-                .spacing(10)
-                .align_y(Alignment::Center);
+                let endpoint_row = row![endpoint_label, endpoint_input,]
+                    .spacing(10)
+                    .align_y(Alignment::Center);
 
-                let key_label = localized_text(
-                    &i18n,
-                    "assistant-settings-api-key",
-                    current_font,
-                    16,
-                );
+                let key_label = localized_text(&i18n, "assistant-settings-api-key", 16);
 
-                let key_input = text_input(
-                    "your-api-key",
-                    &self.api_key,
-                )
-                .on_input(Message::ApiKeyChanged)
-                .padding(10)
-                .width(Length::Fixed(300.0))
-                .secure(true);
+                let key_input = text_input("your-api-key", &self.api_key)
+                    .on_input(Message::ApiKeyChanged)
+                    .padding(10)
+                    .width(Length::Fixed(300.0))
+                    .secure(true);
 
-                let key_row = row![
-                    key_label,
-                    key_input,
-                ]
-                .spacing(10)
-                .align_y(Alignment::Center);
+                let key_row = row![key_label, key_input,]
+                    .spacing(10)
+                    .align_y(Alignment::Center);
 
-                let model_name_label = localized_text(
-                    &i18n,
-                    "assistant-settings-api-model",
-                    current_font,
-                    16,
-                );
+                let model_name_label = localized_text(&i18n, "assistant-settings-api-model", 16);
 
-                let model_name_input = text_input(
-                    "gpt-4",
-                    &self.api_model_name,
-                )
-                .on_input(Message::ApiModelChanged)
-                .padding(10)
-                .width(Length::Fixed(300.0));
+                let model_name_input = text_input("gpt-4", &self.api_model_name)
+                    .on_input(Message::ApiModelChanged)
+                    .padding(10)
+                    .width(Length::Fixed(300.0));
 
-                let model_name_row = row![
-                    model_name_label,
-                    model_name_input,
-                ]
-                .spacing(10)
-                .align_y(Alignment::Center);
+                let model_name_row = row![model_name_label, model_name_input,]
+                    .spacing(10)
+                    .align_y(Alignment::Center);
 
-                column![
-                    endpoint_row,
-                    key_row,
-                    model_name_row,
-                ]
-                .spacing(20)
-                .padding(20)
-                .align_x(Alignment::Center)
-            }
-            _ => {
-                column![]
+                column![endpoint_row, key_row, model_name_row,]
                     .spacing(20)
                     .padding(20)
                     .align_x(Alignment::Center)
             }
+            _ => column![].spacing(20).padding(20).align_x(Alignment::Center),
         };
 
         // Action button (Start/Stop/Change/Save) based on model state
-        let button_row = if let Some((button_message, is_enabled)) = self.get_assistant_button_state() {
-            // Determine button text based on message type
-            let button_text_key = match button_message {
-                Message::StartAssistant => "assistant-settings-start-assistant",
-                Message::StopAssistant => "assistant-settings-stop-assistant",
-                Message::ChangeAssistant => "assistant-settings-change-assistant",
-                Message::SaveApiConfig => "assistant-settings-save-api",
-                _ => "assistant-settings-back", // Fallback
+        let button_row =
+            if let Some((button_message, is_enabled)) = self.get_assistant_button_state() {
+                // Determine button text based on message type
+                let button_text_key = match button_message {
+                    Message::StartAssistant => "assistant-settings-start-assistant",
+                    Message::StopAssistant => "assistant-settings-stop-assistant",
+                    Message::ChangeAssistant => "assistant-settings-change-assistant",
+                    Message::SaveApiConfig => "assistant-settings-save-api",
+                    _ => "assistant-settings-back", // Fallback
+                };
+
+                let button_text = localized_text(&i18n, button_text_key, 14);
+
+                let mut action_button = button(button_text).width(Length::Fixed(160.0)).padding(10);
+
+                if is_enabled {
+                    action_button = action_button.on_press(button_message);
+                }
+
+                // Back button
+                let back_text = localized_text(&i18n, "assistant-settings-back", 14);
+
+                let back_button = button(back_text)
+                    .on_press(Message::Back)
+                    .width(Length::Fixed(120.0))
+                    .padding(10);
+
+                row![action_button, back_button]
+                    .spacing(15)
+                    .align_y(Alignment::Center)
+            } else {
+                // No action button, just back button
+                let back_text = localized_text(&i18n, "assistant-settings-back", 14);
+
+                let back_button = button(back_text)
+                    .on_press(Message::Back)
+                    .width(Length::Fixed(120.0))
+                    .padding(10);
+
+                row![back_button].spacing(15).align_y(Alignment::Center)
             };
 
-            let button_text = localized_text(
-                &i18n,
-                button_text_key,
-                current_font,
-                14,
-            );
-
-            let mut action_button = button(button_text)
-                .width(Length::Fixed(160.0))
-                .padding(10);
-
-            if is_enabled {
-                action_button = action_button.on_press(button_message);
-            }
-
-            // Back button
-            let back_text = localized_text(
-                &i18n,
-                "assistant-settings-back",
-                current_font,
-                14,
-            );
-
-            let back_button = button(back_text)
-                .on_press(Message::Back)
-                .width(Length::Fixed(120.0))
-                .padding(10);
-
-            row![action_button, back_button]
-                .spacing(15)
-                .align_y(Alignment::Center)
-        } else {
-            // No action button, just back button
-            let back_text = localized_text(
-                &i18n,
-                "assistant-settings-back",
-                current_font,
-                14,
-            );
-
-            let back_button = button(back_text)
-                .on_press(Message::Back)
-                .width(Length::Fixed(120.0))
-                .padding(10);
-
-            row![back_button]
-                .spacing(15)
-                .align_y(Alignment::Center)
-        };
-
         // Main content
-        let main_content = column![
-            title,
-            model_row,
-            content_section,
-            button_row,
-        ]
-        .spacing(20)
-        .padding(30)
-        .align_x(Alignment::Center);
+        let main_content = column![title, model_row, content_section, button_row,]
+            .spacing(20)
+            .padding(30)
+            .align_x(Alignment::Center);
 
         let base = Container::new(main_content)
             .width(Length::Fill)
@@ -1149,30 +1060,21 @@ impl AssistantSettingsRouter {
             let error_message = self.launch_error_message.borrow().clone();
 
             // Build modal content based on status
-            let mut modal_content = column![]
-                .spacing(20)
-                .padding(30)
-                .align_x(Alignment::Center);
+            let mut modal_content = column![].spacing(20).padding(30).align_x(Alignment::Center);
 
-            // Progress message
-            let mut progress_text = text(progress_message.clone())
-                .size(16);
-
-            if let Some(font) = current_font {
-                progress_text = progress_text.font(font);
-            }
+            // Progress message (dynamic content - use shaping)
+            let progress_text = text(progress_message.clone())
+                .size(16)
+                .shaping(iced::widget::text::Shaping::Advanced);
 
             modal_content = modal_content.push(progress_text);
 
-            // Error message if present
+            // Error message if present (dynamic content - use shaping)
             if let Some(error_msg) = error_message.clone() {
-                let mut error_text = text(error_msg)
+                let error_text = text(error_msg)
                     .size(14)
-                    .color(Color::from_rgb(0.8, 0.0, 0.0));
-
-                if let Some(font) = current_font {
-                    error_text = error_text.font(font);
-                }
+                    .color(Color::from_rgb(0.8, 0.0, 0.0))
+                    .shaping(iced::widget::text::Shaping::Advanced);
 
                 modal_content = modal_content.push(error_text);
             }
@@ -1181,12 +1083,14 @@ impl AssistantSettingsRouter {
             let button_row = match launch_status {
                 LaunchStatus::PromptingPull => {
                     // Show confirm and cancel buttons
-                    let confirm_btn = button(text("Download"))
+                    let download_text = localized_text(&i18n, "assistant-settings-download", 14);
+                    let confirm_btn = button(download_text)
                         .on_press(Message::ConfirmPull)
                         .padding(10)
                         .width(Length::Fixed(120.0));
 
-                    let cancel_btn = button(text("Cancel"))
+                    let cancel_text = localized_text(&i18n, "assistant-settings-cancel", 14);
+                    let cancel_btn = button(cancel_text)
                         .on_press(Message::CancelLaunch)
                         .padding(10)
                         .width(Length::Fixed(120.0));
@@ -1197,36 +1101,33 @@ impl AssistantSettingsRouter {
                 }
                 LaunchStatus::Complete => {
                     // Show close button
-                    let close_btn = button(text("Close"))
+                    let close_text = localized_text(&i18n, "assistant-settings-close", 14);
+                    let close_btn = button(close_text)
                         .on_press(Message::CloseModal)
                         .padding(10)
                         .width(Length::Fixed(120.0));
 
-                    row![close_btn]
-                        .spacing(15)
-                        .align_y(Alignment::Center)
+                    row![close_btn].spacing(15).align_y(Alignment::Center)
                 }
                 LaunchStatus::Error => {
                     // Show close button
-                    let close_btn = button(text("Close"))
+                    let close_text = localized_text(&i18n, "assistant-settings-close", 14);
+                    let close_btn = button(close_text)
                         .on_press(Message::CloseModal)
                         .padding(10)
                         .width(Length::Fixed(120.0));
 
-                    row![close_btn]
-                        .spacing(15)
-                        .align_y(Alignment::Center)
+                    row![close_btn].spacing(15).align_y(Alignment::Center)
                 }
                 _ => {
                     // Show cancel button for in-progress operations
-                    let cancel_btn = button(text("Cancel"))
+                    let cancel_text = localized_text(&i18n, "assistant-settings-cancel", 14);
+                    let cancel_btn = button(cancel_text)
                         .on_press(Message::CancelLaunch)
                         .padding(10)
                         .width(Length::Fixed(120.0));
 
-                    row![cancel_btn]
-                        .spacing(15)
-                        .align_y(Alignment::Center)
+                    row![cancel_btn].spacing(15).align_y(Alignment::Center)
                 }
             };
 
@@ -1252,7 +1153,7 @@ impl AssistantSettingsRouter {
                     .width(Length::Fill)
                     .height(Length::Fill)
                     .align_x(Alignment::Center)
-                    .align_y(Alignment::Center)
+                    .align_y(Alignment::Center),
             )
             .width(Length::Fill)
             .height(Length::Fill)
@@ -1271,8 +1172,9 @@ impl AssistantSettingsRouter {
 
 impl AssistantSettingsRouter {
     /// Public refresh method for manual initialization
-    pub fn refresh(&mut self) {
+    pub fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         self.refresh_data();
+        incoming_task
     }
 
     /// Refresh data from the API
@@ -1290,10 +1192,16 @@ impl RouterNode for AssistantSettingsRouter {
         "assistant_settings"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(
+        &mut self,
+        message: &router::Message,
+    ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::AssistantSettings(msg) => AssistantSettingsRouter::update(self, msg.clone()),
-            _ => None,
+            router::Message::AssistantSettings(msg) => {
+                let event = AssistantSettingsRouter::update(self, msg.clone());
+                (event, iced::Task::none())
+            }
+            _ => (None, iced::Task::none()),
         }
     }
 
@@ -1302,18 +1210,15 @@ impl RouterNode for AssistantSettingsRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        THEMES
-            .get(&self.app_state.theme())
-            .cloned()
-            .unwrap_or(iced::Theme::Dark)
+        self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         self.refresh_data();
+        incoming_task
     }
 
     fn subscription(&self) -> iced::Subscription<router::Message> {
-        AssistantSettingsRouter::subscription(self)
-            .map(router::Message::AssistantSettings)
+        AssistantSettingsRouter::subscription(self).map(router::Message::AssistantSettings)
     }
 }

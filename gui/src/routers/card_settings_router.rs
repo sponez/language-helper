@@ -3,16 +3,16 @@
 //! NOTE: This router currently stores settings in memory only.
 //! Persistence to the database will be added in a future iteration.
 
-use std::rc::Rc;
+use iced::Task;
+use std::sync::Arc;
 
 use iced::widget::{button, column, pick_list, row, text, text_input, Container};
-use iced::{Alignment, Element, Length};
 use iced::Color;
+use iced::{Alignment, Element, Length};
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
 use crate::i18n_widgets::localized_text;
-use crate::iced_params::THEMES;
 use crate::models::{CardSettingsView, ProfileView, UserView};
 use crate::router::{self, RouterEvent, RouterNode};
 
@@ -35,11 +35,12 @@ pub struct CardSettingsRouter {
     /// User view with all user data
     user_view: UserView,
     /// Currently selected profile
+    #[allow(dead_code)]
     profile: ProfileView,
     /// Card settings view model
     settings: CardSettingsView,
     /// API instance for backend communication
-    app_api: Rc<dyn AppApi>,
+    app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n, font)
     app_state: AppState,
     /// Target language being learned
@@ -55,7 +56,12 @@ pub struct CardSettingsRouter {
 }
 
 impl CardSettingsRouter {
-    pub fn new(user_view: UserView, profile: ProfileView, app_api: Rc<dyn AppApi>, app_state: AppState) -> Self {
+    pub fn new(
+        user_view: UserView,
+        profile: ProfileView,
+        app_api: Arc<dyn AppApi>,
+        app_state: AppState,
+    ) -> Self {
         // Update app_state with user's settings if available
         if let Some(ref settings) = user_view.settings {
             app_state.update_settings(settings.theme.clone(), settings.language.clone());
@@ -66,12 +72,16 @@ impl CardSettingsRouter {
 
         // Load settings from database
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        let settings = runtime.block_on(async {
-            app_api.profile_api().get_card_settings(&username, &target_language).await
-        })
-        .ok()
-        .map(|dto| CardSettingsView::from_dto(dto))
-        .unwrap_or_else(|| CardSettingsView::default());
+        let settings = runtime
+            .block_on(async {
+                app_api
+                    .profile_api()
+                    .get_card_settings(&username, &target_language)
+                    .await
+            })
+            .ok()
+            .map(|dto| CardSettingsView::from_dto(dto))
+            .unwrap_or_else(|| CardSettingsView::default());
 
         let cards_per_set_input = settings.cards_per_set.to_string();
         let test_answer_method = settings.test_answer_method.clone();
@@ -114,15 +124,11 @@ impl CardSettingsRouter {
                 let cards_per_set = match self.cards_per_set_input.parse::<u32>() {
                     Ok(n) if n >= 1 && n <= 100 => n,
                     Ok(_) => {
-                        self.error_message = Some(
-                            i18n.get("error-cards-per-set-range", None)
-                        );
+                        self.error_message = Some(i18n.get("error-cards-per-set-range", None));
                         return None;
                     }
                     Err(_) => {
-                        self.error_message = Some(
-                            i18n.get("error-invalid-number", None)
-                        );
+                        self.error_message = Some(i18n.get("error-invalid-number", None));
                         return None;
                     }
                 };
@@ -130,15 +136,11 @@ impl CardSettingsRouter {
                 let streak_length = match self.streak_length_input.parse::<u32>() {
                     Ok(n) if n >= 1 && n <= 50 => n,
                     Ok(_) => {
-                        self.error_message = Some(
-                            i18n.get("error-streak-length-range", None)
-                        );
+                        self.error_message = Some(i18n.get("error-streak-length-range", None));
                         return None;
                     }
                     Err(_) => {
-                        self.error_message = Some(
-                            i18n.get("error-invalid-number", None)
-                        );
+                        self.error_message = Some(i18n.get("error-invalid-number", None));
                         return None;
                     }
                 };
@@ -155,73 +157,49 @@ impl CardSettingsRouter {
 
                 let runtime = tokio::runtime::Runtime::new().unwrap();
                 let result = runtime.block_on(async {
-                    self.app_api.profile_api().update_card_settings(&username, &target_language, settings_dto).await
+                    self.app_api
+                        .profile_api()
+                        .update_card_settings(&username, &target_language, settings_dto)
+                        .await
                 });
 
                 match result {
                     Ok(_) => {
-                        self.error_message = Some(
-                            i18n.get("profile-settings-saved", None)
-                        );
+                        self.error_message = Some(i18n.get("profile-settings-saved", None));
                     }
                     Err(e) => {
                         eprintln!("Error saving card settings: {:?}", e);
-                        self.error_message = Some(
-                            "Failed to save settings. Please try again.".to_string()
-                        );
+                        self.error_message =
+                            Some("Failed to save settings. Please try again.".to_string());
                     }
                 }
 
                 None
             }
-            Message::Back => {
-                Some(RouterEvent::Pop)
-            }
+            Message::Back => Some(RouterEvent::Pop),
         }
     }
 
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = self.app_state.i18n();
-        let current_font = self.app_state.current_font();
 
         // Title
-        let title = localized_text(
-            &i18n,
-            "card-settings-title",
-            current_font,
-            24,
-        );
+        let title = localized_text(&i18n, "card-settings-title", 24);
 
         // Cards per set section
-        let cards_per_set_label = localized_text(
-            &i18n,
-            "profile-settings-cards-per-set",
-            current_font,
-            16,
-        );
+        let cards_per_set_label = localized_text(&i18n, "profile-settings-cards-per-set", 16);
 
-        let cards_per_set_input = text_input(
-            "10",
-            &self.cards_per_set_input,
-        )
-        .on_input(Message::CardsPerSetChanged)
-        .padding(10)
-        .width(Length::Fixed(100.0));
+        let cards_per_set_input = text_input("10", &self.cards_per_set_input)
+            .on_input(Message::CardsPerSetChanged)
+            .padding(10)
+            .width(Length::Fixed(100.0));
 
-        let cards_per_set_row = row![
-            cards_per_set_label,
-            cards_per_set_input,
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
+        let cards_per_set_row = row![cards_per_set_label, cards_per_set_input,]
+            .spacing(10)
+            .align_y(Alignment::Center);
 
         // Test answer method section
-        let test_method_label = localized_text(
-            &i18n,
-            "profile-settings-test-method",
-            current_font,
-            16,
-        );
+        let test_method_label = localized_text(&i18n, "profile-settings-test-method", 16);
 
         let test_methods = vec![
             i18n.get("profile-settings-test-method-manual", None),
@@ -246,37 +224,24 @@ impl CardSettingsRouter {
                 }
             },
         )
-        .width(Length::Fixed(200.0));
+        .width(Length::Fixed(200.0))
+        .text_shaping(iced::widget::text::Shaping::Advanced);
 
-        let test_method_row = row![
-            test_method_label,
-            test_method_picker,
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
+        let test_method_row = row![test_method_label, test_method_picker,]
+            .spacing(10)
+            .align_y(Alignment::Center);
 
         // Streak length section
-        let streak_length_label = localized_text(
-            &i18n,
-            "profile-settings-streak-length",
-            current_font,
-            16,
-        );
+        let streak_length_label = localized_text(&i18n, "profile-settings-streak-length", 16);
 
-        let streak_length_input = text_input(
-            "5",
-            &self.streak_length_input,
-        )
-        .on_input(Message::StreakLengthChanged)
-        .padding(10)
-        .width(Length::Fixed(100.0));
+        let streak_length_input = text_input("5", &self.streak_length_input)
+            .on_input(Message::StreakLengthChanged)
+            .padding(10)
+            .width(Length::Fixed(100.0));
 
-        let streak_length_row = row![
-            streak_length_label,
-            streak_length_input,
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
+        let streak_length_row = row![streak_length_label, streak_length_input,]
+            .spacing(10)
+            .align_y(Alignment::Center);
 
         // Error/Success message
         let message_widget = if let Some(ref msg) = self.error_message {
@@ -287,13 +252,10 @@ impl CardSettingsRouter {
                 Color::from_rgb(0.8, 0.0, 0.0)
             };
 
-            let mut msg_text = text(msg);
-            if let Some(font) = current_font {
-                msg_text = msg_text.font(font);
-            }
-            msg_text = msg_text.style(move |_theme| iced::widget::text::Style {
-                color: Some(color),
-            });
+            // Dynamic message - use shaping
+            let msg_text = text(msg)
+                .shaping(iced::widget::text::Shaping::Advanced)
+                .style(move |_theme| iced::widget::text::Style { color: Some(color) });
 
             Some(msg_text)
         } else {
@@ -301,47 +263,30 @@ impl CardSettingsRouter {
         };
 
         // Action buttons
-        let save_text = localized_text(
-            &i18n,
-            "card-settings-save",
-            current_font,
-            14,
-        );
+        let save_text = localized_text(&i18n, "card-settings-save", 14);
 
         let save_button = button(save_text)
             .on_press(Message::Save)
             .width(Length::Fixed(120.0))
             .padding(10);
 
-        let back_text = localized_text(
-            &i18n,
-            "card-settings-back",
-            current_font,
-            14,
-        );
+        let back_text = localized_text(&i18n, "card-settings-back", 14);
 
         let back_button = button(back_text)
             .on_press(Message::Back)
             .width(Length::Fixed(120.0))
             .padding(10);
 
-        let button_row = row![
-            save_button,
-            back_button,
-        ]
-        .spacing(15)
-        .align_y(Alignment::Center);
+        let button_row = row![save_button, back_button,]
+            .spacing(15)
+            .align_y(Alignment::Center);
 
         // Main content
-        let mut main_content = column![
-            title,
-            cards_per_set_row,
-            test_method_row,
-            streak_length_row,
-        ]
-        .spacing(20)
-        .padding(30)
-        .align_x(Alignment::Center);
+        let mut main_content =
+            column![title, cards_per_set_row, test_method_row, streak_length_row,]
+                .spacing(20)
+                .padding(30)
+                .align_x(Alignment::Center);
 
         if let Some(msg_widget) = message_widget {
             main_content = main_content.push(msg_widget);
@@ -372,10 +317,16 @@ impl RouterNode for CardSettingsRouter {
         "card_settings"
     }
 
-    fn update(&mut self, message: &router::Message) -> Option<RouterEvent> {
+    fn update(
+        &mut self,
+        message: &router::Message,
+    ) -> (Option<RouterEvent>, iced::Task<router::Message>) {
         match message {
-            router::Message::CardSettings(msg) => CardSettingsRouter::update(self, msg.clone()),
-            _ => None,
+            router::Message::CardSettings(msg) => {
+                let event = CardSettingsRouter::update(self, msg.clone());
+                (event, iced::Task::none())
+            }
+            _ => (None, iced::Task::none()),
         }
     }
 
@@ -384,13 +335,11 @@ impl RouterNode for CardSettingsRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        THEMES
-            .get(&self.app_state.theme())
-            .cloned()
-            .unwrap_or(iced::Theme::Dark)
+        self.app_state.theme()
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         self.refresh_data();
+        incoming_task
     }
 }

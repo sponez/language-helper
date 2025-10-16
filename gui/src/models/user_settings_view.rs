@@ -1,24 +1,26 @@
 //! User settings view model for GUI presentation.
 
+use iced::Theme;
+
+use crate::languages::Language;
+
 /// View model for displaying user settings in the GUI.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UserSettingsView {
-    /// UI theme preference (for display)
-    pub theme: String,
-    /// UI language preference (for display)
-    pub language: String,
+    /// UI theme preference
+    pub theme: Theme,
+    /// UI language preference
+    pub language: Language,
 }
 
 impl UserSettingsView {
     /// Creates a new UserSettingsView.
-    pub fn new<T, L>(theme: T, language: L) -> Self
-    where
-        T: AsRef<str> + Into<String>,
-        L: AsRef<str> + Into<String>,
-    {
-        Self {
-            theme: theme.into(),
-            language: language.into(),
-        }
+    ///
+    /// # Arguments
+    ///
+    /// * `theme` - The theme enum
+    /// * `language` - The language enum
+    pub fn new(theme: Theme, language: Language) -> Self {
+        Self { theme, language }
     }
 }

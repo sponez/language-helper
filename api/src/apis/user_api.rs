@@ -2,8 +2,11 @@
 //!
 //! This module provides the trait definition for user-related operations.
 
+use crate::{
+    errors::api_error::ApiError,
+    models::{profile::ProfileDto, user::UserDto},
+};
 use async_trait::async_trait;
-use crate::{errors::api_error::ApiError, models::{profile::ProfileDto, user::UserDto}};
 
 /// API for managing and retrieving user data.
 ///
@@ -17,8 +20,8 @@ pub trait UsersApi: Send + Sync {
     /// Retrieves a user by their username.
     async fn get_user_by_username(&self, username: &str) -> Option<UserDto>;
 
-    /// Creates a new user with the given username.
-    async fn create_user(&self, username: &str) -> Result<UserDto, ApiError>;
+    /// Creates a new user with the given username and language preference.
+    async fn create_user(&self, username: &str, language: &str) -> Result<UserDto, ApiError>;
 
     /// Updates a user's theme preference.
     async fn update_user_theme(&self, username: &str, theme: &str) -> Result<(), ApiError>;
@@ -37,5 +40,6 @@ pub trait UsersApi: Send + Sync {
     ) -> Result<ProfileDto, ApiError>;
 
     /// Deletes a profile and its associated database file.
-    async fn delete_profile(&self, username: &str, target_language: &str) -> Result<bool, ApiError>;
+    async fn delete_profile(&self, username: &str, target_language: &str)
+        -> Result<bool, ApiError>;
 }

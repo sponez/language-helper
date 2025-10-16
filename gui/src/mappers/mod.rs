@@ -4,6 +4,6 @@
 //! and GUI-specific view models. This keeps view models independent and maintains
 //! proper separation of concerns.
 
+pub mod profile_mapper;
 pub mod user_mapper;
 pub mod user_settings_mapper;
-pub mod profile_mapper;

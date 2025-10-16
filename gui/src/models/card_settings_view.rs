@@ -15,11 +15,7 @@ pub struct CardSettingsView {
 
 impl CardSettingsView {
     /// Creates a new CardSettingsView.
-    pub fn new(
-        cards_per_set: u32,
-        test_answer_method: String,
-        streak_length: u32,
-    ) -> Self {
+    pub fn new(cards_per_set: u32, test_answer_method: String, streak_length: u32) -> Self {
         Self {
             cards_per_set,
             test_answer_method,

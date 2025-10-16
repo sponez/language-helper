@@ -150,7 +150,7 @@ impl<
         })
     }
 
-    async fn create_user(&self, username: &str) -> Result<UserDto, ApiError> {
+    async fn create_user(&self, username: &str, language: &str) -> Result<UserDto, ApiError> {
         // Create user
         let user = self
             .user_service
@@ -158,10 +158,10 @@ impl<
             .await
             .map_err(map_core_error_to_api_error)?;
 
-        // Create settings for the new user
+        // Create settings for the new user with their chosen language
         let settings = self
             .user_settings_service
-            .create_user_settings(username)
+            .create_user_settings(username, language)
             .await
             .map(map_user_settings_to_dto)
             .map_err(map_core_error_to_api_error)?;
@@ -177,44 +177,75 @@ impl<
     }
 
     async fn update_user_theme(&self, username: &str, theme: &str) -> Result<(), ApiError> {
-        // Get current settings
-        let current_settings = self
-            .user_settings_service
-            .get_user_settings(username)
-            .await
-            .map_err(map_core_error_to_api_error)?;
+        // Try to get current settings
+        let current_settings = self.user_settings_service.get_user_settings(username).await;
 
-        // Update with new theme
-        self.user_settings_service
-            .update_user_settings(username, theme, current_settings.ui_language.as_str())
-            .await
-            .map(|_| ())
-            .map_err(map_core_error_to_api_error)
+        match current_settings {
+            Ok(settings) => {
+                // Update with new theme, keep current language
+                self.user_settings_service
+                    .update_user_settings(username, theme, settings.ui_language.as_str())
+                    .await
+                    .map(|_| ())
+                    .map_err(map_core_error_to_api_error)
+            }
+            Err(CoreError::NotFound { .. }) => {
+                // Settings don't exist, create them with default language
+                self.user_settings_service
+                    .create_user_settings(username, "English")
+                    .await
+                    .map_err(map_core_error_to_api_error)?;
+
+                // Now update with the new theme
+                self.user_settings_service
+                    .update_user_settings(username, theme, "English")
+                    .await
+                    .map(|_| ())
+                    .map_err(map_core_error_to_api_error)
+            }
+            Err(e) => Err(map_core_error_to_api_error(e)),
+        }
     }
 
     async fn update_user_language(&self, username: &str, language: &str) -> Result<(), ApiError> {
-        // Get current settings
-        let current_settings = self
-            .user_settings_service
-            .get_user_settings(username)
-            .await
-            .map_err(map_core_error_to_api_error)?;
+        // Try to get current settings
+        let current_settings = self.user_settings_service.get_user_settings(username).await;
 
-        // Update with new language
-        self.user_settings_service
-            .update_user_settings(username, current_settings.ui_theme.as_str(), language)
-            .await
-            .map(|_| ())
-            .map_err(map_core_error_to_api_error)
+        match current_settings {
+            Ok(settings) => {
+                // Update with new language, keep current theme
+                self.user_settings_service
+                    .update_user_settings(username, settings.ui_theme.as_str(), language)
+                    .await
+                    .map(|_| ())
+                    .map_err(map_core_error_to_api_error)
+            }
+            Err(CoreError::NotFound { .. }) => {
+                // Settings don't exist, create them with the specified language
+                self.user_settings_service
+                    .create_user_settings(username, language)
+                    .await
+                    .map(|_| ())
+                    .map_err(map_core_error_to_api_error)
+            }
+            Err(e) => Err(map_core_error_to_api_error(e)),
+        }
     }
 
     async fn delete_user(&self, username: &str) -> Result<bool, ApiError> {
         // Delete user settings
-        let _ = self.user_settings_service.delete_user_settings(username).await;
+        let _ = self
+            .user_settings_service
+            .delete_user_settings(username)
+            .await;
 
         // Delete all profile metadata for the user
         // Note: Profile database files must be deleted separately via ProfilesApi
-        if let Ok(profiles) = self.profile_metadata_service.get_profiles_for_user(username).await {
+        if let Ok(profiles) = self
+            .profile_metadata_service
+            .get_profiles_for_user(username)
+            .await
+        {
             for profile in profiles {
                 let _ = self
                     .profile_metadata_service
@@ -247,7 +278,11 @@ impl<
         Ok(map_profile_to_dto(profile))
     }
 
-    async fn delete_profile(&self, username: &str, target_language: &str) -> Result<bool, ApiError> {
+    async fn delete_profile(
+        &self,
+        username: &str,
+        target_language: &str,
+    ) -> Result<bool, ApiError> {
         // Delete profile metadata only
         // Note: Profile database file must be deleted separately via ProfilesApi
         match self
@@ -396,10 +431,17 @@ mod tests {
     struct MockUserSettingsRepository;
     #[async_trait]
     impl UserSettingsRepository for MockUserSettingsRepository {
-        async fn find_by_username(&self, _username: &str) -> Result<Option<UserSettings>, CoreError> {
+        async fn find_by_username(
+            &self,
+            _username: &str,
+        ) -> Result<Option<UserSettings>, CoreError> {
             Ok(None)
         }
-        async fn save(&self, _username: &str, settings: UserSettings) -> Result<UserSettings, CoreError> {
+        async fn save(
+            &self,
+            _username: &str,
+            settings: UserSettings,
+        ) -> Result<UserSettings, CoreError> {
             Ok(settings)
         }
         async fn delete(&self, _username: &str) -> Result<bool, CoreError> {
@@ -466,7 +508,11 @@ mod tests {
                 should_fail: false,
             },
         );
-        UsersApiImpl::new(user_service, user_settings_service, profile_metadata_service)
+        UsersApiImpl::new(
+            user_service,
+            user_settings_service,
+            profile_metadata_service,
+        )
     }
 
     #[tokio::test]
@@ -543,7 +589,7 @@ mod tests {
         };
         let api = create_test_api(repo);
 
-        let result = api.create_user("newuser").await;
+        let result = api.create_user("newuser", "English").await;
 
         // Note: This test will fail because our mock repositories don't share state.
         // In production, the same repository instance is used, so when a user is created,
@@ -573,7 +619,7 @@ mod tests {
         };
         let api = create_test_api(repo);
 
-        let result = api.create_user("alice").await;
+        let result = api.create_user("alice", "English").await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -595,7 +641,7 @@ mod tests {
         };
         let api = create_test_api(repo);
 
-        let result = api.create_user("").await;
+        let result = api.create_user("", "English").await;
 
         assert!(result.is_err());
         match result.unwrap_err() {

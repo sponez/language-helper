@@ -1,5 +1,8 @@
 //! Mapper for converting between User core model and UserView.
 
+use iced::Theme;
+
+use crate::languages::{language_name_to_enum, Language};
 use crate::models::{ProfileView, UserSettingsView, UserView};
 use lh_api::models::{profile::ProfileDto, user::UserDto, user_settings::UserSettingsDto};
 use lh_core::models::user::User;
@@ -41,17 +44,24 @@ pub fn view_to_model(view: &UserView) -> User {
 /// A UserView with settings and profiles for display in the GUI
 pub fn dto_to_view(user_dto: &UserDto) -> UserView {
     let settings = dto_settings_to_view(&user_dto.settings);
-    let profiles = user_dto.profiles
-        .iter()
-        .map(dto_profile_to_view)
-        .collect();
+    let profiles = user_dto.profiles.iter().map(dto_profile_to_view).collect();
 
     UserView::with_details(user_dto.username.clone(), settings, profiles)
 }
 
 /// Converts a UserSettingsDto to a UserSettingsView.
 fn dto_settings_to_view(settings_dto: &UserSettingsDto) -> UserSettingsView {
-    UserSettingsView::new(settings_dto.theme.clone(), settings_dto.language.clone())
+    // Convert String theme to Theme enum
+    let theme = Theme::ALL
+        .iter()
+        .find(|t| t.to_string() == settings_dto.theme)
+        .cloned()
+        .unwrap_or(Theme::Dark);
+
+    // Convert String language to Language enum
+    let language = language_name_to_enum(&settings_dto.language).unwrap_or(Language::English);
+
+    UserSettingsView::new(theme, language)
 }
 
 /// Converts a ProfileDto to a ProfileView.
@@ -63,7 +73,8 @@ pub fn dto_profile_to_view(profile_dto: &ProfileDto) -> ProfileView {
         None => "Invalid date".to_string(),
     };
 
-    let last_activity_display = match DateTime::<Utc>::from_timestamp(profile_dto.last_activity, 0) {
+    let last_activity_display = match DateTime::<Utc>::from_timestamp(profile_dto.last_activity, 0)
+    {
         Some(dt) => dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
         None => "Invalid date".to_string(),
     };

@@ -8,5 +8,5 @@ lh_api = { path = "../api" }
 lh_core = { path = "../core" }
 lh_persistence = { path = "../persistence" }
 gui = { path = "../gui" }
-iced = { version = "0.13", features = ["tokio"] }
+iced = { git = "https://github.com/iced-rs/iced.git", features = ["tokio"] }
 rusqlite = { version = "0.37.0", features = ["bundled"] }

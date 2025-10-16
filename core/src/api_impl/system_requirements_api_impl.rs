@@ -5,7 +5,9 @@
 
 use lh_api::apis::system_requirements_api::SystemRequirementsApi;
 use lh_api::errors::api_error::ApiError;
-use lh_api::models::system_requirements::{OllamaStatusDto, RequirementStatusDto, SystemCompatibilityDto};
+use lh_api::models::system_requirements::{
+    OllamaStatusDto, RequirementStatusDto, SystemCompatibilityDto,
+};
 
 use crate::services::system_checker;
 
@@ -59,7 +61,10 @@ fn map_compatibility_to_dto(compat: system_checker::SystemCompatibility) -> Syst
 }
 
 impl SystemRequirementsApi for SystemRequirementsApiImpl {
-    fn check_model_compatibility(&self, model_name: &str) -> Result<SystemCompatibilityDto, ApiError> {
+    fn check_model_compatibility(
+        &self,
+        model_name: &str,
+    ) -> Result<SystemCompatibilityDto, ApiError> {
         let compatibility = system_checker::check_model_compatibility(model_name);
         Ok(map_compatibility_to_dto(compatibility))
     }
@@ -69,7 +74,10 @@ impl SystemRequirementsApi for SystemRequirementsApiImpl {
         Ok(compatible)
     }
 
-    fn check_multiple_models(&self, model_names: &[&str]) -> Result<Vec<SystemCompatibilityDto>, ApiError> {
+    fn check_multiple_models(
+        &self,
+        model_names: &[&str],
+    ) -> Result<Vec<SystemCompatibilityDto>, ApiError> {
         let results: Vec<SystemCompatibilityDto> = model_names
             .iter()
             .map(|&model| {
