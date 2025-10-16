@@ -6,7 +6,6 @@
 use iced::Theme;
 
 use crate::languages::Language;
-use crate::models::UserSettingsView;
 
 /// User-specific state for managing a user's settings
 #[derive(Debug, Clone)]
@@ -14,9 +13,9 @@ pub struct UserState {
     /// Username - immutable user identifier
     pub username: String,
     /// User's theme preference
-    pub theme: Theme,
+    pub theme: Option<Theme>,
     /// User's domain language (native language)
-    pub language: Language,
+    pub language: Option<Language>,
 }
 
 impl UserState {
@@ -30,20 +29,11 @@ impl UserState {
     /// # Returns
     ///
     /// A new UserState with settings from the provided data, or defaults
-    pub fn new(username: String, settings: Option<&UserSettingsView>) -> Self {
-        if let Some(s) = settings {
-            Self {
-                username,
-                theme: s.theme.clone(),
-                language: s.language,
-            }
-        } else {
-            // Default values if no settings provided
-            Self {
-                username,
-                theme: Theme::Dark,
-                language: Language::English,
-            }
+    pub fn new(username: String, theme: Option<Theme>, language: Option<Language>) -> Self {
+        Self {
+            username,
+            theme: theme.clone(),
+            language: language,
         }
     }
 
@@ -52,18 +42,105 @@ impl UserState {
     /// # Arguments
     ///
     /// * `settings` - The user settings to apply
-    pub fn update_from_settings(&mut self, settings: &UserSettingsView) {
-        self.theme = settings.theme.clone();
-        self.language = settings.language;
+    pub fn update(&mut self, theme: Theme) {
+        self.theme = Some(theme);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_user_state_new_with_full_settings() {
+        let state = UserState::new(
+            "testuser".to_string(),
+            Some(Theme::Light),
+            Some(Language::Spanish),
+        );
+
+        assert_eq!(state.username, "testuser");
+        assert!(state.theme.is_some());
+        assert_eq!(state.theme.unwrap().to_string(), Theme::Light.to_string());
+        assert!(state.language.is_some());
+        assert_eq!(state.language.unwrap(), Language::Spanish);
     }
 
-    /// Gets the current theme.
-    pub fn theme(&self) -> Theme {
-        self.theme.clone()
+    #[test]
+    fn test_user_state_new_with_none_settings() {
+        let state = UserState::new("testuser".to_string(), None, None);
+
+        assert_eq!(state.username, "testuser");
+        assert!(state.theme.is_none());
+        assert!(state.language.is_none());
     }
 
-    /// Gets the current language.
-    pub fn language(&self) -> Language {
-        self.language.clone()
+    #[test]
+    fn test_user_state_new_with_partial_settings() {
+        let state = UserState::new("testuser".to_string(), Some(Theme::Dark), None);
+
+        assert_eq!(state.username, "testuser");
+        assert!(state.theme.is_some());
+        assert_eq!(state.theme.unwrap().to_string(), Theme::Dark.to_string());
+        assert!(state.language.is_none());
+    }
+
+    #[test]
+    fn test_user_state_update_theme() {
+        let mut state = UserState::new(
+            "testuser".to_string(),
+            Some(Theme::Dark),
+            Some(Language::English),
+        );
+
+        // Update theme
+        state.update(Theme::Light);
+
+        assert!(state.theme.is_some());
+        assert_eq!(state.theme.unwrap().to_string(), Theme::Light.to_string());
+        // Verify language unchanged
+        assert_eq!(state.language.unwrap(), Language::English);
+    }
+
+    #[test]
+    fn test_user_state_update_theme_from_none() {
+        let mut state = UserState::new("testuser".to_string(), None, Some(Language::English));
+
+        // Update theme when it was None
+        state.update(Theme::Light);
+
+        assert!(state.theme.is_some());
+        assert_eq!(state.theme.unwrap().to_string(), Theme::Light.to_string());
+    }
+
+    #[test]
+    fn test_user_state_clone() {
+        let state = UserState::new(
+            "testuser".to_string(),
+            Some(Theme::Dark),
+            Some(Language::Spanish),
+        );
+
+        let cloned = state.clone();
+
+        assert_eq!(state.username, cloned.username);
+        assert_eq!(
+            state.theme.as_ref().unwrap().to_string(),
+            cloned.theme.unwrap().to_string()
+        );
+        assert_eq!(state.language.unwrap(), cloned.language.unwrap());
+    }
+
+    #[test]
+    fn test_user_state_debug() {
+        let state = UserState::new(
+            "testuser".to_string(),
+            Some(Theme::Dark),
+            Some(Language::English),
+        );
+
+        let debug_str = format!("{:?}", state);
+        assert!(debug_str.contains("testuser"));
+        assert!(debug_str.contains("UserState"));
     }
 }

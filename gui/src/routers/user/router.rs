@@ -33,6 +33,7 @@ use iced::{Alignment, Element, Length, Task};
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
+use crate::languages::Language;
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::routers::user::message::Message;
 use crate::states::UserState;
@@ -69,7 +70,7 @@ impl UserRouter {
     /// A new UserRouter instance with minimal initial state
     pub fn new(username: String, app_api: Arc<dyn AppApi>, app_state: Rc<AppState>) -> Self {
         // Initialize with minimal user state (will be loaded in init())
-        let user_state = UserState::new(username, None);
+        let user_state = UserState::new(username, None, None);
 
         Self {
             user_state,
@@ -84,7 +85,6 @@ impl UserRouter {
             Some(user_dto) => {
                 // Convert DTO settings to UserState
                 use crate::languages::{language_name_to_enum, Language};
-                use crate::models::UserSettingsView;
                 use iced::Theme;
 
                 let theme = Theme::ALL
@@ -95,8 +95,11 @@ impl UserRouter {
                 let language =
                     language_name_to_enum(&user_dto.settings.language).unwrap_or(Language::English);
 
-                let settings_view = UserSettingsView { theme, language };
-                let user_state = UserState::new(username.clone(), Some(&settings_view));
+                let user_state = UserState {
+                    username: username.clone(),
+                    theme: Some(theme),
+                    language: Some(language),
+                };
 
                 Some(user_state)
             }
@@ -135,21 +138,12 @@ impl UserRouter {
             },
             Message::SettingsButton(msg) => match msg {
                 SettingsButtonMessage::Pressed => {
-                    // Temporarily create UserView for UserSettingsRouter (to be refactored)
-                    use crate::models::{UserSettingsView, UserView};
-                    let settings_view = UserSettingsView {
-                        theme: self.user_state.theme.clone(),
-                        language: self.user_state.language,
-                    };
-                    let user_view = UserView {
-                        username: self.user_state.username.clone(),
-                        settings: Some(settings_view),
-                        profiles: vec![], // Empty, not used by UserSettingsRouter
-                    };
-
+                    // Pass user state fields directly to UserSettingsRouter
                     let user_settings_router: Box<dyn RouterNode> = Box::new(
                         crate::routers::user_settings::router::UserSettingsRouter::new(
-                            user_view,
+                            self.user_state.username.clone(),
+                            self.user_state.theme.clone().unwrap(),
+                            self.user_state.language.unwrap(),
                             Arc::clone(&self.app_api),
                             Rc::clone(&self.app_state),
                         ),
@@ -159,14 +153,7 @@ impl UserRouter {
             },
             Message::UserLoaded(user_state_opt) => {
                 if let Some(user_state) = user_state_opt {
-                    println!("UserLoaded: Loading user data for {}", user_state.username);
                     self.user_state = user_state;
-                    println!(
-                        "UserLoaded: Updated language to {}",
-                        self.user_state.language.name()
-                    );
-                } else {
-                    println!("UserLoaded: Failed to load user data");
                 }
                 (None, Task::none())
             }
@@ -184,7 +171,10 @@ impl UserRouter {
         // Center content: Username and action buttons (positioned absolutely in center)
         let mut args = FluentArgs::new();
         args.set("username", &self.user_state.username);
-        args.set("language", self.user_state.language.name());
+        args.set(
+            "language",
+            self.user_state.language.unwrap_or(Language::English).name(),
+        );
         let title_text = i18n.get("user-account-title", Some(&args));
         let username_text = iced::widget::text(title_text)
             .size(24)
@@ -250,7 +240,10 @@ impl RouterNode for UserRouter {
 
     fn theme(&self) -> iced::Theme {
         // Get theme from user state, not global app state
-        self.user_state.theme()
+        self.user_state
+            .theme
+            .clone()
+            .unwrap_or(self.app_state.theme())
     }
 
     fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {

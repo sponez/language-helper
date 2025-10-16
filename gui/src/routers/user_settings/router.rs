@@ -32,9 +32,10 @@ use iced::{Alignment, Element, Length, Task};
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
-use crate::models::UserView;
+use crate::languages::Language;
 use crate::router::{self, RouterEvent, RouterNode, RouterTarget};
 use crate::routers::user_settings::message::Message;
+use iced::Theme;
 
 use super::elements::{
     back_button::{back_button, BackButtonMessage},
@@ -44,8 +45,12 @@ use super::elements::{
 
 /// State for the user settings router
 pub struct UserSettingsRouter {
-    /// The user view model for display
-    user_view: UserView,
+    /// Username (immutable)
+    username: String,
+    /// User's theme preference
+    theme: Theme,
+    /// User's domain language (native language)
+    language: Language,
     /// API instance for backend communication
     app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n) - read-only
@@ -59,33 +64,29 @@ impl UserSettingsRouter {
     ///
     /// # Arguments
     ///
-    /// * `user_view` - The user view model with settings
+    /// * `username` - The username for this user
+    /// * `theme` - The user's theme preference
+    /// * `language` - The user's domain language
     /// * `app_api` - The API instance for backend communication
     /// * `app_state` - Global application state (read-only reference)
     ///
     /// # Returns
     ///
     /// A new UserSettingsRouter instance
-    pub fn new(user_view: UserView, app_api: Arc<dyn AppApi>, app_state: Rc<AppState>) -> Self {
+    pub fn new(
+        username: String,
+        theme: Theme,
+        language: Language,
+        app_api: Arc<dyn AppApi>,
+        app_state: Rc<AppState>,
+    ) -> Self {
         Self {
-            user_view,
+            username,
+            theme,
+            language,
             app_api,
             app_state,
             show_delete_confirmation: false,
-        }
-    }
-
-    /// Asynchronously loads fresh user data from the API
-    async fn load_user_data(app_api: Arc<dyn AppApi>, username: String) -> Option<UserView> {
-        match app_api.users_api().get_user_by_username(&username).await {
-            Some(user_dto) => {
-                use crate::mappers::user_mapper;
-                Some(user_mapper::dto_to_view(&user_dto))
-            }
-            None => {
-                eprintln!("Failed to load user data for: {}", username);
-                None
-            }
         }
     }
 
@@ -139,7 +140,7 @@ impl UserSettingsRouter {
                     let theme_str = new_theme.to_string();
 
                     // Create async task to update theme
-                    let username = self.user_view.username.clone();
+                    let username = self.username.clone();
                     let task = Task::perform(
                         Self::update_user_theme(
                             Arc::clone(&self.app_api),
@@ -149,10 +150,8 @@ impl UserSettingsRouter {
                         Message::ThemeUpdated,
                     );
 
-                    // Optimistically update local view with Theme enum
-                    if let Some(ref mut settings) = self.user_view.settings {
-                        settings.theme = new_theme;
-                    }
+                    // Optimistically update local theme
+                    self.theme = new_theme;
 
                     (None, task)
                 }
@@ -164,7 +163,7 @@ impl UserSettingsRouter {
                 }
                 DeleteUserButtonMessage::ConfirmDelete => {
                     // Create async task to delete user
-                    let username = self.user_view.username.clone();
+                    let username = self.username.clone();
                     let task = Task::perform(
                         Self::delete_user(Arc::clone(&self.app_api), username),
                         Message::UserDeleted,
@@ -233,13 +232,7 @@ impl UserSettingsRouter {
             .size(16)
             .shaping(iced::widget::text::Shaping::Advanced);
 
-        // Get language from user settings if available, otherwise use default
-        let language_value = if let Some(ref settings) = self.user_view.settings {
-            settings.language.name()
-        } else {
-            "English"
-        };
-        let language_display = iced::widget::text(language_value)
+        let language_display = iced::widget::text(self.language.name())
             .size(16)
             .shaping(iced::widget::text::Shaping::Advanced);
 
@@ -247,13 +240,8 @@ impl UserSettingsRouter {
             .spacing(10)
             .align_y(Alignment::Center);
 
-        // Get theme from user settings if available, otherwise use default
-        let current_theme = if let Some(ref settings) = self.user_view.settings {
-            settings.theme.clone()
-        } else {
-            iced::Theme::Dark
-        };
-        let theme_row = theme_pick_list(Rc::clone(&i18n), current_theme).map(Message::ThemePicker);
+        let theme_row =
+            theme_pick_list(Rc::clone(&i18n), self.theme.clone()).map(Message::ThemePicker);
 
         let delete_btn = delete_user_button(Rc::clone(&i18n)).map(Message::DeleteUserButton);
 
@@ -322,32 +310,12 @@ impl RouterNode for UserSettingsRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        // Get theme from user settings, not global app state
-        if let Some(ref settings) = self.user_view.settings {
-            settings.theme.clone()
-        } else {
-            iced::Theme::Dark
-        }
+        // Get theme from user state, not global app state
+        self.theme.clone()
     }
 
     fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
-        // Load user data from database (called on push and when returning from sub-screens)
-        let username = self.user_view.username.clone();
-        let init_task = Task::perform(
-            Self::load_user_data(Arc::clone(&self.app_api), username),
-            |user_view_opt| {
-                // Update the router state if data was loaded
-                if let Some(_user_view) = user_view_opt {
-                    // For now, just trigger a dummy message since we don't have UserLoaded
-                    // TODO: Add UserLoaded message and properly update user_view
-                    router::Message::UserSettings(Message::ThemeUpdated(Ok(())))
-                } else {
-                    router::Message::UserSettings(Message::ThemeUpdated(Ok(())))
-                }
-            },
-        );
-
-        // Batch the incoming task with the init task
-        Task::batch(vec![incoming_task, init_task])
+        // No need to load user data - state is already initialized from parent router
+        incoming_task
     }
 }

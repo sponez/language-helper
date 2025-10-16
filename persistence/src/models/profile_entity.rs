@@ -149,9 +149,14 @@ mod tests {
 
     #[test]
     fn test_profile_entity_creation() {
-        let entity = ProfileEntity::new("test_user".to_string(), "spanish".to_string());
+        let entity = ProfileEntity::new(
+            "test_user".to_string(),
+            "My Spanish".to_string(),
+            "spanish".to_string(),
+        );
 
         assert_eq!(entity.username, "test_user");
+        assert_eq!(entity.profile_name, "My Spanish");
         assert_eq!(entity.target_language, "spanish");
         assert!(entity.created_at > 0);
         assert!(entity.last_activity_at > 0);
@@ -160,10 +165,16 @@ mod tests {
 
     #[test]
     fn test_profile_entity_with_fields() {
-        let entity =
-            ProfileEntity::with_fields("user1".to_string(), "french".to_string(), 1000, 2000);
+        let entity = ProfileEntity::with_fields(
+            "user1".to_string(),
+            "My French".to_string(),
+            "french".to_string(),
+            1000,
+            2000,
+        );
 
         assert_eq!(entity.username, "user1");
+        assert_eq!(entity.profile_name, "My French");
         assert_eq!(entity.target_language, "french");
         assert_eq!(entity.created_at, 1000);
         assert_eq!(entity.last_activity_at, 2000);
@@ -171,7 +182,11 @@ mod tests {
 
     #[test]
     fn test_update_last_activity() {
-        let mut entity = ProfileEntity::new("test_user".to_string(), "italian".to_string());
+        let mut entity = ProfileEntity::new(
+            "test_user".to_string(),
+            "My Italian".to_string(),
+            "italian".to_string(),
+        );
         let original_created = entity.created_at;
         let original_last_activity = entity.last_activity_at;
 
@@ -184,7 +199,11 @@ mod tests {
 
     #[test]
     fn test_clone() {
-        let entity = ProfileEntity::new("test_user".to_string(), "portuguese".to_string());
+        let entity = ProfileEntity::new(
+            "test_user".to_string(),
+            "My Portuguese".to_string(),
+            "portuguese".to_string(),
+        );
         let cloned = entity.clone();
 
         assert_eq!(entity, cloned);

@@ -450,10 +450,10 @@ mod tests {
     struct MockProfileRepository;
     #[async_trait]
     impl UserProfilesRepository for MockProfileRepository {
-        async fn find_by_username_and_target_language(
+        async fn find_by_username_and_profile_name(
             &self,
             _username: &str,
-            _target_language: &str,
+            _profile_name: &str,
         ) -> Result<Option<Profile>, CoreError> {
             Ok(None)
         }
@@ -466,7 +466,7 @@ mod tests {
         async fn save(&self, _username: &str, profile: Profile) -> Result<Profile, CoreError> {
             Ok(profile)
         }
-        async fn delete(&self, _username: &str, _target_language: &str) -> Result<bool, CoreError> {
+        async fn delete(&self, _username: &str, _profile_name: &str) -> Result<bool, CoreError> {
             Ok(true)
         }
     }

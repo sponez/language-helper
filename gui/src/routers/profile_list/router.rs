@@ -133,7 +133,11 @@ impl ProfileListRouter {
     ///
     /// A vector of available Language enums
     fn get_available_languages(&self) -> Vec<Language> {
-        let domain_language = self.user_state.language;
+        let domain_language = self
+            .user_state
+            .language
+            .clone()
+            .unwrap_or(Language::English);
 
         // Note: We can't filter out existing languages since profiles are now identified by name,
         // not language. Users can have multiple profiles for the same language.
@@ -369,7 +373,10 @@ impl RouterNode for ProfileListRouter {
 
     fn theme(&self) -> iced::Theme {
         // Use theme from user state, not global app state
-        self.user_state.theme()
+        self.user_state
+            .theme
+            .clone()
+            .unwrap_or(self.app_state.theme())
     }
 
     fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
