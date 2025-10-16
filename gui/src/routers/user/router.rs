@@ -113,15 +113,16 @@ impl UserRouter {
             },
             Message::ProfilesButton(msg) => match msg {
                 ProfilesButtonMessage::Pressed => {
-                    // TODO: Uncomment when ProfileListRouter is refactored
-                    // let profile_list_router: Box<dyn RouterNode> =
-                    //     Box::new(super::super::profile_list_router::ProfileListRouter::new(
-                    //         self.user_view.clone(),
-                    //         Arc::clone(&self.app_api),
-                    //         Rc::clone(&self.app_state),
-                    //     ));
-                    // (Some(RouterEvent::Push(profile_list_router)), Task::none())
-                    (None, Task::none())
+                    let (profile_list_router, _task) =
+                        crate::routers::profile_list::router::ProfileListRouter::new(
+                            self.user_view.username.clone(),
+                            Arc::clone(&self.app_api),
+                            Rc::clone(&self.app_state),
+                            Rc::new(self.user_state.clone()),
+                        );
+                    let router_box: Box<dyn RouterNode> = Box::new(profile_list_router);
+                    // Note: The task is handled by the router system after push
+                    (Some(RouterEvent::Push(router_box)), Task::none())
                 }
             },
             Message::SettingsButton(msg) => match msg {
@@ -234,6 +235,10 @@ impl RouterNode for UserRouter {
             },
             router::Message::UserSettings(_msg) => {
                 // UserSettings messages don't affect UserRouter
+                (None, Task::none())
+            }
+            router::Message::ProfileList(_msg) => {
+                // ProfileList messages don't affect UserRouter
                 (None, Task::none())
             }
         }

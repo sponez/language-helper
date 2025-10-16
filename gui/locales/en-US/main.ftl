@@ -39,3 +39,23 @@ user-settings-api-error-delete = Failed to delete user
 
 # Error Modal
 error-modal-close-button = Close
+
+# Profile List Screen
+profile-list-title = Select Profile
+profile-list-back-button = Back
+
+# Create New Profile Modal
+create-new-profile-title = Create New Profile
+profile-name-placeholder = Profile Name
+profile-language-placeholder = Select target language
+profile-ok-button = Create
+profile-cancel-button = Cancel
+
+# Profile List - Validation Errors
+error-profile-name-too-short = Profile name must be at least 5 characters
+error-profile-name-too-long = Profile name cannot exceed 50 characters
+error-profile-language-not-selected = Please select a target language
+
+# Profile List - API Errors
+error-create-profile = Failed to create profile
+error-load-profiles = Failed to load profiles
