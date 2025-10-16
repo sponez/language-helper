@@ -36,7 +36,6 @@ use crate::components::error_modal::error_modal::{
     error_modal, handle_error_modal_event, ErrorModalMessage,
 };
 use crate::languages::Language;
-use crate::models::ProfileView;
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::routers::profile_list::message::Message;
 use crate::states::UserState;
@@ -54,12 +53,10 @@ pub struct ProfileListRouter {
     app_api: Arc<dyn AppApi>,
     /// Global application state (theme, UI language, i18n)
     app_state: Rc<AppState>,
-    /// User-specific state (domain language, theme)
+    /// User-specific state (domain language, theme, username)
     user_state: Rc<UserState>,
-    /// Username for API calls
-    username: String,
-    /// List of loaded profiles
-    profiles: Vec<ProfileView>,
+    /// List of profile target languages (locale codes)
+    profile_languages: Vec<String>,
     /// Optional create new profile modal (None = closed, Some = open)
     create_profile_modal: Option<CreateNewProfileModal>,
     /// Error message to display (None = no error)
@@ -71,16 +68,14 @@ impl ProfileListRouter {
     ///
     /// # Arguments
     ///
-    /// * `username` - The username for API calls
     /// * `app_api` - The API instance for backend communication
     /// * `app_state` - Global application state (UI language, theme, i18n)
-    /// * `user_state` - User-specific state (domain language, theme)
+    /// * `user_state` - User-specific state (domain language, theme, username)
     ///
     /// # Returns
     ///
     /// A new ProfileListRouter instance. Profiles will be loaded via init().
     pub fn new(
-        username: String,
         app_api: Arc<dyn AppApi>,
         app_state: Rc<AppState>,
         user_state: Rc<UserState>,
@@ -89,23 +84,26 @@ impl ProfileListRouter {
             app_api,
             app_state,
             user_state,
-            username,
-            profiles: Vec::new(),
+            profile_languages: Vec::new(),
             create_profile_modal: None,
             error_message: None,
         }
     }
 
-    /// Asynchronously loads profiles from the API
+    /// Asynchronously loads profile languages from the API
     async fn load_profiles(
         app_api: Arc<dyn AppApi>,
         username: String,
-    ) -> Result<Vec<ProfileView>, String> {
+    ) -> Result<Vec<String>, String> {
         match app_api.users_api().get_user_by_username(&username).await {
             Some(user_dto) => {
-                use crate::mappers::user_mapper;
-                let user_view = user_mapper::dto_to_view(&user_dto);
-                Ok(user_view.profiles)
+                // Extract just the target language codes from profiles
+                let profile_languages: Vec<String> = user_dto
+                    .profiles
+                    .into_iter()
+                    .map(|p| p.target_language)
+                    .collect();
+                Ok(profile_languages)
             }
             None => {
                 eprintln!("Failed to load profiles for user: {}", username);
@@ -139,9 +137,9 @@ impl ProfileListRouter {
         let domain_language = self.user_state.language;
 
         let existing_profile_languages: Vec<Language> = self
-            .profiles
+            .profile_languages
             .iter()
-            .filter_map(|p| Language::from_locale_code(&p.target_language))
+            .filter_map(|lang_code| Language::from_locale_code(lang_code))
             .collect();
 
         Language::ALL
@@ -167,13 +165,8 @@ impl ProfileListRouter {
             },
             Message::ProfilePicker(msg) => match msg {
                 ProfilePickListMessage::Selected(target_language) => {
-                    // Find the matching profile
-                    if let Some(_profile) = self
-                        .profiles
-                        .iter()
-                        .find(|p| p.target_language == target_language)
-                        .cloned()
-                    {
+                    // Check if profile exists
+                    if self.profile_languages.contains(&target_language) {
                         // TODO: Navigate to ProfileRouter
                         // This will be implemented when ProfileRouter is refactored
                         eprintln!(
@@ -195,7 +188,7 @@ impl ProfileListRouter {
 
                         self.create_profile_modal = Some(CreateNewProfileModal::new(
                             Arc::clone(&self.app_api),
-                            self.username.clone(),
+                            self.user_state.username.clone(),
                             available_languages,
                         ));
                     }
@@ -217,8 +210,8 @@ impl ProfileListRouter {
             }
             Message::ProfilesLoaded(result) => {
                 match result {
-                    Ok(profiles) => {
-                        self.profiles = profiles;
+                    Ok(profile_languages) => {
+                        self.profile_languages = profile_languages;
                         // Clear any previous error
                         self.error_message = None;
                         (None, Task::none())
@@ -238,7 +231,10 @@ impl ProfileListRouter {
 
                         // Reload profiles
                         let task = Task::perform(
-                            Self::load_profiles(Arc::clone(&self.app_api), self.username.clone()),
+                            Self::load_profiles(
+                                Arc::clone(&self.app_api),
+                                self.user_state.username.clone(),
+                            ),
                             Message::ProfilesLoaded,
                         );
 
@@ -303,7 +299,7 @@ impl ProfileListRouter {
 
         // Center: Profile picker + Add button (positioned absolutely in center)
         let profile_picker_element =
-            profile_pick_list(&self.profiles, &i18n).map(Message::ProfilePicker);
+            profile_pick_list(&self.profile_languages, &i18n).map(Message::ProfilePicker);
 
         let add_button_element = add_profile_button().map(Message::AddProfileButton);
 
@@ -384,7 +380,7 @@ impl RouterNode for ProfileListRouter {
     fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         // Load profiles from database (called on push and when returning from sub-routers)
         let init_task = Task::perform(
-            Self::load_profiles(Arc::clone(&self.app_api), self.username.clone()),
+            Self::load_profiles(Arc::clone(&self.app_api), self.user_state.username.clone()),
             Message::ProfilesLoaded,
         )
         .map(router::Message::ProfileList);

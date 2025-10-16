@@ -175,13 +175,11 @@ impl MainScreenRouter {
             }
             Message::UserPicker(msg) => match msg {
                 UserPickListMessage::Selected(username) => {
-                    // Create UserRouter with minimal user view (just username)
-                    use crate::models::UserView;
+                    // Create UserRouter with username
                     use crate::routers::user::router::UserRouter;
 
-                    let user_view = UserView::new(username.clone());
                     let user_router = UserRouter::new(
-                        user_view,
+                        username,
                         Arc::clone(&self.app_api),
                         std::rc::Rc::new(self.app_state.clone()),
                     );

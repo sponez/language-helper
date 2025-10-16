@@ -33,7 +33,6 @@ use iced::{Alignment, Element, Length, Task};
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
-use crate::models::UserView;
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::routers::user::message::Message;
 use crate::states::UserState;
@@ -46,48 +45,60 @@ use super::elements::{
 
 /// State for the user router
 pub struct UserRouter {
-    /// The user view model for display
-    user_view: UserView,
+    /// User-specific state (owns it)
+    user_state: UserState,
     /// API instance for backend communication
     app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n) - read-only
     app_state: Rc<AppState>,
-    /// User-specific mutable state
-    user_state: UserState,
 }
 
 impl UserRouter {
     /// Creates a new user router.
     ///
-    /// The router will receive user data via MainScreen::UserLoaded message after push.
+    /// The router will load user data via init() after push.
     ///
     /// # Arguments
     ///
-    /// * `user_view` - The initial user view model to display (can be minimal with just username)
+    /// * `username` - The username for this user
     /// * `app_api` - The API instance for backend communication
     /// * `app_state` - Global application state (read-only reference)
     ///
     /// # Returns
     ///
-    /// A new UserRouter instance
-    pub fn new(user_view: UserView, app_api: Arc<dyn AppApi>, app_state: Rc<AppState>) -> Self {
-        // Initialize user state from the view's settings (if any)
-        let user_state = UserState::new(user_view.settings.as_ref());
+    /// A new UserRouter instance with minimal initial state
+    pub fn new(username: String, app_api: Arc<dyn AppApi>, app_state: Rc<AppState>) -> Self {
+        // Initialize with minimal user state (will be loaded in init())
+        let user_state = UserState::new(username, None);
 
         Self {
-            user_view,
+            user_state,
             app_api,
             app_state,
-            user_state,
         }
     }
 
     /// Asynchronously loads fresh user data from the API
-    async fn load_user_data(app_api: Arc<dyn AppApi>, username: String) -> Option<UserView> {
+    async fn load_user_data(app_api: Arc<dyn AppApi>, username: String) -> Option<UserState> {
         match app_api.users_api().get_user_by_username(&username).await {
             Some(user_dto) => {
-                use crate::mappers::user_mapper;
-                Some(user_mapper::dto_to_view(&user_dto))
+                // Convert DTO settings to UserState
+                use crate::languages::Language;
+                use crate::models::UserSettingsView;
+                use iced::Theme;
+
+                let theme = Theme::ALL
+                    .iter()
+                    .find(|t| t.to_string() == user_dto.settings.theme)
+                    .cloned()
+                    .unwrap_or(Theme::Dark);
+                let language = Language::from_locale_code(&user_dto.settings.language)
+                    .unwrap_or(Language::English);
+
+                let settings_view = UserSettingsView { theme, language };
+                let user_state = UserState::new(username.clone(), Some(&settings_view));
+
+                Some(user_state)
             }
             None => {
                 eprintln!("Failed to load user data for: {}", username);
@@ -114,7 +125,6 @@ impl UserRouter {
                 ProfilesButtonMessage::Pressed => {
                     let profile_list_router =
                         crate::routers::profile_list::router::ProfileListRouter::new(
-                            self.user_view.username.clone(),
                             Arc::clone(&self.app_api),
                             Rc::clone(&self.app_state),
                             Rc::new(self.user_state.clone()),
@@ -125,9 +135,21 @@ impl UserRouter {
             },
             Message::SettingsButton(msg) => match msg {
                 SettingsButtonMessage::Pressed => {
+                    // Temporarily create UserView for UserSettingsRouter (to be refactored)
+                    use crate::models::{UserSettingsView, UserView};
+                    let settings_view = UserSettingsView {
+                        theme: self.user_state.theme.clone(),
+                        language: self.user_state.language,
+                    };
+                    let user_view = UserView {
+                        username: self.user_state.username.clone(),
+                        settings: Some(settings_view),
+                        profiles: vec![], // Empty, not used by UserSettingsRouter
+                    };
+
                     let user_settings_router: Box<dyn RouterNode> = Box::new(
                         crate::routers::user_settings::router::UserSettingsRouter::new(
-                            self.user_view.clone(),
+                            user_view,
                             Arc::clone(&self.app_api),
                             Rc::clone(&self.app_state),
                         ),
@@ -135,17 +157,14 @@ impl UserRouter {
                     (Some(RouterEvent::Push(user_settings_router)), Task::none())
                 }
             },
-            Message::UserLoaded(user_view_opt) => {
-                if let Some(user_view) = user_view_opt {
-                    println!("UserLoaded: Loading user data for {}", user_view.username);
-                    self.user_view = user_view;
-                    // Update user state from loaded settings (from database)
-                    if let Some(ref settings) = self.user_view.settings {
-                        println!("UserLoaded: Updating language to {}", settings.language);
-                        self.user_state.update_from_settings(settings);
-                    } else {
-                        println!("UserLoaded: No settings found, using defaults");
-                    }
+            Message::UserLoaded(user_state_opt) => {
+                if let Some(user_state) = user_state_opt {
+                    println!("UserLoaded: Loading user data for {}", user_state.username);
+                    self.user_state = user_state;
+                    println!(
+                        "UserLoaded: Updated language to {}",
+                        self.user_state.language.name()
+                    );
                 } else {
                     println!("UserLoaded: Failed to load user data");
                 }
@@ -164,7 +183,7 @@ impl UserRouter {
 
         // Center content: Username and action buttons (positioned absolutely in center)
         let mut args = FluentArgs::new();
-        args.set("username", &self.user_view.username);
+        args.set("username", &self.user_state.username);
         args.set("language", self.user_state.language.name());
         let title_text = i18n.get("user-account-title", Some(&args));
         let username_text = iced::widget::text(title_text)
@@ -221,7 +240,7 @@ impl RouterNode for UserRouter {
                 let mapped_task = task.map(router::Message::User);
                 (event, mapped_task)
             }
-            _ => (None, Task::none())
+            _ => (None, Task::none()),
         }
     }
 
@@ -236,7 +255,7 @@ impl RouterNode for UserRouter {
 
     fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         // Load user data from database (called on push and when returning from sub-screens)
-        let username = self.user_view.username.clone();
+        let username = self.user_state.username.clone();
         let init_task = Task::perform(
             Self::load_user_data(Arc::clone(&self.app_api), username),
             Message::UserLoaded,
@@ -282,18 +301,13 @@ mod tests {
     fn create_test_router() -> UserRouter {
         let test_api = Arc::new(TestAppApi);
         let app_state = Rc::new(AppState::new("Dark".to_string(), "English".to_string()));
-        let user_view = UserView {
-            username: "testuser".to_string(),
-            settings: None,
-            profiles: vec![],
-        };
-        UserRouter::new(user_view, test_api, app_state)
+        UserRouter::new("testuser".to_string(), test_api, app_state)
     }
 
     #[test]
-    fn test_new_router_has_user_view() {
+    fn test_new_router_has_user_state() {
         let router = create_test_router();
-        assert_eq!(router.user_view.username, "testuser");
+        assert_eq!(router.user_state.username, "testuser");
     }
 
     #[test]

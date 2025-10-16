@@ -1,7 +1,6 @@
 //! Messages for the profile list router.
 
 use crate::components::error_modal::error_modal::ErrorModalMessage;
-use crate::models::ProfileView;
 
 use super::elements::{
     add_profile_button::AddProfileButtonMessage, back_button::BackButtonMessage,
@@ -22,8 +21,8 @@ pub enum Message {
     Modal(ModalWindowMessage),
     /// Result of profile creation attempt
     ProfileCreated(Result<String, String>), // Ok(language_code) or Err(i18n_key)
-    /// Profiles loaded from API
-    ProfilesLoaded(Result<Vec<ProfileView>, String>), // Ok(profiles) or Err(i18n_key)
+    /// Profile languages (locale codes) loaded from API
+    ProfilesLoaded(Result<Vec<String>, String>), // Ok(language_codes) or Err(i18n_key)
     /// Message from the error modal
     ErrorModal(ErrorModalMessage),
     /// Global event (keyboard, mouse, etc.)
