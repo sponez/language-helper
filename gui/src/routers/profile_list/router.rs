@@ -67,7 +67,7 @@ pub struct ProfileListRouter {
 }
 
 impl ProfileListRouter {
-    /// Creates a new profile list router and starts loading profiles
+    /// Creates a new profile list router
     ///
     /// # Arguments
     ///
@@ -78,30 +78,22 @@ impl ProfileListRouter {
     ///
     /// # Returns
     ///
-    /// A tuple of (router, task) where the task will load profiles asynchronously
+    /// A new ProfileListRouter instance. Profiles will be loaded via init().
     pub fn new(
         username: String,
         app_api: Arc<dyn AppApi>,
         app_state: Rc<AppState>,
         user_state: Rc<UserState>,
-    ) -> (Self, Task<Message>) {
-        let router = Self {
-            app_api: Arc::clone(&app_api),
+    ) -> Self {
+        Self {
+            app_api,
             app_state,
             user_state,
-            username: username.clone(),
+            username,
             profiles: Vec::new(),
             create_profile_modal: None,
             error_message: None,
-        };
-
-        // Create task to load profiles
-        let task = Task::perform(
-            Self::load_profiles(router.app_api.clone(), username),
-            Message::ProfilesLoaded,
-        );
-
-        (router, task)
+        }
     }
 
     /// Asynchronously loads profiles from the API
@@ -389,16 +381,16 @@ impl RouterNode for ProfileListRouter {
         self.user_state.theme()
     }
 
-    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
-        // Reload profiles from database (called when returning from sub-routers)
-        let refresh_task = Task::perform(
+    fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
+        // Load profiles from database (called on push and when returning from sub-routers)
+        let init_task = Task::perform(
             Self::load_profiles(Arc::clone(&self.app_api), self.username.clone()),
             Message::ProfilesLoaded,
         )
         .map(router::Message::ProfileList);
 
-        // Batch the incoming task with the refresh task
-        Task::batch(vec![incoming_task, refresh_task])
+        // Batch the incoming task with the init task
+        Task::batch(vec![incoming_task, init_task])
     }
 
     fn subscription(&self) -> Subscription<router::Message> {

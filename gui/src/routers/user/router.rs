@@ -35,7 +35,6 @@ use lh_api::app_api::AppApi;
 use crate::app_state::AppState;
 use crate::models::UserView;
 use crate::router::{self, RouterEvent, RouterNode};
-use crate::routers::main_screen;
 use crate::routers::user::message::Message;
 use crate::states::UserState;
 
@@ -113,7 +112,7 @@ impl UserRouter {
             },
             Message::ProfilesButton(msg) => match msg {
                 ProfilesButtonMessage::Pressed => {
-                    let (profile_list_router, _task) =
+                    let profile_list_router =
                         crate::routers::profile_list::router::ProfileListRouter::new(
                             self.user_view.username.clone(),
                             Arc::clone(&self.app_api),
@@ -121,7 +120,6 @@ impl UserRouter {
                             Rc::new(self.user_state.clone()),
                         );
                     let router_box: Box<dyn RouterNode> = Box::new(profile_list_router);
-                    // Note: The task is handled by the router system after push
                     (Some(RouterEvent::Push(router_box)), Task::none())
                 }
             },
@@ -223,24 +221,7 @@ impl RouterNode for UserRouter {
                 let mapped_task = task.map(router::Message::User);
                 (event, mapped_task)
             }
-            router::Message::MainScreen(msg) => match msg {
-                main_screen::message::Message::UserLoaded(user_view_opt) => {
-                    // Convert MainScreen message to User message and handle it
-                    let (event, task) =
-                        UserRouter::update(self, Message::UserLoaded(user_view_opt.clone()));
-                    let mapped_task = task.map(router::Message::User);
-                    (event, mapped_task)
-                }
-                _ => (None, Task::none()),
-            },
-            router::Message::UserSettings(_msg) => {
-                // UserSettings messages don't affect UserRouter
-                (None, Task::none())
-            }
-            router::Message::ProfileList(_msg) => {
-                // ProfileList messages don't affect UserRouter
-                (None, Task::none())
-            }
+            _ => (None, Task::none())
         }
     }
 
@@ -253,17 +234,17 @@ impl RouterNode for UserRouter {
         self.user_state.theme()
     }
 
-    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
-        // Reload user data from database (called when returning from sub-screens)
+    fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
+        // Load user data from database (called on push and when returning from sub-screens)
         let username = self.user_view.username.clone();
-        let refresh_task = Task::perform(
+        let init_task = Task::perform(
             Self::load_user_data(Arc::clone(&self.app_api), username),
             Message::UserLoaded,
         )
         .map(router::Message::User);
 
-        // Batch the incoming task with the refresh task
-        Task::batch(vec![incoming_task, refresh_task])
+        // Batch the incoming task with the init task
+        Task::batch(vec![incoming_task, init_task])
     }
 }
 

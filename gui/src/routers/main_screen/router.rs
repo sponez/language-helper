@@ -73,22 +73,14 @@ impl MainScreenRouter {
     /// # Returns
     ///
     /// A tuple of (router, task) where the task will load usernames asynchronously
-    pub fn new(app_api: Arc<dyn AppApi>, app_state: AppState) -> (Self, Task<Message>) {
-        let router = Self {
+    pub fn new(app_api: Arc<dyn AppApi>, app_state: AppState) -> Self {
+        Self {
             app_api: Arc::clone(&app_api),
             app_state,
             create_user_modal: None,
             username_list: Vec::new(),
             error_message: None,
-        };
-
-        // Create task to load usernames
-        let task = Task::perform(
-            Self::load_usernames(router.app_api.clone()),
-            Message::UsernamesReceived,
-        );
-
-        (router, task)
+        }
     }
 
     /// Asynchronously loads usernames from the API
@@ -98,23 +90,6 @@ impl MainScreenRouter {
             Err(e) => {
                 eprintln!("Failed to load usernames: {:?}", e);
                 Vec::new()
-            }
-        }
-    }
-
-    /// Asynchronously loads full user data from the API
-    async fn load_user_data(
-        app_api: Arc<dyn AppApi>,
-        username: String,
-    ) -> Option<crate::models::UserView> {
-        match app_api.users_api().get_user_by_username(&username).await {
-            Some(user_dto) => {
-                use crate::mappers::user_mapper;
-                Some(user_mapper::dto_to_view(&user_dto))
-            }
-            None => {
-                eprintln!("Failed to load user data for: {}", username);
-                None
             }
         }
     }
@@ -213,14 +188,7 @@ impl MainScreenRouter {
 
                     let router_box: Box<dyn crate::router::RouterNode> = Box::new(user_router);
 
-                    // Create task to load user data and send it as a MainScreen message
-                    let load_task = Task::perform(
-                        Self::load_user_data(Arc::clone(&self.app_api), username),
-                        Message::UserLoaded,
-                    );
-
-                    // Push router and execute load task
-                    (Some(RouterEvent::Push(router_box)), load_task)
+                    (Some(RouterEvent::Push(router_box)), Task::none())
                 }
             },
             Message::AddUserButton(msg) => {
@@ -296,11 +264,6 @@ impl MainScreenRouter {
                         (None, Task::none())
                     }
                 }
-            }
-            Message::UserLoaded(_user_view_opt) => {
-                // User data loaded - this message will be routed to UserRouter
-                // MainScreen doesn't need to do anything with it
-                (None, Task::none())
             }
             Message::ErrorModal(msg) => match msg {
                 ErrorModalMessage::Close => {
@@ -435,15 +398,15 @@ impl RouterNode for MainScreenRouter {
         self.app_state.theme()
     }
 
-    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
-        let refresh_task = Task::perform(
+    fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
+        let init_task = Task::perform(
             Self::load_usernames(Arc::clone(&self.app_api)),
             Message::UsernamesReceived,
         )
         .map(router::Message::MainScreen);
 
-        // Batch the incoming task with the refresh task
-        Task::batch(vec![incoming_task, refresh_task])
+        // Batch the incoming task with the init task
+        Task::batch(vec![incoming_task, init_task])
     }
 
     fn subscription(&self) -> Subscription<router::Message> {
@@ -487,8 +450,7 @@ mod tests {
     fn create_test_router() -> MainScreenRouter {
         let test_api = Arc::new(TestAppApi);
         let app_state = AppState::new("Dark".to_string(), "en".to_string());
-        let (router, _task) = MainScreenRouter::new(test_api, app_state);
-        router
+        MainScreenRouter::new(test_api, app_state)
     }
 
     #[test]

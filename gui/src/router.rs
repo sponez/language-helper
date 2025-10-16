@@ -142,21 +142,21 @@ pub trait RouterNode {
     /// Get the current theme from the router
     fn theme(&self) -> iced::Theme;
 
-    /// Refresh the router's data from the API
+    /// Initialize the router's data from the API
     ///
-    /// This is called automatically after any Pop or PopTo operation.
-    /// Routers should reload their data from the API to ensure they display current information.
+    /// This is called automatically after Push, Pop, or PopTo operations.
+    /// Routers should load their data from the API to ensure they display current information.
     ///
     /// # Arguments
     ///
-    /// * `incoming_task` - A task from the previous operation that should be batched with refresh tasks
+    /// * `incoming_task` - A task from the previous operation that should be batched with init tasks
     ///
     /// # Returns
     ///
-    /// A Task that performs the refresh operation, batched with the incoming task
+    /// A Task that performs the initialization, batched with the incoming task
     ///
-    /// Default implementation just returns the incoming task without any refresh.
-    fn refresh(&mut self, incoming_task: Task<Message>) -> Task<Message> {
+    /// Default implementation just returns the incoming task without any initialization.
+    fn init(&mut self, incoming_task: Task<Message>) -> Task<Message> {
         incoming_task
     }
 
@@ -209,16 +209,19 @@ impl RouterStack {
 
         if let Some(event) = event {
             match event {
-                RouterEvent::Push(new_router) => {
+                RouterEvent::Push(mut new_router) => {
+                    // Initialize the new router before pushing
+                    let init_task = new_router.init(task);
                     self.stack.push(new_router);
+                    return Ok((false, init_task));
                 }
                 RouterEvent::Pop => {
                     if self.stack.len() > 1 {
                         self.stack.pop();
-                        // Always refresh the now-current router after popping
+                        // Always initialize the now-current router after popping
                         if let Some(current_router) = self.stack.last_mut() {
-                            let refresh_task = current_router.refresh(task);
-                            return Ok((false, refresh_task));
+                            let init_task = current_router.init(task);
+                            return Ok((false, init_task));
                         }
                     } else {
                         // Can't pop the root router - exit instead
@@ -237,18 +240,18 @@ impl RouterStack {
                         if let Some(index) = target_index {
                             // Pop all routers above the target
                             self.stack.truncate(index + 1);
-                            // Refresh the target router
+                            // Initialize the target router
                             if let Some(current_router) = self.stack.last_mut() {
-                                let refresh_task = current_router.refresh(task);
-                                return Ok((false, refresh_task));
+                                let init_task = current_router.init(task);
+                                return Ok((false, init_task));
                             }
                         } else {
                             // Target not found - just do a regular pop
                             if self.stack.len() > 1 {
                                 self.stack.pop();
                                 if let Some(current_router) = self.stack.last_mut() {
-                                    let refresh_task = current_router.refresh(task);
-                                    return Ok((false, refresh_task));
+                                    let init_task = current_router.init(task);
+                                    return Ok((false, init_task));
                                 }
                             } else {
                                 return Ok((true, task));
@@ -258,10 +261,10 @@ impl RouterStack {
                         // No target specified - pop to root (keep only first router)
                         if self.stack.len() > 1 {
                             self.stack.truncate(1);
-                            // Refresh the root router
+                            // Initialize the root router
                             if let Some(root_router) = self.stack.last_mut() {
-                                let refresh_task = root_router.refresh(task);
-                                return Ok((false, refresh_task));
+                                let init_task = root_router.init(task);
+                                return Ok((false, init_task));
                             }
                         }
                     }
@@ -346,7 +349,7 @@ mod tests {
             iced::Theme::Dark
         }
 
-        fn refresh(&mut self, incoming_task: Task<Message>) -> Task<Message> {
+        fn init(&mut self, incoming_task: Task<Message>) -> Task<Message> {
             *self.refresh_count.borrow_mut() += 1;
             incoming_task
         }
@@ -399,9 +402,9 @@ mod tests {
         // Pop the child router
         stack.stack.pop();
 
-        // Refresh the root router (this should increment the counter)
+        // Initialize the root router (this should increment the counter)
         if let Some(current) = stack.stack.last_mut() {
-            let _ = current.refresh(Task::none());
+            let _ = current.init(Task::none());
         }
 
         // Verify stack state after pop

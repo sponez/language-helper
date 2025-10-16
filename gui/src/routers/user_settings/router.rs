@@ -330,10 +330,10 @@ impl RouterNode for UserSettingsRouter {
         }
     }
 
-    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
-        // Reload user data from database (called when returning from sub-screens)
+    fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
+        // Load user data from database (called on push and when returning from sub-screens)
         let username = self.user_view.username.clone();
-        let refresh_task = Task::perform(
+        let init_task = Task::perform(
             Self::load_user_data(Arc::clone(&self.app_api), username),
             |user_view_opt| {
                 // Update the router state if data was loaded
@@ -347,7 +347,7 @@ impl RouterNode for UserSettingsRouter {
             },
         );
 
-        // Batch the incoming task with the refresh task
-        Task::batch(vec![incoming_task, refresh_task])
+        // Batch the incoming task with the init task
+        Task::batch(vec![incoming_task, init_task])
     }
 }

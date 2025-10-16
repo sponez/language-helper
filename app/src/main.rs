@@ -65,14 +65,13 @@ impl LanguageHelperApp {
         let app_state = AppState::new(app_settings.theme, app_settings.language);
 
         // Create MainScreenRouter - it returns (router, task)
-        let (main_screen_router, init_task) = MainScreenRouter::new(app_api_rc, app_state);
+        let mut main_screen_router = MainScreenRouter::new(app_api_rc, app_state);
+        let task = main_screen_router.init(Task::none());
+
         let root_router: Box<dyn RouterNode> = Box::new(main_screen_router);
         let router_stack = RouterStack::new(root_router);
 
-        // Map the init task from MainScreen Message to router Message
-        let mapped_task = init_task.map(Message::MainScreen);
-
-        (Self { router_stack }, mapped_task)
+        (Self { router_stack }, task)
     }
 
     /// Handles application messages and updates state.
