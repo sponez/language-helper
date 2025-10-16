@@ -1,5 +1,8 @@
 //! Mapper for converting between UserSettings core model and UserSettingsView.
 
+use iced::Theme;
+
+use crate::languages::{language_name_to_enum, Language};
 use crate::models::UserSettingsView;
 use lh_core::models::user_settings::UserSettings;
 
@@ -13,7 +16,17 @@ use lh_core::models::user_settings::UserSettings;
 ///
 /// A UserSettingsView for display in the GUI
 pub fn model_to_view(settings: &UserSettings) -> UserSettingsView {
-    UserSettingsView::new(settings.ui_theme.clone(), settings.ui_language.clone())
+    // Convert String theme to Theme enum
+    let theme = Theme::ALL
+        .iter()
+        .find(|t| t.to_string() == settings.ui_theme)
+        .cloned()
+        .unwrap_or(Theme::Dark);
+
+    // Convert String language to Language enum
+    let language = language_name_to_enum(&settings.ui_language).unwrap_or(Language::English);
+
+    UserSettingsView::new(theme, language)
 }
 
 /// Converts a GUI UserSettingsView to a core UserSettings model.
@@ -26,7 +39,12 @@ pub fn model_to_view(settings: &UserSettings) -> UserSettingsView {
 ///
 /// A UserSettings core model
 pub fn view_to_model(view: &UserSettingsView) -> UserSettings {
-    UserSettings::new_unchecked(view.theme.clone(), view.language.clone())
+    // Convert Theme enum to String
+    let theme_str = view.theme.to_string();
+    // Convert Language enum to String
+    let language_str = view.language.name().to_string();
+
+    UserSettings::new_unchecked(theme_str, language_str)
 }
 
 #[cfg(test)]
@@ -35,19 +53,33 @@ mod tests {
 
     #[test]
     fn test_model_to_view() {
-        let settings = UserSettings::new("Dark".to_string(), "en".to_string()).unwrap();
+        let settings = UserSettings::new("Dark".to_string(), "English".to_string()).unwrap();
         let view = model_to_view(&settings);
 
-        assert_eq!(view.theme, settings.ui_theme);
-        assert_eq!(view.language, settings.ui_language);
+        assert_eq!(view.theme.to_string(), "Dark");
+        assert_eq!(view.language.name(), "English");
     }
 
     #[test]
     fn test_view_to_model() {
-        let view = UserSettingsView::new("Light".to_string(), "es".to_string());
+        let view = UserSettingsView::new(Theme::Light, Language::Spanish);
         let settings = view_to_model(&view);
 
-        assert_eq!(settings.ui_theme, view.theme);
-        assert_eq!(settings.ui_language, view.language);
+        assert_eq!(settings.ui_theme, "Light");
+        assert_eq!(settings.ui_language, "Spanish");
+    }
+
+    #[test]
+    fn test_round_trip_conversion() {
+        let original_settings =
+            UserSettings::new("Dark".to_string(), "English".to_string()).unwrap();
+        let view = model_to_view(&original_settings);
+        let converted_settings = view_to_model(&view);
+
+        assert_eq!(original_settings.ui_theme, converted_settings.ui_theme);
+        assert_eq!(
+            original_settings.ui_language,
+            converted_settings.ui_language
+        );
     }
 }

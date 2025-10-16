@@ -177,35 +177,59 @@ impl<
     }
 
     async fn update_user_theme(&self, username: &str, theme: &str) -> Result<(), ApiError> {
-        // Get current settings
-        let current_settings = self
-            .user_settings_service
-            .get_user_settings(username)
-            .await
-            .map_err(map_core_error_to_api_error)?;
+        // Try to get current settings
+        let current_settings = self.user_settings_service.get_user_settings(username).await;
 
-        // Update with new theme
-        self.user_settings_service
-            .update_user_settings(username, theme, current_settings.ui_language.as_str())
-            .await
-            .map(|_| ())
-            .map_err(map_core_error_to_api_error)
+        match current_settings {
+            Ok(settings) => {
+                // Update with new theme, keep current language
+                self.user_settings_service
+                    .update_user_settings(username, theme, settings.ui_language.as_str())
+                    .await
+                    .map(|_| ())
+                    .map_err(map_core_error_to_api_error)
+            }
+            Err(CoreError::NotFound { .. }) => {
+                // Settings don't exist, create them with default language
+                self.user_settings_service
+                    .create_user_settings(username, "English")
+                    .await
+                    .map_err(map_core_error_to_api_error)?;
+
+                // Now update with the new theme
+                self.user_settings_service
+                    .update_user_settings(username, theme, "English")
+                    .await
+                    .map(|_| ())
+                    .map_err(map_core_error_to_api_error)
+            }
+            Err(e) => Err(map_core_error_to_api_error(e)),
+        }
     }
 
     async fn update_user_language(&self, username: &str, language: &str) -> Result<(), ApiError> {
-        // Get current settings
-        let current_settings = self
-            .user_settings_service
-            .get_user_settings(username)
-            .await
-            .map_err(map_core_error_to_api_error)?;
+        // Try to get current settings
+        let current_settings = self.user_settings_service.get_user_settings(username).await;
 
-        // Update with new language
-        self.user_settings_service
-            .update_user_settings(username, current_settings.ui_theme.as_str(), language)
-            .await
-            .map(|_| ())
-            .map_err(map_core_error_to_api_error)
+        match current_settings {
+            Ok(settings) => {
+                // Update with new language, keep current theme
+                self.user_settings_service
+                    .update_user_settings(username, settings.ui_theme.as_str(), language)
+                    .await
+                    .map(|_| ())
+                    .map_err(map_core_error_to_api_error)
+            }
+            Err(CoreError::NotFound { .. }) => {
+                // Settings don't exist, create them with the specified language
+                self.user_settings_service
+                    .create_user_settings(username, language)
+                    .await
+                    .map(|_| ())
+                    .map_err(map_core_error_to_api_error)
+            }
+            Err(e) => Err(map_core_error_to_api_error(e)),
+        }
     }
 
     async fn delete_user(&self, username: &str) -> Result<bool, ApiError> {

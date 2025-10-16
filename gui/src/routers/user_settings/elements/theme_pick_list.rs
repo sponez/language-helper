@@ -2,8 +2,8 @@
 
 use std::rc::Rc;
 
-use iced::widget::{pick_list, row, PickList};
-use iced::{Alignment, Element};
+use iced::widget::{pick_list, row};
+use iced::{Alignment, Element, Theme};
 
 use crate::i18n::I18n;
 
@@ -11,7 +11,7 @@ use crate::i18n::I18n;
 #[derive(Debug, Clone)]
 pub enum ThemePickListMessage {
     /// A theme was selected from the picker
-    Selected(String),
+    Selected(Theme),
 }
 
 /// Creates a theme picker with label
@@ -26,19 +26,19 @@ pub enum ThemePickListMessage {
 /// An element containing the label and picker
 pub fn theme_pick_list(
     i18n: Rc<I18n>,
-    current_theme: iced::Theme,
+    current_theme: Theme,
 ) -> Element<'static, ThemePickListMessage> {
     let label = iced::widget::text(i18n.get("user-settings-theme-label", None))
         .size(16)
         .shaping(iced::widget::text::Shaping::Advanced);
 
-    let themes: Vec<String> = iced::Theme::ALL.iter().map(|t| t.to_string()).collect();
-    let theme_selected: Option<String> = Some(current_theme.to_string());
-
-    let picker: PickList<'_, String, Vec<String>, String, ThemePickListMessage> =
-        pick_list(themes, theme_selected, ThemePickListMessage::Selected)
-            .width(200)
-            .text_shaping(iced::widget::text::Shaping::Advanced);
+    let picker = pick_list(
+        Theme::ALL,
+        Some(current_theme),
+        ThemePickListMessage::Selected,
+    )
+    .width(200)
+    .text_shaping(iced::widget::text::Shaping::Advanced);
 
     row![label, picker]
         .spacing(10)

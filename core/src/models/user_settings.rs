@@ -28,37 +28,11 @@ pub struct UserSettings {
 }
 
 impl UserSettings {
-    /// Valid UI theme values (all iced built-in themes).
-    pub const VALID_THEMES: &'static [&'static str] = &[
-        "Dark",
-        "Light",
-        "CatppuccinFrappe",
-        "CatppuccinLatte",
-        "CatppuccinMacchiato",
-        "CatppuccinMocha",
-        "Dracula",
-        "Ferra",
-        "GruvboxDark",
-        "GruvboxLight",
-        "KanagawaDragon",
-        "KanagawaLotus",
-        "KanagawaWave",
-        "Moonfly",
-        "Nightfly",
-        "Nord",
-        "Oxocarbon",
-        "SolarizedDark",
-        "SolarizedLight",
-        "TokyoNight",
-        "TokyoNightLight",
-        "TokyoNightStorm",
-    ];
-
-    /// Creates a new UserSettings instance with validation.
+    /// Creates a new UserSettings instance with basic validation.
     ///
     /// # Arguments
     ///
-    /// * `ui_theme` - The UI theme preference
+    /// * `ui_theme` - The UI theme preference (any string, validated by GUI layer)
     /// * `ui_language` - The UI language code
     ///
     /// # Returns
@@ -83,7 +57,7 @@ impl UserSettings {
         UT: AsRef<str> + Into<String>,
         UL: AsRef<str> + Into<String>,
     {
-        Self::validate_theme(ui_theme.as_ref())?;
+        Self::validate_not_empty("UI theme", ui_theme.as_ref())?;
         Self::validate_language_code(ui_language.as_ref())?;
         Ok(Self {
             ui_theme: ui_theme.into(),
@@ -110,13 +84,12 @@ impl UserSettings {
         }
     }
 
-    /// Validates the UI theme.
-    fn validate_theme(theme: &str) -> Result<(), CoreError> {
-        if !Self::VALID_THEMES.contains(&theme) {
+    /// Validates that a field is not empty.
+    fn validate_not_empty(field_name: &str, value: &str) -> Result<(), CoreError> {
+        if value.is_empty() {
             return Err(CoreError::validation_error(format!(
-                "Invalid theme '{}'. Must be one of: {:?}",
-                theme,
-                Self::VALID_THEMES
+                "{} cannot be empty",
+                field_name
             )));
         }
         Ok(())
@@ -127,9 +100,9 @@ impl UserSettings {
         if code.is_empty() {
             return Err(CoreError::validation_error("Language code cannot be empty"));
         }
-        if code.len() > 10 {
+        if code.len() > 50 {
             return Err(CoreError::validation_error(
-                "Language code cannot exceed 10 characters",
+                "Language code cannot exceed 50 characters",
             ));
         }
         Ok(())
@@ -142,22 +115,24 @@ mod tests {
 
     #[test]
     fn test_user_settings_creation_valid() {
-        let settings = UserSettings::new("Dark".to_string(), "en".to_string()).unwrap();
+        let settings = UserSettings::new("Dark".to_string(), "English".to_string()).unwrap();
         assert_eq!(settings.ui_theme, "Dark");
-        assert_eq!(settings.ui_language, "en");
+        assert_eq!(settings.ui_language, "English");
     }
 
     #[test]
-    fn test_valid_themes() {
-        for theme in UserSettings::VALID_THEMES {
-            let result = UserSettings::new(theme.to_string(), "en".to_string());
-            assert!(result.is_ok(), "Theme '{}' should be valid", theme);
+    fn test_any_theme_accepted() {
+        // Core should accept any non-empty theme string
+        let themes = vec!["Dark", "Light", "CustomTheme", "MyAwesomeTheme"];
+        for theme in themes {
+            let result = UserSettings::new(theme.to_string(), "English".to_string());
+            assert!(result.is_ok(), "Theme '{}' should be accepted", theme);
         }
     }
 
     #[test]
-    fn test_invalid_theme() {
-        let result = UserSettings::new("NotARealTheme".to_string(), "en".to_string());
+    fn test_empty_theme_rejected() {
+        let result = UserSettings::new("".to_string(), "English".to_string());
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
@@ -177,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_language_code_too_long() {
-        let result = UserSettings::new("Dark".to_string(), "a".repeat(11));
+        let result = UserSettings::new("Dark".to_string(), "a".repeat(51));
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
@@ -187,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_valid_language_codes() {
-        let valid_codes = vec!["en", "es", "fr", "de", "zh", "ja", "en-US", "pt-BR"];
+        let valid_codes = vec!["English", "Spanish", "French", "German", "Japanese"];
         for code in valid_codes {
             let result = UserSettings::new("Dark".to_string(), code.to_string());
             assert!(result.is_ok(), "Language code '{}' should be valid", code);
@@ -196,14 +171,16 @@ mod tests {
 
     #[test]
     fn test_clone() {
-        let settings = UserSettings::new("Light".to_string(), "es".to_string()).unwrap();
+        let settings = UserSettings::new("Light".to_string(), "Spanish".to_string()).unwrap();
         let cloned = settings.clone();
         assert_eq!(settings, cloned);
     }
 
     #[test]
     fn test_new_unchecked() {
-        let settings = UserSettings::new_unchecked("NotARealTheme".to_string(), "".to_string());
-        assert_eq!(settings.ui_theme, "NotARealTheme");
+        // new_unchecked accepts anything, even invalid data
+        let settings = UserSettings::new_unchecked("".to_string(), "".to_string());
+        assert_eq!(settings.ui_theme, "");
+        assert_eq!(settings.ui_language, "");
     }
 }

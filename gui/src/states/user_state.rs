@@ -3,15 +3,18 @@
 //! This module provides mutable state that is specific to a user's session,
 //! separate from the global read-only AppState.
 
+use iced::Theme;
+
+use crate::languages::Language;
 use crate::models::UserSettingsView;
 
 /// User-specific state for managing a user's settings
 #[derive(Debug, Clone)]
 pub struct UserState {
     /// User's theme preference
-    pub theme: String,
+    pub theme: Theme,
     /// User's language preference
-    pub language: String,
+    pub language: Language,
 }
 
 impl UserState {
@@ -28,13 +31,13 @@ impl UserState {
         if let Some(s) = settings {
             Self {
                 theme: s.theme.clone(),
-                language: s.language.clone(),
+                language: s.language,
             }
         } else {
             // Default values if no settings provided
             Self {
-                theme: "Dark".to_string(),
-                language: "English".to_string(),
+                theme: Theme::Dark,
+                language: Language::English,
             }
         }
     }
@@ -46,16 +49,16 @@ impl UserState {
     /// * `settings` - The user settings to apply
     pub fn update_from_settings(&mut self, settings: &UserSettingsView) {
         self.theme = settings.theme.clone();
-        self.language = settings.language.clone();
+        self.language = settings.language;
     }
 
     /// Gets the current theme.
-    pub fn theme(&self) -> &str {
-        &self.theme
+    pub fn theme(&self) -> Theme {
+        self.theme.clone()
     }
 
     /// Gets the current language.
-    pub fn language(&self) -> &str {
-        &self.language
+    pub fn language(&self) -> Language {
+        self.language.clone()
     }
 }

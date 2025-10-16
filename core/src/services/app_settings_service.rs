@@ -282,11 +282,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_update_settings_invalid_theme() {
+    async fn test_update_settings_any_theme_accepted() {
         let repo = MockAppSettingsRepository::new();
         let service = AppSettingsService::new(repo);
 
-        let result = service.update_settings("InvalidTheme", "en").await;
+        // Core should accept any non-empty theme string
+        let result = service.update_settings("CustomTheme", "en").await;
+        assert!(result.is_ok());
+        let settings = result.unwrap();
+        assert_eq!(settings.ui_theme, "CustomTheme");
+        assert_eq!(settings.default_ui_language, "en");
+    }
+
+    #[tokio::test]
+    async fn test_update_settings_empty_theme_rejected() {
+        let repo = MockAppSettingsRepository::new();
+        let service = AppSettingsService::new(repo);
+
+        // But empty theme should still be rejected
+        let result = service.update_settings("", "en").await;
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),

@@ -75,6 +75,20 @@ impl UserSettingsRouter {
         }
     }
 
+    /// Asynchronously loads fresh user data from the API
+    async fn load_user_data(app_api: Arc<dyn AppApi>, username: String) -> Option<UserView> {
+        match app_api.users_api().get_user_by_username(&username).await {
+            Some(user_dto) => {
+                use crate::mappers::user_mapper;
+                Some(user_mapper::dto_to_view(&user_dto))
+            }
+            None => {
+                eprintln!("Failed to load user data for: {}", username);
+                None
+            }
+        }
+    }
+
     /// Asynchronously updates user theme setting
     async fn update_user_theme(
         app_api: Arc<dyn AppApi>,
@@ -120,18 +134,24 @@ impl UserSettingsRouter {
                 BackButtonMessage::Pressed => (Some(RouterEvent::Pop), Task::none()),
             },
             Message::ThemePicker(msg) => match msg {
-                ThemePickListMessage::Selected(new_theme_str) => {
+                ThemePickListMessage::Selected(new_theme) => {
+                    // Convert Theme enum to String for API call
+                    let theme_str = new_theme.to_string();
+
                     // Create async task to update theme
                     let username = self.user_view.username.clone();
-                    let theme = new_theme_str.clone();
                     let task = Task::perform(
-                        Self::update_user_theme(Arc::clone(&self.app_api), username, theme),
+                        Self::update_user_theme(
+                            Arc::clone(&self.app_api),
+                            username,
+                            theme_str.clone(),
+                        ),
                         Message::ThemeUpdated,
                     );
 
-                    // Optimistically update local view
+                    // Optimistically update local view with Theme enum
                     if let Some(ref mut settings) = self.user_view.settings {
-                        settings.theme = new_theme_str;
+                        settings.theme = new_theme;
                     }
 
                     (None, task)
@@ -215,9 +235,9 @@ impl UserSettingsRouter {
 
         // Get language from user settings if available, otherwise use default
         let language_value = if let Some(ref settings) = self.user_view.settings {
-            settings.language.clone()
+            settings.language.name()
         } else {
-            "English".to_string()
+            "English"
         };
         let language_display = iced::widget::text(language_value)
             .size(16)
@@ -229,11 +249,7 @@ impl UserSettingsRouter {
 
         // Get theme from user settings if available, otherwise use default
         let current_theme = if let Some(ref settings) = self.user_view.settings {
-            iced::Theme::ALL
-                .iter()
-                .find(|t| t.to_string() == settings.theme)
-                .cloned()
-                .unwrap_or(iced::Theme::Dark)
+            settings.theme.clone()
         } else {
             iced::Theme::Dark
         };
@@ -306,6 +322,32 @@ impl RouterNode for UserSettingsRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        self.app_state.theme()
+        // Get theme from user settings, not global app state
+        if let Some(ref settings) = self.user_view.settings {
+            settings.theme.clone()
+        } else {
+            iced::Theme::Dark
+        }
+    }
+
+    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
+        // Reload user data from database (called when returning from sub-screens)
+        let username = self.user_view.username.clone();
+        let refresh_task = Task::perform(
+            Self::load_user_data(Arc::clone(&self.app_api), username),
+            |user_view_opt| {
+                // Update the router state if data was loaded
+                if let Some(_user_view) = user_view_opt {
+                    // For now, just trigger a dummy message since we don't have UserLoaded
+                    // TODO: Add UserLoaded message and properly update user_view
+                    router::Message::UserSettings(Message::ThemeUpdated(Ok(())))
+                } else {
+                    router::Message::UserSettings(Message::ThemeUpdated(Ok(())))
+                }
+            },
+        );
+
+        // Batch the incoming task with the refresh task
+        Task::batch(vec![incoming_task, refresh_task])
     }
 }

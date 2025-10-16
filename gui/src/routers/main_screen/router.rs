@@ -170,7 +170,7 @@ impl MainScreenRouter {
 
                         // Save to API asynchronously
                         let app_api = Arc::clone(&self.app_api);
-                        let theme_str = format!("{:?}", theme); // Convert theme to string
+                        let theme_str = theme.to_string(); // Convert theme to string using Display format
                         let task = Task::perform(
                             Self::update_theme(app_api, theme_str),
                             Message::ThemeUpdated,

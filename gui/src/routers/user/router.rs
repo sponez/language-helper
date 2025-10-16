@@ -166,7 +166,7 @@ impl UserRouter {
         // Center content: Username and action buttons (positioned absolutely in center)
         let mut args = FluentArgs::new();
         args.set("username", &self.user_view.username);
-        args.set("language", &self.user_state.language);
+        args.set("language", self.user_state.language.name());
         let title_text = i18n.get("user-account-title", Some(&args));
         let username_text = iced::widget::text(title_text)
             .size(24)
@@ -244,7 +244,8 @@ impl RouterNode for UserRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        self.app_state.theme()
+        // Get theme from user state, not global app state
+        self.user_state.theme()
     }
 
     fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {

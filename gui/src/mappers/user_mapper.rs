@@ -1,5 +1,8 @@
 //! Mapper for converting between User core model and UserView.
 
+use iced::Theme;
+
+use crate::languages::{language_name_to_enum, Language};
 use crate::models::{ProfileView, UserSettingsView, UserView};
 use lh_api::models::{profile::ProfileDto, user::UserDto, user_settings::UserSettingsDto};
 use lh_core::models::user::User;
@@ -48,7 +51,17 @@ pub fn dto_to_view(user_dto: &UserDto) -> UserView {
 
 /// Converts a UserSettingsDto to a UserSettingsView.
 fn dto_settings_to_view(settings_dto: &UserSettingsDto) -> UserSettingsView {
-    UserSettingsView::new(settings_dto.theme.clone(), settings_dto.language.clone())
+    // Convert String theme to Theme enum
+    let theme = Theme::ALL
+        .iter()
+        .find(|t| t.to_string() == settings_dto.theme)
+        .cloned()
+        .unwrap_or(Theme::Dark);
+
+    // Convert String language to Language enum
+    let language = language_name_to_enum(&settings_dto.language).unwrap_or(Language::English);
+
+    UserSettingsView::new(theme, language)
 }
 
 /// Converts a ProfileDto to a ProfileView.

@@ -354,7 +354,7 @@ mod tests {
 
     #[test]
     fn test_router_target_as_str() {
-        assert_eq!(RouterTarget::MainScreen.as_str(), "user_list");
+        assert_eq!(RouterTarget::MainScreen.as_str(), "main_screen");
         assert_eq!(RouterTarget::User.as_str(), "user");
         assert_eq!(RouterTarget::UserSettings.as_str(), "user_settings");
         assert_eq!(RouterTarget::ProfileList.as_str(), "profile_list");
