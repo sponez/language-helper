@@ -20,6 +20,8 @@ use crate::errors::CoreError;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Profile {
+    /// Profile name (user-defined identifier).
+    pub profile_name: String,
     /// Target language being learned.
     pub target_language: String,
     /// Unix timestamp of creation.
@@ -31,11 +33,11 @@ pub struct Profile {
 impl Profile {
     /// Creates a new Profile instance with validation.
     ///
-    /// Sets timestamps to current time. The profile is identified externally
-    /// by the combination of username and target language.
+    /// Sets timestamps to current time. The profile is identified by its name.
     ///
     /// # Arguments
     ///
+    /// * `profile_name` - The name of the profile (user-defined)
     /// * `target_language` - The target language being learned
     ///
     /// # Returns
@@ -48,19 +50,23 @@ impl Profile {
     /// ```
     /// use lh_core::models::profile::Profile;
     ///
-    /// let profile = Profile::new("french").unwrap();
+    /// let profile = Profile::new("My French", "french").unwrap();
+    /// assert_eq!(profile.profile_name, "My French");
     /// assert_eq!(profile.target_language, "french");
     /// assert!(profile.created_at > 0);
     /// ```
-    pub fn new<TL>(target_language: TL) -> Result<Self, CoreError>
+    pub fn new<PN, TL>(profile_name: PN, target_language: TL) -> Result<Self, CoreError>
     where
+        PN: AsRef<str> + Into<String>,
         TL: AsRef<str> + Into<String>,
     {
+        Self::validate_profile_name(profile_name.as_ref())?;
         Self::validate_target_language(target_language.as_ref())?;
 
         let now = chrono::Utc::now().timestamp();
 
         Ok(Self {
+            profile_name: profile_name.into(),
             target_language: target_language.into(),
             created_at: now,
             last_activity_at: now,
@@ -74,6 +80,7 @@ impl Profile {
     ///
     /// # Arguments
     ///
+    /// * `profile_name` - The profile name
     /// * `target_language` - The target language
     /// * `created_at` - Creation timestamp
     /// * `last_activity_at` - Last activity timestamp
@@ -81,12 +88,36 @@ impl Profile {
     /// # Returns
     ///
     /// A new `Profile` instance without validation.
-    pub fn new_unchecked(target_language: String, created_at: i64, last_activity_at: i64) -> Self {
+    pub fn new_unchecked(
+        profile_name: String,
+        target_language: String,
+        created_at: i64,
+        last_activity_at: i64,
+    ) -> Self {
         Self {
+            profile_name,
             target_language,
             created_at,
             last_activity_at,
         }
+    }
+
+    /// Validates the profile name.
+    fn validate_profile_name(name: &str) -> Result<(), CoreError> {
+        if name.is_empty() {
+            return Err(CoreError::validation_error("Profile name cannot be empty"));
+        }
+        if name.len() < 3 {
+            return Err(CoreError::validation_error(
+                "Profile name must be at least 3 characters",
+            ));
+        }
+        if name.len() > 50 {
+            return Err(CoreError::validation_error(
+                "Profile name cannot exceed 50 characters",
+            ));
+        }
+        Ok(())
     }
 
     /// Validates the target language.

@@ -9,11 +9,11 @@ use async_trait::async_trait;
 /// Repository trait for profile persistence operations.
 #[async_trait]
 pub trait UserProfilesRepository: Send + Sync {
-    /// Finds a profile by username and target language.
-    async fn find_by_username_and_target_language(
+    /// Finds a profile by username and profile name.
+    async fn find_by_username_and_profile_name(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<Option<Profile>, CoreError>;
 
     /// Finds all profiles for a specific user.
@@ -25,6 +25,6 @@ pub trait UserProfilesRepository: Send + Sync {
     /// Saves a profile.
     async fn save(&self, username: &str, profile: Profile) -> Result<Profile, CoreError>;
 
-    /// Deletes a profile by username and target language.
-    async fn delete(&self, username: &str, target_language: &str) -> Result<bool, CoreError>;
+    /// Deletes a profile by username and profile name.
+    async fn delete(&self, username: &str, profile_name: &str) -> Result<bool, CoreError>;
 }

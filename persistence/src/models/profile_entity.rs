@@ -31,6 +31,8 @@
 pub struct ProfileEntity {
     /// Username (foreign key to users table).
     pub username: String,
+    /// Profile name (primary key within user's profiles).
+    pub profile_name: String,
     /// Target language code.
     pub target_language: String,
     /// Unix timestamp (seconds) of when the profile was created.
@@ -45,6 +47,7 @@ impl ProfileEntity {
     /// # Arguments
     ///
     /// * `username` - The username this profile belongs to
+    /// * `profile_name` - The name of the profile (user-defined)
     /// * `target_language` - The language being learned
     ///
     /// # Returns
@@ -58,19 +61,22 @@ impl ProfileEntity {
     ///
     /// let entity = ProfileEntity::new(
     ///     "john_doe".to_string(),
+    ///     "My French Profile".to_string(),
     ///     "french".to_string()
     /// );
     /// assert!(entity.created_at > 0);
     /// ```
-    pub fn new<U, TL>(username: U, target_language: TL) -> Self
+    pub fn new<U, PN, TL>(username: U, profile_name: PN, target_language: TL) -> Self
     where
         U: AsRef<str> + Into<String>,
+        PN: AsRef<str> + Into<String>,
         TL: AsRef<str> + Into<String>,
     {
         let now = chrono::Utc::now().timestamp();
 
         Self {
             username: username.into(),
+            profile_name: profile_name.into(),
             target_language: target_language.into(),
             created_at: now,
             last_activity_at: now,
@@ -83,8 +89,8 @@ impl ProfileEntity {
     ///
     /// # Arguments
     ///
-    /// * `profile_id` - The profile identifier
     /// * `username` - The username
+    /// * `profile_name` - The profile name
     /// * `target_language` - The target language
     /// * `created_at` - Creation timestamp
     /// * `last_activity_at` - Last activity timestamp
@@ -92,18 +98,21 @@ impl ProfileEntity {
     /// # Returns
     ///
     /// A new `ProfileEntity` instance.
-    pub fn with_fields<U, TL>(
+    pub fn with_fields<U, PN, TL>(
         username: U,
+        profile_name: PN,
         target_language: TL,
         created_at: i64,
         last_activity_at: i64,
     ) -> Self
     where
         U: AsRef<str> + Into<String>,
+        PN: AsRef<str> + Into<String>,
         TL: AsRef<str> + Into<String>,
     {
         Self {
             username: username.into(),
+            profile_name: profile_name.into(),
             target_language: target_language.into(),
             created_at,
             last_activity_at,

@@ -61,10 +61,11 @@ impl SqliteProfileRepository {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS profiles (
                 username TEXT NOT NULL,
+                profile_name TEXT NOT NULL,
                 target_language TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
                 last_activity_at INTEGER NOT NULL,
-                PRIMARY KEY (username, target_language),
+                PRIMARY KEY (username, profile_name),
                 FOREIGN KEY (username) REFERENCES users(username) ON DELETE CASCADE
             )",
             [],
@@ -102,15 +103,16 @@ impl SqliteProfileRepository {
         })?;
 
         let result = conn.query_row(
-            "SELECT username, target_language, created_at, last_activity_at
+            "SELECT username, profile_name, target_language, created_at, last_activity_at
              FROM profiles WHERE username = ?1 and target_language = ?2",
             params![username, target_language],
             |row| {
                 Ok(ProfileEntity {
                     username: row.get(0)?,
-                    target_language: row.get(1)?,
-                    created_at: row.get(2)?,
-                    last_activity_at: row.get(3)?,
+                    profile_name: row.get(1)?,
+                    target_language: row.get(2)?,
+                    created_at: row.get(3)?,
+                    last_activity_at: row.get(4)?,
                 })
             },
         );
@@ -145,7 +147,7 @@ impl SqliteProfileRepository {
 
         let mut stmt = conn
             .prepare(
-                "SELECT username, target_language, created_at, last_activity_at
+                "SELECT username, profile_name, target_language, created_at, last_activity_at
                  FROM profiles WHERE username = ?1 ORDER BY last_activity_at DESC",
             )
             .map_err(|e| {
@@ -156,9 +158,10 @@ impl SqliteProfileRepository {
             .query_map(params![username], |row| {
                 Ok(ProfileEntity {
                     username: row.get(0)?,
-                    target_language: row.get(1)?,
-                    created_at: row.get(2)?,
-                    last_activity_at: row.get(3)?,
+                    profile_name: row.get(1)?,
+                    target_language: row.get(2)?,
+                    created_at: row.get(3)?,
+                    last_activity_at: row.get(4)?,
                 })
             })
             .map_err(|e| {
@@ -185,7 +188,7 @@ impl SqliteProfileRepository {
 
         let mut stmt = conn
             .prepare(
-                "SELECT username, target_language, created_at, last_activity_at
+                "SELECT username, profile_name, target_language, created_at, last_activity_at
                  FROM profiles ORDER BY last_activity_at DESC",
             )
             .map_err(|e| {
@@ -196,9 +199,10 @@ impl SqliteProfileRepository {
             .query_map([], |row| {
                 Ok(ProfileEntity {
                     username: row.get(0)?,
-                    target_language: row.get(1)?,
-                    created_at: row.get(2)?,
-                    last_activity_at: row.get(3)?,
+                    profile_name: row.get(1)?,
+                    target_language: row.get(2)?,
+                    created_at: row.get(3)?,
+                    last_activity_at: row.get(4)?,
                 })
             })
             .map_err(|e| {
@@ -286,10 +290,11 @@ impl SqliteProfileRepository {
         let entity = profile_mapper::model_to_entity(username, &profile);
 
         conn.execute(
-            "INSERT OR REPLACE INTO profiles (username, target_language, created_at, last_activity_at)
-             VALUES (?1, ?2, ?3, ?4)",
+            "INSERT OR REPLACE INTO profiles (username, profile_name, target_language, created_at, last_activity_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
             params![
                 entity.username,
+                entity.profile_name,
                 entity.target_language,
                 entity.created_at,
                 entity.last_activity_at
@@ -311,15 +316,15 @@ impl SqliteProfileRepository {
     /// * `Ok(true)` - If the profile was deleted
     /// * `Ok(false)` - If the profile didn't exist
     /// * `Err(PersistenceError)` - If the delete operation fails
-    pub fn delete(&self, username: &str, target_language: &str) -> Result<bool, PersistenceError> {
+    pub fn delete(&self, username: &str, profile_name: &str) -> Result<bool, PersistenceError> {
         let conn = self.connection.lock().map_err(|e| {
             PersistenceError::lock_error(format!("Failed to acquire database lock: {}", e))
         })?;
 
         let rows_affected = conn
             .execute(
-                "DELETE FROM profiles WHERE username = ?1 and target_language = ?2",
-                params![username, target_language],
+                "DELETE FROM profiles WHERE username = ?1 and profile_name = ?2",
+                params![username, profile_name],
             )
             .map_err(|e| {
                 PersistenceError::database_error(format!("Failed to delete profile: {}", e))
@@ -333,13 +338,13 @@ impl SqliteProfileRepository {
 impl PersistenceProfileRepository for SqliteProfileRepository {
     type Error = PersistenceError;
 
-    async fn find_by_username_and_target_language(
+    async fn find_by_username_and_profile_name(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<Option<Profile>, Self::Error> {
         let username = username.to_string();
-        let target_language = target_language.to_string();
+        let profile_name = profile_name.to_string();
         let conn = self.connection.clone();
         tokio::task::spawn_blocking(move || {
             let connection = conn.lock().map_err(|e| {
@@ -347,15 +352,16 @@ impl PersistenceProfileRepository for SqliteProfileRepository {
             })?;
 
             let result = connection.query_row(
-                "SELECT username, target_language, created_at, last_activity_at
-                 FROM profiles WHERE username = ?1 and target_language = ?2",
-                params![username, target_language],
+                "SELECT username, profile_name, target_language, created_at, last_activity_at
+                 FROM profiles WHERE username = ?1 and profile_name = ?2",
+                params![username, profile_name],
                 |row| {
                     Ok(ProfileEntity {
                         username: row.get(0)?,
-                        target_language: row.get(1)?,
-                        created_at: row.get(2)?,
-                        last_activity_at: row.get(3)?,
+                        profile_name: row.get(1)?,
+                        target_language: row.get(2)?,
+                        created_at: row.get(3)?,
+                        last_activity_at: row.get(4)?,
                     })
                 },
             );
@@ -383,7 +389,7 @@ impl PersistenceProfileRepository for SqliteProfileRepository {
 
             let mut stmt = connection
                 .prepare(
-                    "SELECT username, target_language, created_at, last_activity_at
+                    "SELECT username, profile_name, target_language, created_at, last_activity_at
                      FROM profiles WHERE username = ?1 ORDER BY last_activity_at DESC",
                 )
                 .map_err(|e| {
@@ -394,9 +400,10 @@ impl PersistenceProfileRepository for SqliteProfileRepository {
                 .query_map(params![username], |row| {
                     Ok(ProfileEntity {
                         username: row.get(0)?,
-                        target_language: row.get(1)?,
-                        created_at: row.get(2)?,
-                        last_activity_at: row.get(3)?,
+                        profile_name: row.get(1)?,
+                        target_language: row.get(2)?,
+                        created_at: row.get(3)?,
+                        last_activity_at: row.get(4)?,
                     })
                 })
                 .map_err(|e| {
@@ -425,7 +432,7 @@ impl PersistenceProfileRepository for SqliteProfileRepository {
 
             let mut stmt = connection
                 .prepare(
-                    "SELECT username, target_language, created_at, last_activity_at
+                    "SELECT username, profile_name, target_language, created_at, last_activity_at
                      FROM profiles ORDER BY last_activity_at DESC",
                 )
                 .map_err(|e| {
@@ -436,9 +443,10 @@ impl PersistenceProfileRepository for SqliteProfileRepository {
                 .query_map([], |row| {
                     Ok(ProfileEntity {
                         username: row.get(0)?,
-                        target_language: row.get(1)?,
-                        created_at: row.get(2)?,
-                        last_activity_at: row.get(3)?,
+                        profile_name: row.get(1)?,
+                        target_language: row.get(2)?,
+                        created_at: row.get(3)?,
+                        last_activity_at: row.get(4)?,
                     })
                 })
                 .map_err(|e| {
@@ -470,10 +478,11 @@ impl PersistenceProfileRepository for SqliteProfileRepository {
 
             connection
                 .execute(
-                    "INSERT OR REPLACE INTO profiles (username, target_language, created_at, last_activity_at)
-                     VALUES (?1, ?2, ?3, ?4)",
+                    "INSERT OR REPLACE INTO profiles (username, profile_name, target_language, created_at, last_activity_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
                     params![
                         entity.username,
+                        entity.profile_name,
                         entity.target_language,
                         entity.created_at,
                         entity.last_activity_at
@@ -487,9 +496,9 @@ impl PersistenceProfileRepository for SqliteProfileRepository {
         .map_err(|e| PersistenceError::lock_error(format!("Task join error: {}", e)))?
     }
 
-    async fn delete(&self, username: &str, target_language: &str) -> Result<bool, Self::Error> {
+    async fn delete(&self, username: &str, profile_name: &str) -> Result<bool, Self::Error> {
         let username = username.to_string();
-        let target_language = target_language.to_string();
+        let profile_name = profile_name.to_string();
         let conn = self.connection.clone();
         tokio::task::spawn_blocking(move || {
             let connection = conn.lock().map_err(|e| {
@@ -498,8 +507,8 @@ impl PersistenceProfileRepository for SqliteProfileRepository {
 
             let rows_affected = connection
                 .execute(
-                    "DELETE FROM profiles WHERE username = ?1 and target_language = ?2",
-                    params![username, target_language],
+                    "DELETE FROM profiles WHERE username = ?1 and profile_name = ?2",
+                    params![username, profile_name],
                 )
                 .map_err(|e| {
                     PersistenceError::database_error(format!("Failed to delete profile: {}", e))

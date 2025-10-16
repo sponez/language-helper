@@ -44,6 +44,7 @@ fn map_user_settings_to_dto(settings: UserSettings) -> UserSettingsDto {
 /// Helper function to map domain Profile to ProfileDto
 fn map_profile_to_dto(profile: Profile) -> ProfileDto {
     ProfileDto {
+        profile_name: profile.profile_name,
         target_language: profile.target_language,
         created_at: profile.created_at,
         last_activity: profile.last_activity_at,
@@ -249,7 +250,7 @@ impl<
             for profile in profiles {
                 let _ = self
                     .profile_metadata_service
-                    .delete_profile(username, &profile.target_language)
+                    .delete_profile(username, &profile.profile_name)
                     .await;
             }
         }
@@ -265,29 +266,26 @@ impl<
     async fn create_profile(
         &self,
         username: &str,
+        profile_name: &str,
         target_language: &str,
     ) -> Result<ProfileDto, ApiError> {
         // Create profile metadata only
         // Note: Profile database file must be created separately via ProfilesApi
         let profile = self
             .profile_metadata_service
-            .create_profile(username, target_language)
+            .create_profile(username, profile_name, target_language)
             .await
             .map_err(map_core_error_to_api_error)?;
 
         Ok(map_profile_to_dto(profile))
     }
 
-    async fn delete_profile(
-        &self,
-        username: &str,
-        target_language: &str,
-    ) -> Result<bool, ApiError> {
+    async fn delete_profile(&self, username: &str, profile_name: &str) -> Result<bool, ApiError> {
         // Delete profile metadata only
         // Note: Profile database file must be deleted separately via ProfilesApi
         match self
             .profile_metadata_service
-            .delete_profile(username, target_language)
+            .delete_profile(username, profile_name)
             .await
         {
             Ok(_) => Ok(true),

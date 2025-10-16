@@ -11,11 +11,11 @@ pub trait PersistenceProfileRepository: Send + Sync {
     /// The error type returned by this repository.
     type Error: std::fmt::Display;
 
-    /// Finds a profile by ID.
-    async fn find_by_username_and_target_language(
+    /// Finds a profile by username and profile name.
+    async fn find_by_username_and_profile_name(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<Option<Profile>, Self::Error>;
 
     /// Finds all profiles for a username.
@@ -27,8 +27,8 @@ pub trait PersistenceProfileRepository: Send + Sync {
     /// Saves a profile.
     async fn save(&self, username: &str, profile: Profile) -> Result<Profile, Self::Error>;
 
-    /// Deletes a profile by ID.
-    async fn delete(&self, username: &str, target_language: &str) -> Result<bool, Self::Error>;
+    /// Deletes a profile by username and profile name.
+    async fn delete(&self, username: &str, profile_name: &str) -> Result<bool, Self::Error>;
 }
 
 /// Adapter that wraps a persistence repository and maps errors.
@@ -45,13 +45,13 @@ impl<R> ProfileRepositoryAdapter<R> {
 
 #[async_trait]
 impl<R: PersistenceProfileRepository> UserProfilesRepository for ProfileRepositoryAdapter<R> {
-    async fn find_by_username_and_target_language(
+    async fn find_by_username_and_profile_name(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<Option<Profile>, CoreError> {
         self.repository
-            .find_by_username_and_target_language(username, target_language)
+            .find_by_username_and_profile_name(username, profile_name)
             .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
@@ -77,9 +77,9 @@ impl<R: PersistenceProfileRepository> UserProfilesRepository for ProfileReposito
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }
 
-    async fn delete(&self, username: &str, target_language: &str) -> Result<bool, CoreError> {
+    async fn delete(&self, username: &str, profile_name: &str) -> Result<bool, CoreError> {
         self.repository
-            .delete(username, target_language)
+            .delete(username, profile_name)
             .await
             .map_err(|e| CoreError::repository_error(e.to_string()))
     }

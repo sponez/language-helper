@@ -55,8 +55,8 @@ pub struct ProfileListRouter {
     app_state: Rc<AppState>,
     /// User-specific state (domain language, theme, username)
     user_state: Rc<UserState>,
-    /// List of profile target languages (locale codes)
-    profile_languages: Vec<String>,
+    /// List of profile names
+    profile_names: Vec<String>,
     /// Optional create new profile modal (None = closed, Some = open)
     create_profile_modal: Option<CreateNewProfileModal>,
     /// Error message to display (None = no error)
@@ -84,26 +84,26 @@ impl ProfileListRouter {
             app_api,
             app_state,
             user_state,
-            profile_languages: Vec::new(),
+            profile_names: Vec::new(),
             create_profile_modal: None,
             error_message: None,
         }
     }
 
-    /// Asynchronously loads profile languages from the API
+    /// Asynchronously loads profile names from the API
     async fn load_profiles(
         app_api: Arc<dyn AppApi>,
         username: String,
     ) -> Result<Vec<String>, String> {
         match app_api.users_api().get_user_by_username(&username).await {
             Some(user_dto) => {
-                // Extract just the target language codes from profiles
-                let profile_languages: Vec<String> = user_dto
+                // Extract just the profile names from profiles
+                let profile_names: Vec<String> = user_dto
                     .profiles
                     .into_iter()
-                    .map(|p| p.target_language)
+                    .map(|p| p.profile_name)
                     .collect();
-                Ok(profile_languages)
+                Ok(profile_names)
             }
             None => {
                 eprintln!("Failed to load profiles for user: {}", username);
@@ -128,7 +128,6 @@ impl ProfileListRouter {
     ///
     /// Filters out:
     /// - User's domain language (can't learn your native language)
-    /// - Languages that already have profiles
     ///
     /// # Returns
     ///
@@ -136,15 +135,11 @@ impl ProfileListRouter {
     fn get_available_languages(&self) -> Vec<Language> {
         let domain_language = self.user_state.language;
 
-        let existing_profile_languages: Vec<Language> = self
-            .profile_languages
-            .iter()
-            .filter_map(|lang_code| Language::from_locale_code(lang_code))
-            .collect();
-
+        // Note: We can't filter out existing languages since profiles are now identified by name,
+        // not language. Users can have multiple profiles for the same language.
         Language::ALL
             .iter()
-            .filter(|lang| **lang != domain_language && !existing_profile_languages.contains(lang))
+            .filter(|lang| **lang != domain_language)
             .copied()
             .collect()
     }
@@ -164,18 +159,18 @@ impl ProfileListRouter {
                 BackButtonMessage::Pressed => (Some(RouterEvent::Pop), Task::none()),
             },
             Message::ProfilePicker(msg) => match msg {
-                ProfilePickListMessage::Selected(target_language) => {
+                ProfilePickListMessage::Selected(profile_name) => {
                     // Check if profile exists
-                    if self.profile_languages.contains(&target_language) {
+                    if self.profile_names.contains(&profile_name) {
                         // TODO: Navigate to ProfileRouter
                         // This will be implemented when ProfileRouter is refactored
                         eprintln!(
                             "Profile selected: {} (navigation not yet implemented)",
-                            target_language
+                            profile_name
                         );
                         (None, Task::none())
                     } else {
-                        eprintln!("Profile not found: {}", target_language);
+                        eprintln!("Profile not found: {}", profile_name);
                         (None, Task::none())
                     }
                 }
@@ -210,8 +205,8 @@ impl ProfileListRouter {
             }
             Message::ProfilesLoaded(result) => {
                 match result {
-                    Ok(profile_languages) => {
-                        self.profile_languages = profile_languages;
+                    Ok(profile_names) => {
+                        self.profile_names = profile_names;
                         // Clear any previous error
                         self.error_message = None;
                         (None, Task::none())
@@ -299,7 +294,7 @@ impl ProfileListRouter {
 
         // Center: Profile picker + Add button (positioned absolutely in center)
         let profile_picker_element =
-            profile_pick_list(&self.profile_languages, &i18n).map(Message::ProfilePicker);
+            profile_pick_list(&self.profile_names, &i18n).map(Message::ProfilePicker);
 
         let add_button_element = add_profile_button().map(Message::AddProfileButton);
 

@@ -83,7 +83,7 @@ impl UserRouter {
         match app_api.users_api().get_user_by_username(&username).await {
             Some(user_dto) => {
                 // Convert DTO settings to UserState
-                use crate::languages::Language;
+                use crate::languages::{language_name_to_enum, Language};
                 use crate::models::UserSettingsView;
                 use iced::Theme;
 
@@ -92,8 +92,8 @@ impl UserRouter {
                     .find(|t| t.to_string() == user_dto.settings.theme)
                     .cloned()
                     .unwrap_or(Theme::Dark);
-                let language = Language::from_locale_code(&user_dto.settings.language)
-                    .unwrap_or(Language::English);
+                let language =
+                    language_name_to_enum(&user_dto.settings.language).unwrap_or(Language::English);
 
                 let settings_view = UserSettingsView { theme, language };
                 let user_state = UserState::new(username.clone(), Some(&settings_view));

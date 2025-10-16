@@ -14,6 +14,7 @@ use lh_core::models::profile::Profile;
 /// A Profile model instance
 pub fn entity_to_model(entity: &ProfileEntity) -> Profile {
     Profile::new_unchecked(
+        entity.profile_name.clone(),
         entity.target_language.clone(),
         entity.created_at,
         entity.last_activity_at,
@@ -32,6 +33,7 @@ pub fn entity_to_model(entity: &ProfileEntity) -> Profile {
 pub fn model_to_entity(username: &str, profile: &Profile) -> ProfileEntity {
     ProfileEntity::with_fields(
         username,
+        profile.profile_name.clone(),
         profile.target_language.clone(),
         profile.created_at,
         profile.last_activity_at,

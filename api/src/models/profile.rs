@@ -22,6 +22,8 @@ use serde::{Deserialize, Serialize};
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProfileDto {
+    /// Profile name (user-defined identifier).
+    pub profile_name: String,
     /// Target language being learned.
     pub target_language: String,
     /// Unix timestamp of creation.

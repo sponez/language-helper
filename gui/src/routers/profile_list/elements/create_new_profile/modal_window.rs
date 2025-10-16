@@ -117,6 +117,7 @@ impl CreateNewProfileModal {
     fn ok(&self) -> (bool, Task<Message>) {
         if self.is_valid() {
             let username = self.username.clone();
+            let profile_name = self.profile_name.trim().to_string();
             let language = self.selected_language.unwrap();
             let language_code = language.to_locale_code().to_string();
             let app_api = Arc::clone(&self.app_api);
@@ -126,22 +127,22 @@ impl CreateNewProfileModal {
                     // Step 1: Create profile metadata
                     match app_api
                         .users_api()
-                        .create_profile(&username, &language_code)
+                        .create_profile(&username, &profile_name, &language_code)
                         .await
                     {
                         Ok(_profile_dto) => {
                             // Step 2: Create profile database
                             match app_api
                                 .profile_api()
-                                .create_profile_database(&username, &language_code)
+                                .create_profile_database(&username, &profile_name)
                                 .await
                             {
-                                Ok(_) => Ok(language_code.clone()),
+                                Ok(_) => Ok(profile_name.clone()),
                                 Err(_e) => {
                                     // Cleanup: delete metadata if database creation failed
                                     let _ = app_api
                                         .users_api()
-                                        .delete_profile(&username, &language_code)
+                                        .delete_profile(&username, &profile_name)
                                         .await;
                                     Err("error-create-profile".to_string())
                                 }

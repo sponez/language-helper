@@ -12,7 +12,7 @@ use async_trait::async_trait;
 ///
 /// This API handles profile-specific databases where learning content (vocabulary cards,
 /// progress, etc.) is stored. Each profile has its own database file at
-/// `data/{username}/{target_language}_profile.db`.
+/// `data/{username}/{profile_name}_profile.db`.
 ///
 /// Profile metadata (list of profiles, creation dates) is managed by UsersApi.
 /// This API only handles operations on the profile's learning database.
@@ -22,14 +22,14 @@ pub trait ProfilesApi: Send + Sync {
     async fn create_profile_database(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<(), ApiError>;
 
     /// Deletes a profile database file.
     async fn delete_profile_database(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<bool, ApiError>;
 
     /// Deletes the entire user data folder.
@@ -39,14 +39,14 @@ pub trait ProfilesApi: Send + Sync {
     async fn get_card_settings(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<CardSettingsDto, ApiError>;
 
     /// Updates card settings in a profile database.
     async fn update_card_settings(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         settings: CardSettingsDto,
     ) -> Result<(), ApiError>;
 
@@ -54,14 +54,14 @@ pub trait ProfilesApi: Send + Sync {
     async fn get_assistant_settings(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<AssistantSettingsDto, ApiError>;
 
     /// Updates assistant settings in a profile database.
     async fn update_assistant_settings(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         settings: AssistantSettingsDto,
     ) -> Result<(), ApiError>;
 
@@ -69,14 +69,14 @@ pub trait ProfilesApi: Send + Sync {
     async fn clear_assistant_settings(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<(), ApiError>;
 
     /// Saves a card to the profile database (creates or updates based on word_name).
     async fn save_card(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         card: CardDto,
     ) -> Result<(), ApiError>;
 
@@ -84,28 +84,28 @@ pub trait ProfilesApi: Send + Sync {
     async fn get_all_cards(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<Vec<CardDto>, ApiError>;
 
     /// Gets unlearned cards (streak below threshold).
     async fn get_unlearned_cards(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<Vec<CardDto>, ApiError>;
 
     /// Gets learned cards (streak at or above threshold).
     async fn get_learned_cards(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<Vec<CardDto>, ApiError>;
 
     /// Gets a single card by word name.
     async fn get_card_by_word_name(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         word_name: &str,
     ) -> Result<CardDto, ApiError>;
 
@@ -113,7 +113,7 @@ pub trait ProfilesApi: Send + Sync {
     async fn update_card_streak(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         word_name: &str,
         streak: i32,
     ) -> Result<(), ApiError>;
@@ -122,7 +122,7 @@ pub trait ProfilesApi: Send + Sync {
     async fn delete_card(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         word_name: &str,
     ) -> Result<bool, ApiError>;
 
@@ -136,7 +136,7 @@ pub trait ProfilesApi: Send + Sync {
     async fn get_inverted_cards(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         card: CardDto,
     ) -> Result<Vec<CardDto>, ApiError>;
 }

@@ -36,10 +36,10 @@ pub trait UsersApi: Send + Sync {
     async fn create_profile(
         &self,
         username: &str,
+        profile_name: &str,
         target_language: &str,
     ) -> Result<ProfileDto, ApiError>;
 
     /// Deletes a profile and its associated database file.
-    async fn delete_profile(&self, username: &str, target_language: &str)
-        -> Result<bool, ApiError>;
+    async fn delete_profile(&self, username: &str, profile_name: &str) -> Result<bool, ApiError>;
 }
