@@ -2,7 +2,7 @@
 //!
 //! This module provides the business logic for managing profile-specific databases
 //! where learning content (vocabulary cards, progress, etc.) is stored.
-//! Each profile gets its own database file at `data/{username}/{target_language}_profile.db`.
+//! Each profile gets its own database file at `data/{username}/{profile_name}_profile.db`.
 
 use crate::errors::CoreError;
 use crate::models::{AssistantSettings, Card, CardSettings, CardType};
@@ -27,7 +27,7 @@ use std::path::PathBuf;
 /// async fn example(repo: impl ProfileRepository) {
 ///     let service = ProfileService::new(repo, "data");
 ///
-///     match service.create_profile_database("john_doe", "spanish").await {
+///     match service.create_profile_database("john_doe", "My Spanish").await {
 ///         Ok(path) => println!("Created database at: {:?}", path),
 ///         Err(e) => eprintln!("Error: {}", e),
 ///     }
@@ -58,13 +58,13 @@ impl<R: ProfileRepository> ProfileService<R> {
 
     /// Creates a new profile database.
     ///
-    /// This creates a database file at `data/{username}/{target_language}_profile.db`
+    /// This creates a database file at `data/{username}/{profile_name}_profile.db`
     /// and initializes it with the necessary schema (currently empty, for future use).
     ///
     /// # Arguments
     ///
     /// * `username` - The username this profile belongs to
-    /// * `target_language` - The target language being learned
+    /// * `profile_name` - The name of the profile
     ///
     /// # Returns
     ///
@@ -82,7 +82,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     /// # use lh_core::services::profile_service::ProfileService;
     /// # use lh_core::repositories::profile_repository::ProfileRepository;
     /// # async fn example(service: &ProfileService<impl ProfileRepository>) {
-    /// match service.create_profile_database("jane_doe", "french").await {
+    /// match service.create_profile_database("jane_doe", "My French").await {
     ///     Ok(path) => println!("Database created at: {:?}", path),
     ///     Err(e) => eprintln!("Failed to create database: {}", e),
     /// }
@@ -91,21 +91,19 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn create_profile_database(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<PathBuf, CoreError> {
         // Validate inputs
         if username.is_empty() {
             return Err(CoreError::validation_error("Username cannot be empty"));
         }
-        if target_language.is_empty() {
-            return Err(CoreError::validation_error(
-                "Target language cannot be empty",
-            ));
+        if profile_name.is_empty() {
+            return Err(CoreError::validation_error("Profile name cannot be empty"));
         }
 
-        // Build the path: data/{username}/{target_language}_profile.db
+        // Build the path: data/{username}/{profile_name}_profile.db
         let user_dir = PathBuf::from(&self.data_dir).join(username);
-        let db_filename = format!("{}_profile.db", target_language);
+        let db_filename = format!("{}_profile.db", profile_name);
         let db_path = user_dir.join(db_filename);
 
         // Create the database using the repository
@@ -119,7 +117,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     /// # Arguments
     ///
     /// * `username` - The username
-    /// * `target_language` - The target language
+    /// * `profile_name` - The profile name
     ///
     /// # Returns
     ///
@@ -128,10 +126,10 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn profile_database_exists(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<bool, CoreError> {
         let user_dir = PathBuf::from(&self.data_dir).join(username);
-        let db_filename = format!("{}_profile.db", target_language);
+        let db_filename = format!("{}_profile.db", profile_name);
         let db_path = user_dir.join(db_filename);
 
         Ok(db_path.exists())
@@ -142,7 +140,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     /// # Arguments
     ///
     /// * `username` - The username
-    /// * `target_language` - The target language
+    /// * `profile_name` - The profile name
     ///
     /// # Returns
     ///
@@ -151,10 +149,10 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn delete_profile_database(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<bool, CoreError> {
         let user_dir = PathBuf::from(&self.data_dir).join(username);
-        let db_filename = format!("{}_profile.db", target_language);
+        let db_filename = format!("{}_profile.db", profile_name);
         let db_path = user_dir.join(db_filename);
 
         self.repository.delete_database(db_path).await
@@ -190,10 +188,10 @@ impl<R: ProfileRepository> ProfileService<R> {
         Ok(true)
     }
 
-    /// Helper method to construct database path from username and target language
-    fn get_db_path(&self, username: &str, target_language: &str) -> PathBuf {
+    /// Helper method to construct database path from username and profile name
+    fn get_db_path(&self, username: &str, profile_name: &str) -> PathBuf {
         let user_dir = PathBuf::from(&self.data_dir).join(username);
-        let db_filename = format!("{}_profile.db", target_language);
+        let db_filename = format!("{}_profile.db", profile_name);
         user_dir.join(db_filename)
     }
 
@@ -202,7 +200,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     /// # Arguments
     ///
     /// * `username` - The username
-    /// * `target_language` - The target language
+    /// * `profile_name` - The profile name
     ///
     /// # Returns
     ///
@@ -211,9 +209,9 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn get_card_settings(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<CardSettings, CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
         self.repository.get_card_settings(db_path).await
     }
 
@@ -222,7 +220,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     /// # Arguments
     ///
     /// * `username` - The username
-    /// * `target_language` - The target language
+    /// * `profile_name` - The profile name
     /// * `settings` - The card settings to save
     ///
     /// # Returns
@@ -232,10 +230,10 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn update_card_settings(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         settings: CardSettings,
     ) -> Result<(), CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
         self.repository
             .update_card_settings(db_path, settings)
             .await
@@ -246,7 +244,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     /// # Arguments
     ///
     /// * `username` - The username
-    /// * `target_language` - The target language
+    /// * `profile_name` - The profile name
     ///
     /// # Returns
     ///
@@ -255,9 +253,9 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn get_assistant_settings(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<AssistantSettings, CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
         self.repository.get_assistant_settings(db_path).await
     }
 
@@ -266,7 +264,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     /// # Arguments
     ///
     /// * `username` - The username
-    /// * `target_language` - The target language
+    /// * `profile_name` - The profile name
     /// * `settings` - The assistant settings to save
     ///
     /// # Returns
@@ -276,10 +274,10 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn update_assistant_settings(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         settings: AssistantSettings,
     ) -> Result<(), CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
         self.repository
             .update_assistant_settings(db_path, settings)
             .await
@@ -290,7 +288,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     /// # Arguments
     ///
     /// * `username` - The username
-    /// * `target_language` - The target language
+    /// * `profile_name` - The profile name
     ///
     /// # Returns
     ///
@@ -299,9 +297,9 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn clear_assistant_settings(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<(), CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
         self.repository.clear_assistant_settings(db_path).await
     }
 
@@ -309,10 +307,10 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn save_card(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         card: Card,
     ) -> Result<(), CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
         self.repository.save_card(db_path, card).await
     }
 
@@ -320,9 +318,9 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn get_all_cards(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<Vec<Card>, CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
         self.repository.get_all_cards(db_path).await
     }
 
@@ -330,9 +328,9 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn get_unlearned_cards(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<Vec<Card>, CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
         // Get streak threshold from card settings
         let settings = self.repository.get_card_settings(db_path.clone()).await?;
         self.repository
@@ -344,9 +342,9 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn get_learned_cards(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<Vec<Card>, CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
         // Get streak threshold from card settings
         let settings = self.repository.get_card_settings(db_path.clone()).await?;
         self.repository
@@ -358,10 +356,10 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn get_card_by_word_name(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         word_name: &str,
     ) -> Result<Card, CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
         self.repository
             .get_card_by_word_name(db_path, word_name.to_string())
             .await
@@ -371,11 +369,11 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn update_card_streak(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         word_name: &str,
         streak: i32,
     ) -> Result<(), CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
         self.repository
             .update_card_streak(db_path, word_name.to_string(), streak)
             .await
@@ -385,10 +383,10 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn delete_card(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         word_name: &str,
     ) -> Result<bool, CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
         self.repository
             .delete_card(db_path, word_name.to_string())
             .await
@@ -406,7 +404,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     /// # Arguments
     ///
     /// * `username` - The username
-    /// * `target_language` - The target language
+    /// * `profile_name` - The profile name
     /// * `original_card` - The card to generate inverses from
     ///
     /// # Returns
@@ -416,12 +414,12 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn get_inverted_cards(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         original_card: &Card,
     ) -> Result<Vec<Card>, CoreError> {
         use std::collections::HashMap;
 
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
 
         // Collect all translations from all meanings
         let mut translations_with_meanings: Vec<(String, &crate::models::card::Meaning)> =
@@ -501,7 +499,7 @@ impl<R: ProfileRepository> ProfileService<R> {
     /// # Arguments
     ///
     /// * `username` - The username
-    /// * `target_language` - The target language
+    /// * `profile_name` - The profile name
     /// * `results` - Test results containing word_name and is_correct
     /// * `is_repeat_mode` - true for Repeat mode, false for Test mode
     ///
@@ -512,11 +510,11 @@ impl<R: ProfileRepository> ProfileService<R> {
     pub async fn process_test_results(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
         results: Vec<crate::models::TestResult>,
         is_repeat_mode: bool,
     ) -> Result<(), CoreError> {
-        let db_path = self.get_db_path(username, target_language);
+        let db_path = self.get_db_path(username, profile_name);
 
         for result in results {
             // Get current card to know its current streak
