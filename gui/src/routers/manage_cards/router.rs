@@ -108,13 +108,42 @@ impl ManageCardsRouter {
                 (None, Task::none())
             }
             Message::AddNew => {
-                // TODO: Navigate to add card router (needs refactoring)
-                eprintln!("Add card feature needs refactoring");
-                (None, Task::none())
+                // Navigate to add card router for creating a new card
+                let add_card_router: Box<dyn RouterNode> =
+                    Box::new(crate::routers::add_card::router::AddCardRouter::new_create(
+                        Rc::clone(&self.user_state),
+                        Rc::clone(&self.profile_state),
+                        Arc::clone(&self.app_api),
+                        Rc::clone(&self.app_state),
+                        lh_api::models::card::CardType::Straight, // Default to Straight
+                    ));
+                (Some(RouterEvent::Push(add_card_router)), Task::none())
             }
             Message::EditCard(word_name) => {
-                // TODO: Navigate to edit card router (needs refactoring)
-                eprintln!("Edit card feature needs refactoring for: {}", word_name);
+                // Find the card to edit
+                let cards = if self.selected_tab == SelectedTab::Unlearned {
+                    &self.unlearned_cards
+                } else {
+                    &self.learned_cards
+                };
+
+                if let Some(cards_list) = cards {
+                    if let Some(card) = cards_list.iter().find(|c| c.word.name == word_name) {
+                        // Navigate to add card router for editing
+                        let add_card_router: Box<dyn RouterNode> =
+                            Box::new(crate::routers::add_card::router::AddCardRouter::new_edit(
+                                Rc::clone(&self.user_state),
+                                Rc::clone(&self.profile_state),
+                                Arc::clone(&self.app_api),
+                                Rc::clone(&self.app_state),
+                                card.clone(),
+                                false, // Not editing an inverse card
+                            ));
+                        return (Some(RouterEvent::Push(add_card_router)), Task::none());
+                    }
+                }
+
+                eprintln!("Card not found for editing: {}", word_name);
                 (None, Task::none())
             }
             Message::DeleteCard(word_name) => {

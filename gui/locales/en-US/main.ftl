@@ -172,3 +172,42 @@ manage-cards-no-learned = No learned cards yet
 manage-cards-edit = Edit
 manage-cards-delete = Delete
 manage-cards-add-new = Add New Card
+
+# Add Card Screen
+add-card-title = Add Card
+add-card-fill-ai = Fill with AI
+add-card-ai-filling = AI is filling the card...
+add-card-type-label = Card Type:
+add-card-type-straight = Straight
+add-card-type-reverse = Reverse
+add-card-word-label = Word:
+add-card-word-placeholder = Enter word name
+add-card-readings-label = Readings (Optional):
+add-card-reading-placeholder = Enter reading
+add-card-add-reading = Add Reading
+add-card-meanings-label = Meanings:
+add-card-definition-label = Definition:
+add-card-definition-placeholder = Enter definition
+add-card-translated-def-label = Translated Definition (Optional):
+add-card-translated-def-placeholder = Enter translated definition
+add-card-translations-label = Translations:
+add-card-translation-placeholder = Enter translation
+add-card-add-translation = Add Translation
+add-card-remove-meaning = Remove Meaning
+add-card-add-meaning = Add Meaning
+add-card-save = Save
+add-card-cancel = Cancel
+add-card-inverse-modal-title = Do you want to create inverse cards?
+add-card-inverse-manually = Manually
+add-card-inverse-with-assistant = With AI Assistant
+add-card-inverse-no = No
+
+# Inverse Cards Review Screen
+inverse-cards-review-title = Review Inverse Cards
+inverse-cards-back = Back
+inverse-cards-no-pending = No pending inverse cards
+inverse-cards-edit = Edit
+inverse-cards-delete = Delete
+inverse-cards-save-all = Save All
+inverse-cards-skip-all = Skip All
+inverse-cards-saving = Saving cards...
