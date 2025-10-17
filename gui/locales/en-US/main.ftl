@@ -41,6 +41,9 @@ user-settings-api-error-delete = Failed to delete user
 # Error Modal
 error-modal-close-button = Close
 
+# Loading State
+loading = Loading...
+
 # Profile List Screen
 profile-list-title = Select Profile
 profile-list-back-button = Back
@@ -158,3 +161,14 @@ cards-menu-manage = Manage Cards
 cards-menu-learn = Learn
 cards-menu-test = Test
 cards-menu-repeat = Repeat
+
+# Manage Cards Screen
+manage-cards-title = Manage Cards
+manage-cards-back = Back
+manage-cards-unlearned-tab = Unlearned
+manage-cards-learned-tab = Learned
+manage-cards-no-unlearned = No unlearned cards yet
+manage-cards-no-learned = No learned cards yet
+manage-cards-edit = Edit
+manage-cards-delete = Delete
+manage-cards-add-new = Add New Card

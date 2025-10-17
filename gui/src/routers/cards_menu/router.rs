@@ -80,9 +80,16 @@ impl CardsMenuRouter {
     pub fn update(&mut self, message: Message) -> (Option<RouterEvent>, Task<Message>) {
         match message {
             Message::ManageCards => {
-                // TODO: Navigate to manage cards router (needs refactoring)
-                eprintln!("Manage Cards feature needs refactoring");
-                (None, Task::none())
+                // Navigate to manage cards router
+                let manage_cards_router: Box<dyn RouterNode> = Box::new(
+                    crate::routers::manage_cards::router::ManageCardsRouter::new(
+                        Rc::clone(&self.user_state),
+                        Rc::clone(&self.profile_state),
+                        Arc::clone(&self.app_api),
+                        Rc::clone(&self.app_state),
+                    ),
+                );
+                (Some(RouterEvent::Push(manage_cards_router)), Task::none())
             }
             Message::Learn => {
                 // TODO: Navigate to learn mode
