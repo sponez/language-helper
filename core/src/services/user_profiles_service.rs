@@ -94,12 +94,12 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
         self.profile_repository.find_by_username(username).await
     }
 
-    /// Retrieves a profile by username and target language (composite key).
+    /// Retrieves a profile by username and profile name (composite key).
     ///
     /// # Arguments
     ///
     /// * `username` - The username
-    /// * `target_language` - The target language
+    /// * `profile_name` - The profile name
     ///
     /// # Returns
     ///
@@ -119,7 +119,7 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// # use lh_core::repositories::user_profiles_repository::UserProfilesRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
     /// # async fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
-    /// match service.get_profile_by_id("john_doe", "spanish").await {
+    /// match service.get_profile_by_id("john_doe", "My Spanish").await {
     ///     Ok(profile) => println!("Found profile: {:?}", profile),
     ///     Err(e) => eprintln!("Error: {}", e),
     /// }
@@ -128,12 +128,12 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     pub async fn get_profile_by_id(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<Profile, CoreError> {
         self.profile_repository
-            .find_by_username_and_target_language(username, target_language)
+            .find_by_username_and_profile_name(username, profile_name)
             .await?
-            .ok_or_else(|| CoreError::not_found("Profile", target_language))
+            .ok_or_else(|| CoreError::not_found("Profile", profile_name))
     }
 
     /// Creates a new learning profile for a user.
@@ -143,6 +143,7 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// # Arguments
     ///
     /// * `username` - The username for the profile
+    /// * `profile_name` - The name of the profile (user-defined)
     /// * `target_language` - The target language being learned
     ///
     /// # Returns
@@ -164,7 +165,7 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// # use lh_core::repositories::user_profiles_repository::UserProfilesRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
     /// # async fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
-    /// match service.create_profile("jane_doe", "spanish").await {
+    /// match service.create_profile("jane_doe", "My Spanish", "spanish").await {
     ///     Ok(profile) => println!("Created profile: {:?}", profile),
     ///     Err(e) => eprintln!("Failed to create profile: {}", e),
     /// }
@@ -173,6 +174,7 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     pub async fn create_profile(
         &self,
         username: &str,
+        profile_name: &str,
         target_language: &str,
     ) -> Result<Profile, CoreError> {
         // Business logic: ensure user exists
@@ -186,9 +188,9 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
         }
 
         // Domain validation happens in Profile::new()
-        let profile = Profile::new(target_language)?;
+        let profile = Profile::new(profile_name, target_language)?;
 
-        // Note: The composite key (username, target_language) ensures uniqueness
+        // Note: The composite key (username, profile_name) ensures uniqueness
         // The repository will handle any database-level uniqueness constraints
         self.profile_repository.save(username, profile).await
     }
@@ -200,7 +202,7 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// # Arguments
     ///
     /// * `username` - The username
-    /// * `target_language` - The target language
+    /// * `profile_name` - The profile name
     ///
     /// # Returns
     ///
@@ -220,7 +222,7 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// # use lh_core::repositories::user_profiles_repository::UserProfilesRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
     /// # async fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
-    /// match service.update_profile_activity("john_doe", "spanish").await {
+    /// match service.update_profile_activity("john_doe", "My Spanish").await {
     ///     Ok(profile) => println!("Updated activity: {:?}", profile),
     ///     Err(e) => eprintln!("Failed to update activity: {}", e),
     /// }
@@ -229,24 +231,24 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     pub async fn update_profile_activity(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<Profile, CoreError> {
         let mut profile = self
             .profile_repository
-            .find_by_username_and_target_language(username, target_language)
+            .find_by_username_and_profile_name(username, profile_name)
             .await?
-            .ok_or_else(|| CoreError::not_found("Profile", target_language))?;
+            .ok_or_else(|| CoreError::not_found("Profile", profile_name))?;
 
         profile.update_last_activity();
         self.profile_repository.save(username, profile).await
     }
 
-    /// Deletes a profile by username and target language.
+    /// Deletes a profile by username and profile name.
     ///
     /// # Arguments
     ///
     /// * `username` - The username
-    /// * `target_language` - The target language
+    /// * `profile_name` - The profile name
     ///
     /// # Returns
     ///
@@ -266,7 +268,7 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     /// # use lh_core::repositories::user_profiles_repository::UserProfilesRepository;
     /// # use lh_core::repositories::user_repository::UserRepository;
     /// # async fn example(service: &UserProfilesService<impl UserProfilesRepository, impl UserRepository>) {
-    /// match service.delete_profile("john_doe", "spanish").await {
+    /// match service.delete_profile("john_doe", "My Spanish").await {
     ///     Ok(()) => println!("Profile deleted successfully"),
     ///     Err(e) => eprintln!("Failed to delete profile: {}", e),
     /// }
@@ -275,14 +277,14 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
     pub async fn delete_profile(
         &self,
         username: &str,
-        target_language: &str,
+        profile_name: &str,
     ) -> Result<(), CoreError> {
         let deleted = self
             .profile_repository
-            .delete(username, target_language)
+            .delete(username, profile_name)
             .await?;
         if !deleted {
-            return Err(CoreError::not_found("Profile", target_language));
+            return Err(CoreError::not_found("Profile", profile_name));
         }
         Ok(())
     }

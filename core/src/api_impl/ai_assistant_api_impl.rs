@@ -40,34 +40,78 @@ impl Default for AiAssistantApiImpl {
 }
 
 impl AiAssistantApi for AiAssistantApiImpl {
-    fn get_running_models(&self) -> Result<Vec<String>, ApiError> {
-        let models = ollama_client::get_running_models();
-        Ok(models)
+    fn get_running_models(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<String>, ApiError>> + Send + '_>> {
+        Box::pin(async {
+            let models = ollama_client::get_running_models().await;
+            Ok(models)
+        })
     }
 
-    fn stop_model(&self, model_name: &str) -> Result<(), ApiError> {
-        ollama_client::stop_model(model_name).map_err(|e| ApiError::internal_error(e))
+    fn stop_model(
+        &self,
+        model_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ApiError>> + Send + '_>> {
+        let model_name = model_name.to_string();
+        Box::pin(async move {
+            ollama_client::stop_model(&model_name)
+                .await
+                .map_err(|e| ApiError::internal_error(e))
+        })
     }
 
-    fn check_server_status(&self) -> Result<bool, ApiError> {
-        ollama_client::check_server_status().map_err(|e| ApiError::internal_error(e))
+    fn check_server_status(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<bool, ApiError>> + Send + '_>> {
+        Box::pin(async {
+            ollama_client::check_server_status()
+                .await
+                .map_err(|e| ApiError::internal_error(e))
+        })
     }
 
-    fn start_server_and_wait(&self) -> Result<(), ApiError> {
-        ollama_client::start_server_and_wait().map_err(|e| ApiError::internal_error(e))
+    fn start_server_and_wait(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ApiError>> + Send + '_>> {
+        Box::pin(async {
+            ollama_client::start_server_and_wait()
+                .await
+                .map_err(|e| ApiError::internal_error(e))
+        })
     }
 
-    fn get_available_models(&self) -> Result<Vec<String>, ApiError> {
-        let models = ollama_client::get_available_models();
-        Ok(models)
+    fn get_available_models(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<String>, ApiError>> + Send + '_>> {
+        Box::pin(async {
+            let models = ollama_client::get_available_models().await;
+            Ok(models)
+        })
     }
 
-    fn pull_model(&self, model_name: &str) -> Result<(), ApiError> {
-        ollama_client::pull_model(model_name).map_err(|e| ApiError::internal_error(e))
+    fn pull_model(
+        &self,
+        model_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ApiError>> + Send + '_>> {
+        let model_name = model_name.to_string();
+        Box::pin(async move {
+            ollama_client::pull_model(&model_name)
+                .await
+                .map_err(|e| ApiError::internal_error(e))
+        })
     }
 
-    fn run_model(&self, model_name: &str) -> Result<(), ApiError> {
-        ollama_client::run_model(model_name).map_err(|e| ApiError::internal_error(e))
+    fn run_model(
+        &self,
+        model_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ApiError>> + Send + '_>> {
+        let model_name = model_name.to_string();
+        Box::pin(async move {
+            ollama_client::run_model(&model_name)
+                .await
+                .map_err(|e| ApiError::internal_error(e))
+        })
     }
 
     fn explain(
@@ -189,49 +233,8 @@ impl AiAssistantApi for AiAssistantApiImpl {
 }
 
 impl AiAssistantApiImpl {
-    /// Maps locale codes to readable language names for AI prompts.
-    ///
-    /// Examples: "en-US" -> "English", "ru-RU" -> "Russian", "ja-JP" -> "Japanese"
-    fn map_locale_to_language_name(locale: &str) -> String {
-        // Extract the language code (before the hyphen)
-        let lang_code = locale.split('-').next().unwrap_or(locale).to_lowercase();
-
-        match lang_code.as_str() {
-            "en" => "English".to_string(),
-            "ru" => "Russian".to_string(),
-            "ja" => "Japanese".to_string(),
-            "es" => "Spanish".to_string(),
-            "fr" => "French".to_string(),
-            "de" => "German".to_string(),
-            "zh" => "Chinese".to_string(),
-            "ko" => "Korean".to_string(),
-            "it" => "Italian".to_string(),
-            "pt" => "Portuguese".to_string(),
-            "ar" => "Arabic".to_string(),
-            "hi" => "Hindi".to_string(),
-            "nl" => "Dutch".to_string(),
-            "pl" => "Polish".to_string(),
-            "tr" => "Turkish".to_string(),
-            "vi" => "Vietnamese".to_string(),
-            "th" => "Thai".to_string(),
-            "sv" => "Swedish".to_string(),
-            "no" => "Norwegian".to_string(),
-            "da" => "Danish".to_string(),
-            "fi" => "Finnish".to_string(),
-            "el" => "Greek".to_string(),
-            "he" => "Hebrew".to_string(),
-            "cs" => "Czech".to_string(),
-            "uk" => "Ukrainian".to_string(),
-            _ => locale.to_string(), // Fallback to original if unknown
-        }
-    }
-
     /// Builds the comprehensive explain prompt with language learning instructions.
     fn build_explain_prompt(user_language: &str, profile_language: &str, message: &str) -> String {
-        // Convert locale codes to readable language names
-        let user_lang_name = Self::map_locale_to_language_name(user_language);
-        let profile_lang_name = Self::map_locale_to_language_name(profile_language);
-
         format!(
             r#"You are a language assistant.
 Your goal is to explain a phrase or a word in the learner's language.
@@ -247,13 +250,13 @@ Instructions:
 4. Explain typical usage and context (formal/informal, spoken/written, emotional tone, etc.).
 5. Give 2–3 short example sentences in {} using the phrase, each with a translation into {}.
 6. Mention common mistakes or nuances learners should watch out for."#,
-            user_lang_name,
+            user_language,
             message,
-            profile_lang_name,
-            user_lang_name,
+            profile_language,
+            user_language,
             message,
-            profile_lang_name,
-            user_lang_name
+            profile_language,
+            user_language
         )
     }
 
@@ -410,18 +413,14 @@ Instructions:
         user_language: &str,
         profile_language: &str,
     ) -> String {
-        // Convert locale codes to readable language names
-        let user_lang_name = Self::map_locale_to_language_name(user_language);
-        let profile_lang_name = Self::map_locale_to_language_name(profile_language);
-
         let card_language: String;
         let target_language: String;
         if card_type == "straight" {
-            card_language = profile_lang_name;
-            target_language = user_lang_name;
+            card_language = profile_language.to_string();
+            target_language = user_language.to_string();
         } else {
-            card_language = user_lang_name;
-            target_language = profile_lang_name;
+            card_language = user_language.to_string();
+            target_language = profile_language.to_string();
         }
 
         format!(
@@ -966,22 +965,5 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
             .collect();
 
         Ok(cards)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_get_running_models_no_panic() {
-        let api = AiAssistantApiImpl::new();
-        let result = api.get_running_models();
-
-        assert!(result.is_ok());
-        // We can't assert the content since Ollama might or might not be running
-        // Just verify it returns without panicking
-        let models = result.unwrap();
-        assert!(models.is_empty() || !models.is_empty());
     }
 }

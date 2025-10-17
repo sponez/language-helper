@@ -28,67 +28,89 @@ use std::sync::Arc;
 
 use fluent_bundle::FluentArgs;
 use iced::widget::{column, container, row, stack, Container};
-use iced::{Alignment, Element, Length, Task};
+use iced::{event, Alignment, Element, Length, Subscription, Task};
 
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
-use crate::models::UserView;
+use crate::components::back_button::back_button;
+use crate::components::error_modal::error_modal::{
+    error_modal, handle_error_modal_event, ErrorModalMessage,
+};
+use crate::languages::Language;
 use crate::router::{self, RouterEvent, RouterNode};
-use crate::routers::main_screen;
 use crate::routers::user::message::Message;
 use crate::states::UserState;
 
 use super::elements::{
-    back_button::{back_button, BackButtonMessage},
     profiles_button::{profiles_button, ProfilesButtonMessage},
     settings_button::{settings_button, SettingsButtonMessage},
 };
 
 /// State for the user router
 pub struct UserRouter {
-    /// The user view model for display
-    user_view: UserView,
+    /// User-specific state (owns it)
+    user_state: UserState,
     /// API instance for backend communication
     app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n) - read-only
     app_state: Rc<AppState>,
-    /// User-specific mutable state
-    user_state: UserState,
+    /// Whether user settings have been loaded from API
+    settings_loaded: bool,
+    /// Error message to display (None = no error)
+    error_message: Option<String>,
 }
 
 impl UserRouter {
     /// Creates a new user router.
     ///
-    /// The router will receive user data via MainScreen::UserLoaded message after push.
+    /// The router will load user data via init() after push.
     ///
     /// # Arguments
     ///
-    /// * `user_view` - The initial user view model to display (can be minimal with just username)
+    /// * `username` - The username for this user
     /// * `app_api` - The API instance for backend communication
     /// * `app_state` - Global application state (read-only reference)
     ///
     /// # Returns
     ///
-    /// A new UserRouter instance
-    pub fn new(user_view: UserView, app_api: Arc<dyn AppApi>, app_state: Rc<AppState>) -> Self {
-        // Initialize user state from the view's settings (if any)
-        let user_state = UserState::new(user_view.settings.as_ref());
+    /// A new UserRouter instance with minimal initial state
+    pub fn new(username: String, app_api: Arc<dyn AppApi>, app_state: Rc<AppState>) -> Self {
+        // Initialize with minimal user state (will be loaded in init())
+        let user_state = UserState::new(username, None, None);
 
         Self {
-            user_view,
+            user_state,
             app_api,
             app_state,
-            user_state,
+            settings_loaded: false,
+            error_message: None,
         }
     }
 
     /// Asynchronously loads fresh user data from the API
-    async fn load_user_data(app_api: Arc<dyn AppApi>, username: String) -> Option<UserView> {
+    async fn load_user_data(app_api: Arc<dyn AppApi>, username: String) -> Option<UserState> {
         match app_api.users_api().get_user_by_username(&username).await {
             Some(user_dto) => {
-                use crate::mappers::user_mapper;
-                Some(user_mapper::dto_to_view(&user_dto))
+                // Convert DTO settings to UserState
+                use crate::languages::{language_name_to_enum, Language};
+                use iced::Theme;
+
+                let theme = Theme::ALL
+                    .iter()
+                    .find(|t| t.to_string() == user_dto.settings.theme)
+                    .cloned()
+                    .unwrap_or(Theme::Dark);
+                let language =
+                    language_name_to_enum(&user_dto.settings.language).unwrap_or(Language::English);
+
+                let user_state = UserState {
+                    username: username.clone(),
+                    theme: Some(theme),
+                    language: Some(language),
+                };
+
+                Some(user_state)
             }
             None => {
                 eprintln!("Failed to load user data for: {}", username);
@@ -108,27 +130,27 @@ impl UserRouter {
     /// A tuple of (Optional RouterEvent for navigation, Task for async operations)
     pub fn update(&mut self, message: Message) -> (Option<RouterEvent>, Task<Message>) {
         match message {
-            Message::BackButton(msg) => match msg {
-                BackButtonMessage::Pressed => (Some(RouterEvent::Pop), Task::none()),
-            },
+            Message::BackButton => (Some(RouterEvent::Pop), Task::none()),
             Message::ProfilesButton(msg) => match msg {
                 ProfilesButtonMessage::Pressed => {
-                    // TODO: Uncomment when ProfileListRouter is refactored
-                    // let profile_list_router: Box<dyn RouterNode> =
-                    //     Box::new(super::super::profile_list_router::ProfileListRouter::new(
-                    //         self.user_view.clone(),
-                    //         Arc::clone(&self.app_api),
-                    //         Rc::clone(&self.app_state),
-                    //     ));
-                    // (Some(RouterEvent::Push(profile_list_router)), Task::none())
-                    (None, Task::none())
+                    let profile_list_router =
+                        crate::routers::profile_list::router::ProfileListRouter::new(
+                            Arc::clone(&self.app_api),
+                            Rc::clone(&self.app_state),
+                            Rc::new(self.user_state.clone()),
+                        );
+                    let router_box: Box<dyn RouterNode> = Box::new(profile_list_router);
+                    (Some(RouterEvent::Push(router_box)), Task::none())
                 }
             },
             Message::SettingsButton(msg) => match msg {
                 SettingsButtonMessage::Pressed => {
+                    // Pass user state fields directly to UserSettingsRouter
                     let user_settings_router: Box<dyn RouterNode> = Box::new(
                         crate::routers::user_settings::router::UserSettingsRouter::new(
-                            self.user_view.clone(),
+                            self.user_state.username.clone(),
+                            self.user_state.theme.clone().unwrap(),
+                            self.user_state.language.unwrap(),
                             Arc::clone(&self.app_api),
                             Rc::clone(&self.app_state),
                         ),
@@ -136,23 +158,47 @@ impl UserRouter {
                     (Some(RouterEvent::Push(user_settings_router)), Task::none())
                 }
             },
-            Message::UserLoaded(user_view_opt) => {
-                if let Some(user_view) = user_view_opt {
-                    println!("UserLoaded: Loading user data for {}", user_view.username);
-                    self.user_view = user_view;
-                    // Update user state from loaded settings (from database)
-                    if let Some(ref settings) = self.user_view.settings {
-                        println!("UserLoaded: Updating language to {}", settings.language);
-                        self.user_state.update_from_settings(settings);
-                    } else {
-                        println!("UserLoaded: No settings found, using defaults");
-                    }
+            Message::UserLoaded(user_state_opt) => {
+                if let Some(user_state) = user_state_opt {
+                    self.user_state = user_state;
+                    self.settings_loaded = true;
+                    self.error_message = None;
                 } else {
-                    println!("UserLoaded: Failed to load user data");
+                    eprintln!("Failed to load user settings");
+                    self.settings_loaded = false;
+                    let error_msg = self.app_state.i18n().get("error-load-user-settings", None);
+                    self.error_message = Some(error_msg);
+                }
+                (None, Task::none())
+            }
+            Message::ErrorModal(msg) => match msg {
+                ErrorModalMessage::Close => {
+                    self.error_message = None;
+                    (None, Task::none())
+                }
+            },
+            Message::Event(event) => {
+                // If error modal is showing, handle Enter/Esc to close
+                if self.error_message.is_some() {
+                    if handle_error_modal_event(event) {
+                        self.error_message = None;
+                    }
                 }
                 (None, Task::none())
             }
         }
+    }
+
+    /// Subscribe to keyboard events for error modal shortcuts
+    ///
+    /// This subscription enables:
+    /// - **Error Modal**: Enter/Escape (dismiss)
+    ///
+    /// # Returns
+    ///
+    /// A Subscription that listens for all keyboard, mouse, and window events
+    pub fn subscription(&self) -> Subscription<Message> {
+        event::listen().map(Message::Event)
     }
 
     /// Render the router's view.
@@ -165,15 +211,19 @@ impl UserRouter {
 
         // Center content: Username and action buttons (positioned absolutely in center)
         let mut args = FluentArgs::new();
-        args.set("username", &self.user_view.username);
-        args.set("language", self.user_state.language.name());
+        args.set("username", &self.user_state.username);
+        args.set(
+            "language",
+            self.user_state.language.unwrap_or(Language::English).name(),
+        );
         let title_text = i18n.get("user-account-title", Some(&args));
         let username_text = iced::widget::text(title_text)
             .size(24)
             .shaping(iced::widget::text::Shaping::Advanced);
 
         let profiles_btn = profiles_button(&i18n).map(Message::ProfilesButton);
-        let settings_btn = settings_button(&i18n).map(Message::SettingsButton);
+        let settings_btn =
+            settings_button(&i18n, self.settings_loaded).map(Message::SettingsButton);
 
         let center_content = Container::new(
             column![username_text, profiles_btn, settings_btn,]
@@ -186,7 +236,7 @@ impl UserRouter {
         .align_y(Alignment::Center);
 
         // Top-left: Back button (positioned absolutely in top-left)
-        let back_btn = back_button(&i18n).map(Message::BackButton);
+        let back_btn = back_button(&i18n, "user-back-button", Message::BackButton);
         let top_bar = Container::new(
             row![back_btn]
                 .spacing(10)
@@ -199,10 +249,18 @@ impl UserRouter {
 
         // Use stack to overlay back button on top of centered content
         // This prevents the back button from pushing the center content down
-        container(stack![center_content, top_bar])
+        let base: Container<'_, Message> = container(stack![center_content, top_bar])
             .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+            .height(Length::Fill);
+
+        // If error modal is open, render it on top using stack
+        if let Some(ref error_msg) = self.error_message {
+            let error_overlay =
+                error_modal(&self.app_state.i18n(), &error_msg).map(Message::ErrorModal);
+            return iced::widget::stack![base, error_overlay].into();
+        }
+
+        base.into()
     }
 }
 
@@ -222,20 +280,7 @@ impl RouterNode for UserRouter {
                 let mapped_task = task.map(router::Message::User);
                 (event, mapped_task)
             }
-            router::Message::MainScreen(msg) => match msg {
-                main_screen::message::Message::UserLoaded(user_view_opt) => {
-                    // Convert MainScreen message to User message and handle it
-                    let (event, task) =
-                        UserRouter::update(self, Message::UserLoaded(user_view_opt.clone()));
-                    let mapped_task = task.map(router::Message::User);
-                    (event, mapped_task)
-                }
-                _ => (None, Task::none()),
-            },
-            router::Message::UserSettings(_msg) => {
-                // UserSettings messages don't affect UserRouter
-                (None, Task::none())
-            }
+            _ => (None, Task::none()),
         }
     }
 
@@ -245,20 +290,27 @@ impl RouterNode for UserRouter {
 
     fn theme(&self) -> iced::Theme {
         // Get theme from user state, not global app state
-        self.user_state.theme()
+        self.user_state
+            .theme
+            .clone()
+            .unwrap_or(self.app_state.theme())
     }
 
-    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
-        // Reload user data from database (called when returning from sub-screens)
-        let username = self.user_view.username.clone();
-        let refresh_task = Task::perform(
+    fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
+        // Load user data from database (called on push and when returning from sub-screens)
+        let username = self.user_state.username.clone();
+        let init_task = Task::perform(
             Self::load_user_data(Arc::clone(&self.app_api), username),
             Message::UserLoaded,
         )
         .map(router::Message::User);
 
-        // Batch the incoming task with the refresh task
-        Task::batch(vec![incoming_task, refresh_task])
+        // Batch the incoming task with the init task
+        Task::batch(vec![incoming_task, init_task])
+    }
+
+    fn subscription(&self) -> Subscription<router::Message> {
+        UserRouter::subscription(self).map(router::Message::User)
     }
 }
 
@@ -296,18 +348,13 @@ mod tests {
     fn create_test_router() -> UserRouter {
         let test_api = Arc::new(TestAppApi);
         let app_state = Rc::new(AppState::new("Dark".to_string(), "English".to_string()));
-        let user_view = UserView {
-            username: "testuser".to_string(),
-            settings: None,
-            profiles: vec![],
-        };
-        UserRouter::new(user_view, test_api, app_state)
+        UserRouter::new("testuser".to_string(), test_api, app_state)
     }
 
     #[test]
-    fn test_new_router_has_user_view() {
+    fn test_new_router_has_user_state() {
         let router = create_test_router();
-        assert_eq!(router.user_view.username, "testuser");
+        assert_eq!(router.user_state.username, "testuser");
     }
 
     #[test]
@@ -320,8 +367,7 @@ mod tests {
     fn test_back_button_triggers_pop() {
         let mut router = create_test_router();
 
-        let back_msg = BackButtonMessage::Pressed;
-        let (event, _task) = router.update(Message::BackButton(back_msg));
+        let (event, _task) = router.update(Message::BackButton);
 
         assert!(event.is_some(), "Back button should trigger an event");
         match event.unwrap() {
@@ -332,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_message_is_cloneable() {
-        let msg = Message::BackButton(BackButtonMessage::Pressed);
+        let msg = Message::BackButton;
         let _cloned = msg.clone();
         // If this compiles, Clone is working
     }

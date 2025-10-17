@@ -27,31 +27,41 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use iced::widget::{column, container, row, stack, Container};
-use iced::{Alignment, Element, Length, Task};
+use iced::{event, Alignment, Element, Length, Subscription, Task};
 
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
-use crate::models::UserView;
+use crate::components::back_button::back_button;
+use crate::components::error_modal::error_modal::{
+    error_modal, handle_error_modal_event, ErrorModalMessage,
+};
+use crate::languages::Language;
 use crate::router::{self, RouterEvent, RouterNode, RouterTarget};
 use crate::routers::user_settings::message::Message;
+use iced::Theme;
 
 use super::elements::{
-    back_button::{back_button, BackButtonMessage},
     delete_user_button::{delete_confirmation_modal, delete_user_button, DeleteUserButtonMessage},
     theme_pick_list::{theme_pick_list, ThemePickListMessage},
 };
 
 /// State for the user settings router
 pub struct UserSettingsRouter {
-    /// The user view model for display
-    user_view: UserView,
+    /// Username (immutable)
+    username: String,
+    /// User's theme preference
+    theme: Theme,
+    /// User's domain language (native language)
+    language: Language,
     /// API instance for backend communication
     app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n) - read-only
     app_state: Rc<AppState>,
     /// Show delete confirmation modal
     show_delete_confirmation: bool,
+    /// Error message to display (None = no error)
+    error_message: Option<String>,
 }
 
 impl UserSettingsRouter {
@@ -59,33 +69,30 @@ impl UserSettingsRouter {
     ///
     /// # Arguments
     ///
-    /// * `user_view` - The user view model with settings
+    /// * `username` - The username for this user
+    /// * `theme` - The user's theme preference
+    /// * `language` - The user's domain language
     /// * `app_api` - The API instance for backend communication
     /// * `app_state` - Global application state (read-only reference)
     ///
     /// # Returns
     ///
     /// A new UserSettingsRouter instance
-    pub fn new(user_view: UserView, app_api: Arc<dyn AppApi>, app_state: Rc<AppState>) -> Self {
+    pub fn new(
+        username: String,
+        theme: Theme,
+        language: Language,
+        app_api: Arc<dyn AppApi>,
+        app_state: Rc<AppState>,
+    ) -> Self {
         Self {
-            user_view,
+            username,
+            theme,
+            language,
             app_api,
             app_state,
             show_delete_confirmation: false,
-        }
-    }
-
-    /// Asynchronously loads fresh user data from the API
-    async fn load_user_data(app_api: Arc<dyn AppApi>, username: String) -> Option<UserView> {
-        match app_api.users_api().get_user_by_username(&username).await {
-            Some(user_dto) => {
-                use crate::mappers::user_mapper;
-                Some(user_mapper::dto_to_view(&user_dto))
-            }
-            None => {
-                eprintln!("Failed to load user data for: {}", username);
-                None
-            }
+            error_message: None,
         }
     }
 
@@ -130,16 +137,14 @@ impl UserSettingsRouter {
     /// A tuple of (Optional RouterEvent for navigation, Task for async operations)
     pub fn update(&mut self, message: Message) -> (Option<RouterEvent>, Task<Message>) {
         match message {
-            Message::BackButton(msg) => match msg {
-                BackButtonMessage::Pressed => (Some(RouterEvent::Pop), Task::none()),
-            },
+            Message::BackButton => (Some(RouterEvent::Pop), Task::none()),
             Message::ThemePicker(msg) => match msg {
                 ThemePickListMessage::Selected(new_theme) => {
                     // Convert Theme enum to String for API call
                     let theme_str = new_theme.to_string();
 
                     // Create async task to update theme
-                    let username = self.user_view.username.clone();
+                    let username = self.username.clone();
                     let task = Task::perform(
                         Self::update_user_theme(
                             Arc::clone(&self.app_api),
@@ -149,10 +154,8 @@ impl UserSettingsRouter {
                         Message::ThemeUpdated,
                     );
 
-                    // Optimistically update local view with Theme enum
-                    if let Some(ref mut settings) = self.user_view.settings {
-                        settings.theme = new_theme;
-                    }
+                    // Optimistically update local theme
+                    self.theme = new_theme;
 
                     (None, task)
                 }
@@ -164,7 +167,7 @@ impl UserSettingsRouter {
                 }
                 DeleteUserButtonMessage::ConfirmDelete => {
                     // Create async task to delete user
-                    let username = self.user_view.username.clone();
+                    let username = self.username.clone();
                     let task = Task::perform(
                         Self::delete_user(Arc::clone(&self.app_api), username),
                         Message::UserDeleted,
@@ -181,10 +184,12 @@ impl UserSettingsRouter {
                 match result {
                     Ok(_) => {
                         println!("Theme updated successfully");
+                        self.error_message = None;
                     }
                     Err(error_key) => {
                         eprintln!("Failed to update theme: {}", error_key);
-                        // TODO: Show error to user
+                        let error_msg = self.app_state.i18n().get(&error_key, None);
+                        self.error_message = Some(error_msg);
                     }
                 }
                 (None, Task::none())
@@ -201,23 +206,50 @@ impl UserSettingsRouter {
                             )
                         } else {
                             eprintln!("User not found during deletion");
-                            (
-                                Some(RouterEvent::PopTo(Some(RouterTarget::MainScreen))),
-                                Task::none(),
-                            )
+                            let error_msg = self
+                                .app_state
+                                .i18n()
+                                .get("user-settings-api-error-delete", None);
+                            self.error_message = Some(error_msg);
+                            (None, Task::none())
                         }
                     }
                     Err(error_key) => {
                         eprintln!("Failed to delete user: {}", error_key);
-                        // Still navigate back even on error
-                        (
-                            Some(RouterEvent::PopTo(Some(RouterTarget::MainScreen))),
-                            Task::none(),
-                        )
+                        let error_msg = self.app_state.i18n().get(&error_key, None);
+                        self.error_message = Some(error_msg);
+                        (None, Task::none())
                     }
                 }
             }
+            Message::ErrorModal(msg) => match msg {
+                ErrorModalMessage::Close => {
+                    self.error_message = None;
+                    (None, Task::none())
+                }
+            },
+            Message::Event(event) => {
+                // If error modal is showing, handle Enter/Esc to close
+                if self.error_message.is_some() {
+                    if handle_error_modal_event(event) {
+                        self.error_message = None;
+                    }
+                }
+                (None, Task::none())
+            }
         }
+    }
+
+    /// Subscribe to keyboard events for error modal shortcuts
+    ///
+    /// This subscription enables:
+    /// - **Error Modal**: Enter/Escape (dismiss)
+    ///
+    /// # Returns
+    ///
+    /// A Subscription that listens for all keyboard, mouse, and window events
+    pub fn subscription(&self) -> Subscription<Message> {
+        event::listen().map(Message::Event)
     }
 
     /// Render the router's view.
@@ -233,13 +265,7 @@ impl UserSettingsRouter {
             .size(16)
             .shaping(iced::widget::text::Shaping::Advanced);
 
-        // Get language from user settings if available, otherwise use default
-        let language_value = if let Some(ref settings) = self.user_view.settings {
-            settings.language.name()
-        } else {
-            "English"
-        };
-        let language_display = iced::widget::text(language_value)
+        let language_display = iced::widget::text(self.language.name())
             .size(16)
             .shaping(iced::widget::text::Shaping::Advanced);
 
@@ -247,13 +273,8 @@ impl UserSettingsRouter {
             .spacing(10)
             .align_y(Alignment::Center);
 
-        // Get theme from user settings if available, otherwise use default
-        let current_theme = if let Some(ref settings) = self.user_view.settings {
-            settings.theme.clone()
-        } else {
-            iced::Theme::Dark
-        };
-        let theme_row = theme_pick_list(Rc::clone(&i18n), current_theme).map(Message::ThemePicker);
+        let theme_row =
+            theme_pick_list(Rc::clone(&i18n), self.theme.clone()).map(Message::ThemePicker);
 
         let delete_btn = delete_user_button(Rc::clone(&i18n)).map(Message::DeleteUserButton);
 
@@ -268,7 +289,7 @@ impl UserSettingsRouter {
         .align_y(Alignment::Center);
 
         // Top-left: Back button (positioned absolutely in top-left)
-        let back_btn = back_button(Rc::clone(&i18n)).map(Message::BackButton);
+        let back_btn = back_button(&i18n, "user-settings-back-button", Message::BackButton);
         let top_bar = Container::new(
             row![back_btn]
                 .spacing(10)
@@ -288,6 +309,13 @@ impl UserSettingsRouter {
         if self.show_delete_confirmation {
             let modal = delete_confirmation_modal(i18n).map(Message::DeleteUserButton);
             return iced::widget::stack![base_view, modal].into();
+        }
+
+        // If error modal is open, render it on top using stack
+        if let Some(ref error_msg) = self.error_message {
+            let error_overlay =
+                error_modal(&self.app_state.i18n(), &error_msg).map(Message::ErrorModal);
+            return iced::widget::stack![base_view, error_overlay].into();
         }
 
         base_view.into()
@@ -322,32 +350,16 @@ impl RouterNode for UserSettingsRouter {
     }
 
     fn theme(&self) -> iced::Theme {
-        // Get theme from user settings, not global app state
-        if let Some(ref settings) = self.user_view.settings {
-            settings.theme.clone()
-        } else {
-            iced::Theme::Dark
-        }
+        // Get theme from user state, not global app state
+        self.theme.clone()
     }
 
-    fn refresh(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
-        // Reload user data from database (called when returning from sub-screens)
-        let username = self.user_view.username.clone();
-        let refresh_task = Task::perform(
-            Self::load_user_data(Arc::clone(&self.app_api), username),
-            |user_view_opt| {
-                // Update the router state if data was loaded
-                if let Some(_user_view) = user_view_opt {
-                    // For now, just trigger a dummy message since we don't have UserLoaded
-                    // TODO: Add UserLoaded message and properly update user_view
-                    router::Message::UserSettings(Message::ThemeUpdated(Ok(())))
-                } else {
-                    router::Message::UserSettings(Message::ThemeUpdated(Ok(())))
-                }
-            },
-        );
+    fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
+        // No need to load user data - state is already initialized from parent router
+        incoming_task
+    }
 
-        // Batch the incoming task with the refresh task
-        Task::batch(vec![incoming_task, refresh_task])
+    fn subscription(&self) -> Subscription<router::Message> {
+        UserSettingsRouter::subscription(self).map(router::Message::UserSettings)
     }
 }
