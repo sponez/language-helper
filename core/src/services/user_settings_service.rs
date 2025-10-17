@@ -280,4 +280,33 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
         }
         Ok(())
     }
+
+    /// Retrieves the default UI language from app settings.
+    ///
+    /// This is used as a fallback when creating user settings for users
+    /// who don't have settings yet (e.g., when changing theme before selecting a user).
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(String)` - The default UI language from app settings
+    /// * `Err(CoreError)` - If an error occurs during the operation
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use lh_core::services::user_settings_service::UserSettingsService;
+    /// # use lh_core::repositories::user_settings_repository::UserSettingsRepository;
+    /// # use lh_core::repositories::app_settings_repository::AppSettingsRepository;
+    /// # use lh_core::repositories::user_repository::UserRepository;
+    /// # async fn example(service: &UserSettingsService<impl UserSettingsRepository, impl AppSettingsRepository, impl UserRepository>) {
+    /// match service.get_default_language().await {
+    ///     Ok(language) => println!("Default language: {}", language),
+    ///     Err(e) => eprintln!("Failed to get default language: {}", e),
+    /// }
+    /// # }
+    /// ```
+    pub async fn get_default_language(&self) -> Result<String, CoreError> {
+        let app_settings = self.app_settings_repository.get().await?;
+        Ok(app_settings.default_ui_language)
+    }
 }

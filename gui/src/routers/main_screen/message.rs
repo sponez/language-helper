@@ -26,7 +26,7 @@ pub enum Message {
     Event(Event),
 
     /// Usernames received from API
-    UsernamesReceived(Vec<String>),
+    UsernamesReceived(Result<Vec<String>, String>),
     /// User creation completed
     UserCreated(Result<String, String>),
     /// Theme updated in API

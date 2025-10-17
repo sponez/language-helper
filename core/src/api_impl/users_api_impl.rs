@@ -191,15 +191,22 @@ impl<
                     .map_err(map_core_error_to_api_error)
             }
             Err(CoreError::NotFound { .. }) => {
-                // Settings don't exist, create them with default language
+                // Settings don't exist, get default language from app settings
+                let default_language = self
+                    .user_settings_service
+                    .get_default_language()
+                    .await
+                    .unwrap_or_else(|_| "English".to_string());
+
+                // Create settings with default language
                 self.user_settings_service
-                    .create_user_settings(username, "English")
+                    .create_user_settings(username, &default_language)
                     .await
                     .map_err(map_core_error_to_api_error)?;
 
                 // Now update with the new theme
                 self.user_settings_service
-                    .update_user_settings(username, theme, "English")
+                    .update_user_settings(username, theme, &default_language)
                     .await
                     .map(|_| ())
                     .map_err(map_core_error_to_api_error)

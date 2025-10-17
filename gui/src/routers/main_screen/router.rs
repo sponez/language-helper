@@ -84,14 +84,12 @@ impl MainScreenRouter {
     }
 
     /// Asynchronously loads usernames from the API
-    async fn load_usernames(app_api: Arc<dyn AppApi>) -> Vec<String> {
-        match app_api.users_api().get_usernames().await {
-            Ok(usernames) => usernames,
-            Err(e) => {
-                eprintln!("Failed to load usernames: {:?}", e);
-                Vec::new()
-            }
-        }
+    async fn load_usernames(app_api: Arc<dyn AppApi>) -> Result<Vec<String>, String> {
+        app_api
+            .users_api()
+            .get_usernames()
+            .await
+            .map_err(|e| format!("error-load-usernames: {}", e))
     }
 
     /// Asynchronously updates app theme setting
@@ -212,10 +210,20 @@ impl MainScreenRouter {
 
                 (None, Task::none())
             }
-            Message::UsernamesReceived(usernames) => {
-                // Update the username list with loaded data
-                self.username_list = usernames;
-                (None, Task::none())
+            Message::UsernamesReceived(result) => {
+                match result {
+                    Ok(usernames) => {
+                        // Successfully loaded usernames
+                        self.username_list = usernames;
+                        self.error_message = None;
+                        (None, Task::none())
+                    }
+                    Err(error_key) => {
+                        // Failed to load usernames - show error modal
+                        self.handle_api_error("Failed to load usernames", error_key);
+                        (None, Task::none())
+                    }
+                }
             }
             Message::UserCreated(result) => {
                 match result {

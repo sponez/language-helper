@@ -18,6 +18,7 @@ error-create-user = Failed to create user
 error-update-theme = Failed to update theme
 error-update-language = Failed to update language
 error-load-user-settings = Failed to load user settings
+error-load-usernames = Failed to load users. Please check your database connection.
 
 # User Screen - Navigation
 user-back-button = Back
