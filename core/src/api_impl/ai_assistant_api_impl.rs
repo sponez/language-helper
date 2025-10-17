@@ -1,16 +1,13 @@
 //! AiAssistantApi trait implementation.
 //!
 //! This module provides the concrete implementation of the AiAssistantApi trait
-//! using the ollama_client utilities from the core layer.
+//! using the AI provider abstraction layer.
 
 use std::future::Future;
 use std::pin::Pin;
 
 use lh_api::apis::ai_assistant_api::AiAssistantApi;
 use lh_api::errors::api_error::ApiError;
-use lh_api::models::ai_explain::{
-    ExternalApiRequest, ExternalApiResponse, OllamaGenerateRequest, OllamaGenerateResponse,
-};
 use lh_api::models::assistant_settings::AssistantSettingsDto;
 use lh_api::models::card::CardDto;
 
@@ -122,32 +119,17 @@ impl AiAssistantApi for AiAssistantApiImpl {
         message: String,
     ) -> Pin<Box<dyn Future<Output = Result<String, ApiError>> + Send + '_>> {
         Box::pin(async move {
-            // Determine if we're using API mode or local Ollama
-            let is_api_mode = assistant_settings
-                .ai_model
-                .as_ref()
-                .map(|m| m.to_lowercase() == "api")
-                .unwrap_or(false);
+            // Build the comprehensive explain prompt
+            let prompt = Self::build_explain_prompt(&user_language, &profile_language, &message);
 
-            if is_api_mode {
-                // External API mode
-                Self::explain_with_external_api(
-                    assistant_settings,
-                    &user_language,
-                    &profile_language,
-                    &message,
-                )
+            // Create provider based on settings
+            let provider = crate::services::ai_providers::create_provider(&assistant_settings)?;
+
+            // Get response from provider
+            provider
+                .get_response(&prompt)
                 .await
-            } else {
-                // Local Ollama mode
-                Self::explain_with_ollama(
-                    assistant_settings,
-                    &user_language,
-                    &profile_language,
-                    &message,
-                )
-                .await
-            }
+                .map_err(|e| ApiError::internal_error(e))
         })
     }
 
@@ -160,34 +142,25 @@ impl AiAssistantApi for AiAssistantApiImpl {
         profile_language: String,
     ) -> Pin<Box<dyn Future<Output = Result<CardDto, ApiError>> + Send + '_>> {
         Box::pin(async move {
-            // Determine if we're using API mode or local Ollama
-            let is_api_mode = assistant_settings
-                .ai_model
-                .as_ref()
-                .map(|m| m.to_lowercase() == "api")
-                .unwrap_or(false);
+            // Build the fill card prompt
+            let prompt = Self::build_fill_card_prompt(
+                &card_name,
+                &card_type,
+                &user_language,
+                &profile_language,
+            );
 
-            if is_api_mode {
-                // External API mode
-                Self::fill_card_with_external_api(
-                    assistant_settings,
-                    &card_name,
-                    &card_type,
-                    &user_language,
-                    &profile_language,
-                )
+            // Create provider based on settings
+            let provider = crate::services::ai_providers::create_provider(&assistant_settings)?;
+
+            // Get response from provider
+            let response = provider
+                .get_response(&prompt)
                 .await
-            } else {
-                // Local Ollama mode
-                Self::fill_card_with_ollama(
-                    assistant_settings,
-                    &card_name,
-                    &card_type,
-                    &user_language,
-                    &profile_language,
-                )
-                .await
-            }
+                .map_err(|e| ApiError::internal_error(e))?;
+
+            // Parse the JSON response from the AI
+            Self::parse_card_from_json(&response)
         })
     }
 
@@ -200,34 +173,25 @@ impl AiAssistantApi for AiAssistantApiImpl {
         profile_language: String,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<CardDto>, ApiError>> + Send + '_>> {
         Box::pin(async move {
-            // Determine if we're using API mode or local Ollama
-            let is_api_mode = assistant_settings
-                .ai_model
-                .as_ref()
-                .map(|m| m.to_lowercase() == "api")
-                .unwrap_or(false);
+            // Build the merge prompt
+            let prompt = Self::build_merge_inverse_cards_prompt(
+                &new_card,
+                &existing_cards,
+                &user_language,
+                &profile_language,
+            );
 
-            if is_api_mode {
-                // External API mode
-                Self::merge_inverse_cards_with_external_api(
-                    assistant_settings,
-                    new_card,
-                    existing_cards,
-                    &user_language,
-                    &profile_language,
-                )
+            // Create provider based on settings
+            let provider = crate::services::ai_providers::create_provider(&assistant_settings)?;
+
+            // Get response from provider
+            let response = provider
+                .get_response(&prompt)
                 .await
-            } else {
-                // Local Ollama mode
-                Self::merge_inverse_cards_with_ollama(
-                    assistant_settings,
-                    new_card,
-                    existing_cards,
-                    &user_language,
-                    &profile_language,
-                )
-                .await
-            }
+                .map_err(|e| ApiError::internal_error(e))?;
+
+            // Parse the JSON array response from the AI
+            Self::parse_card_array_from_json(&response)
         })
     }
 }
@@ -258,245 +222,6 @@ Instructions:
             profile_language,
             user_language
         )
-    }
-
-    /// Explains a phrase using a local Ollama model.
-    async fn explain_with_ollama(
-        assistant_settings: AssistantSettingsDto,
-        user_language: &str,
-        profile_language: &str,
-        message: &str,
-    ) -> Result<String, ApiError> {
-        // Get the model name from settings
-        let model_name = assistant_settings
-            .ai_model
-            .ok_or_else(|| ApiError::validation_error("No AI model configured"))?;
-
-        // Map friendly name to Ollama model identifier
-        let ollama_model = Self::map_to_ollama_model(&model_name);
-
-        // Build the comprehensive explain prompt
-        let full_prompt = Self::build_explain_prompt(user_language, profile_language, message);
-
-        // Create request
-        let request = OllamaGenerateRequest {
-            model: ollama_model,
-            prompt: full_prompt,
-            stream: false,
-        };
-
-        // Send request to Ollama
-        let client = reqwest::Client::new();
-        let response = client
-            .post("http://localhost:11434/api/generate")
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to send request: {}", e)))?;
-
-        // Check response status
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(ApiError::internal_error(format!(
-                "Ollama request failed with status {}: {}",
-                status, error_text
-            )));
-        }
-
-        // Parse response
-        let ollama_response: OllamaGenerateResponse = response
-            .json()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to parse response: {}", e)))?;
-
-        Ok(ollama_response.response)
-    }
-
-    /// Explains a phrase using an external API.
-    async fn explain_with_external_api(
-        assistant_settings: AssistantSettingsDto,
-        user_language: &str,
-        profile_language: &str,
-        message: &str,
-    ) -> Result<String, ApiError> {
-        // Get API provider (default to OpenAI for backward compatibility)
-        let api_provider = assistant_settings
-            .api_provider
-            .as_deref()
-            .unwrap_or("openai");
-
-        // Build the comprehensive explain prompt
-        let full_prompt = Self::build_explain_prompt(user_language, profile_language, message);
-
-        // Route to appropriate API based on provider
-        match api_provider.to_lowercase().as_str() {
-            "gemini" => Self::send_gemini_request(assistant_settings, full_prompt).await,
-            "openai" | _ => {
-                // Default to OpenAI for backward compatibility
-                Self::send_openai_request(assistant_settings, full_prompt).await
-            }
-        }
-    }
-
-    /// Sends a request to OpenAI-compatible API.
-    async fn send_openai_request(
-        assistant_settings: AssistantSettingsDto,
-        prompt: String,
-    ) -> Result<String, ApiError> {
-        // Get API configuration
-        let api_endpoint = "https://api.openai.com/v1/responses".to_string();
-        let api_key = assistant_settings
-            .api_key
-            .ok_or_else(|| ApiError::validation_error("No API key configured"))?;
-        let api_model = assistant_settings
-            .api_model_name
-            .ok_or_else(|| ApiError::validation_error("No API model name configured"))?;
-
-        // Create request
-        let request = ExternalApiRequest {
-            model: api_model,
-            input: prompt,
-            stream: false,
-        };
-
-        // Send request to external API
-        let client = reqwest::Client::new();
-        let response = client
-            .post(&api_endpoint)
-            .header("Authorization", format!("Bearer {}", api_key))
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to send request: {}", e)))?;
-
-        // Check response status
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(ApiError::internal_error(format!(
-                "External API request failed with status {}: {}",
-                status, error_text
-            )));
-        }
-
-        // Parse response
-        let api_response: ExternalApiResponse = response
-            .json()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to parse response: {}", e)))?;
-
-        // Find the first message in the output array (skip reasoning items)
-        let message = api_response
-            .output
-            .iter()
-            .find(|output| output.output_type == "message")
-            .ok_or_else(|| {
-                ApiError::internal_error("Response does not contain a message in output array")
-            })?;
-
-        // Extract text from content[0].text
-        let text = message
-            .content
-            .first()
-            .map(|content| content.text.clone())
-            .ok_or_else(|| {
-                ApiError::internal_error("Message does not contain expected text content")
-            })?;
-
-        Ok(text)
-    }
-
-    /// Sends a request to Gemini API.
-    async fn send_gemini_request(
-        assistant_settings: AssistantSettingsDto,
-        prompt: String,
-    ) -> Result<String, ApiError> {
-        use lh_api::models::ai_explain::{
-            GeminiContent, GeminiGenerateRequest, GeminiGenerateResponse, GeminiPart,
-        };
-
-        // Get API configuration
-        let api_key = assistant_settings
-            .api_key
-            .ok_or_else(|| ApiError::validation_error("No API key configured"))?;
-        let api_model = assistant_settings
-            .api_model_name
-            .ok_or_else(|| ApiError::validation_error("No API model name configured"))?;
-
-        // Construct Gemini endpoint
-        let api_endpoint = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
-            api_model
-        );
-
-        // Create Gemini request
-        let request = GeminiGenerateRequest {
-            contents: vec![GeminiContent {
-                role: "user".to_string(),
-                parts: vec![GeminiPart { text: prompt }],
-            }],
-        };
-
-        // Send request to Gemini API
-        let client = reqwest::Client::new();
-        let response = client
-            .post(&api_endpoint)
-            .header("x-goog-api-key", api_key)
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to send request: {}", e)))?;
-
-        // Check response status
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(ApiError::internal_error(format!(
-                "Gemini API request failed with status {}: {}",
-                status, error_text
-            )));
-        }
-
-        // Parse response
-        let gemini_response: GeminiGenerateResponse = response
-            .json()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to parse response: {}", e)))?;
-
-        // Extract text from first candidate
-        let text = gemini_response
-            .candidates
-            .first()
-            .and_then(|candidate| candidate.content.parts.first())
-            .map(|part| part.text.clone())
-            .ok_or_else(|| {
-                ApiError::internal_error("Gemini response does not contain expected text content")
-            })?;
-
-        Ok(text)
-    }
-
-    /// Maps friendly model names to Ollama model identifiers.
-    fn map_to_ollama_model(model_name: &str) -> String {
-        match model_name.to_lowercase().as_str() {
-            "tiny" => "phi4-mini".to_string(),
-            "light" => "phi4".to_string(),
-            "weak" => "gemma2:2b".to_string(),
-            "medium" => "aya:8b".to_string(),
-            "strong" => "gemma2:9b".to_string(),
-            _ => model_name.to_string(),
-        }
     }
 
     /// Builds the fill card prompt for AI generation.
@@ -555,93 +280,6 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
             target_language = target_language,
             card_name = card_name
         )
-    }
-
-    /// Fills a card using a local Ollama model.
-    async fn fill_card_with_ollama(
-        assistant_settings: AssistantSettingsDto,
-        card_name: &str,
-        card_type: &str,
-        user_language: &str,
-        profile_language: &str,
-    ) -> Result<CardDto, ApiError> {
-        // Get the model name from settings
-        let model_name = assistant_settings
-            .ai_model
-            .ok_or_else(|| ApiError::validation_error("No AI model configured"))?;
-
-        // Map friendly name to Ollama model identifier
-        let ollama_model = Self::map_to_ollama_model(&model_name);
-
-        // Build the fill card prompt
-        let full_prompt =
-            Self::build_fill_card_prompt(card_name, card_type, user_language, profile_language);
-
-        // Create request
-        let request = OllamaGenerateRequest {
-            model: ollama_model,
-            prompt: full_prompt,
-            stream: false,
-        };
-
-        // Send request to Ollama
-        let client = reqwest::Client::new();
-        let response = client
-            .post("http://localhost:11434/api/generate")
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to send request: {}", e)))?;
-
-        // Check response status
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(ApiError::internal_error(format!(
-                "Ollama request failed with status {}: {}",
-                status, error_text
-            )));
-        }
-
-        // Parse response
-        let ollama_response: OllamaGenerateResponse = response
-            .json()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to parse response: {}", e)))?;
-
-        // Parse the JSON response from the AI
-        Self::parse_card_from_json(&ollama_response.response)
-    }
-
-    /// Fills a card using an external API.
-    async fn fill_card_with_external_api(
-        assistant_settings: AssistantSettingsDto,
-        card_name: &str,
-        card_type: &str,
-        user_language: &str,
-        profile_language: &str,
-    ) -> Result<CardDto, ApiError> {
-        // Get API provider (default to OpenAI for backward compatibility)
-        let api_provider = assistant_settings
-            .api_provider
-            .as_deref()
-            .unwrap_or("openai");
-
-        // Build the fill card prompt
-        let full_prompt =
-            Self::build_fill_card_prompt(card_name, card_type, user_language, profile_language);
-
-        // Route to appropriate API based on provider and parse card
-        let text = match api_provider.to_lowercase().as_str() {
-            "gemini" => Self::send_gemini_request(assistant_settings, full_prompt).await?,
-            "openai" | _ => Self::send_openai_request(assistant_settings, full_prompt).await?,
-        };
-
-        // Parse the JSON response from the AI
-        Self::parse_card_from_json(&text)
     }
 
     /// Parses a CardDto from JSON text returned by AI.
@@ -762,101 +400,6 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
             new_translation = new_translation,
             existing_cards_json = existing_cards_json
         )
-    }
-
-    /// Merges inverse cards using a local Ollama model.
-    async fn merge_inverse_cards_with_ollama(
-        assistant_settings: AssistantSettingsDto,
-        new_card: CardDto,
-        existing_cards: Vec<CardDto>,
-        user_language: &str,
-        profile_language: &str,
-    ) -> Result<Vec<CardDto>, ApiError> {
-        // Get the model name from settings
-        let model_name = assistant_settings
-            .ai_model
-            .ok_or_else(|| ApiError::validation_error("No AI model configured"))?;
-
-        // Map friendly name to Ollama model identifier
-        let ollama_model = Self::map_to_ollama_model(&model_name);
-
-        // Build the merge prompt
-        let full_prompt = Self::build_merge_inverse_cards_prompt(
-            &new_card,
-            &existing_cards,
-            user_language,
-            profile_language,
-        );
-
-        // Create request
-        let request = OllamaGenerateRequest {
-            model: ollama_model,
-            prompt: full_prompt,
-            stream: false,
-        };
-
-        // Send request to Ollama
-        let client = reqwest::Client::new();
-        let response = client
-            .post("http://localhost:11434/api/generate")
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to send request: {}", e)))?;
-
-        // Check response status
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(ApiError::internal_error(format!(
-                "Ollama request failed with status {}: {}",
-                status, error_text
-            )));
-        }
-
-        // Parse response
-        let ollama_response: OllamaGenerateResponse = response
-            .json()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to parse response: {}", e)))?;
-
-        // Parse the JSON array response from the AI
-        Self::parse_card_array_from_json(&ollama_response.response)
-    }
-
-    /// Merges inverse cards using an external API.
-    async fn merge_inverse_cards_with_external_api(
-        assistant_settings: AssistantSettingsDto,
-        new_card: CardDto,
-        existing_cards: Vec<CardDto>,
-        user_language: &str,
-        profile_language: &str,
-    ) -> Result<Vec<CardDto>, ApiError> {
-        // Get API provider (default to OpenAI for backward compatibility)
-        let api_provider = assistant_settings
-            .api_provider
-            .as_deref()
-            .unwrap_or("openai");
-
-        // Build the merge prompt
-        let full_prompt = Self::build_merge_inverse_cards_prompt(
-            &new_card,
-            &existing_cards,
-            user_language,
-            profile_language,
-        );
-
-        // Route to appropriate API based on provider and parse cards
-        let text = match api_provider.to_lowercase().as_str() {
-            "gemini" => Self::send_gemini_request(assistant_settings, full_prompt).await?,
-            "openai" | _ => Self::send_openai_request(assistant_settings, full_prompt).await?,
-        };
-
-        // Parse the JSON array response from the AI
-        Self::parse_card_array_from_json(&text)
     }
 
     /// Parses an array of CardDto from JSON text returned by AI.

@@ -3,6 +3,8 @@
 //! This module contains business logic services that orchestrate
 //! operations using repository traits.
 
+pub mod ai_provider;
+pub mod ai_providers;
 pub mod app_settings_service;
 pub mod learning_service;
 pub mod ollama_client;
