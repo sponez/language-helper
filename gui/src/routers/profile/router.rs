@@ -250,9 +250,17 @@ impl ProfileRouter {
             }
             Message::CardsButton(msg) => match msg {
                 CardsButtonMessage::Pressed => {
-                    // TODO: Navigate to cards menu router
-                    eprintln!("Cards button pressed");
-                    (None, Task::none())
+                    // Navigate to cards menu router
+                    let cards_menu_router =
+                        crate::routers::cards_menu::router::CardsMenuRouter::new(
+                            Rc::clone(&self.user_state),
+                            Rc::new(self.profile_state.clone()),
+                            Arc::clone(&self.app_api),
+                            Rc::clone(&self.app_state),
+                        );
+
+                    let router_box: Box<dyn RouterNode> = Box::new(cards_menu_router);
+                    (Some(RouterEvent::Push(router_box)), Task::none())
                 }
             },
             Message::AiButton(msg) => match msg {

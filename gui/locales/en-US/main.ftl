@@ -150,3 +150,11 @@ explain-ai-send = Send
 explain-ai-response-label = AI Explanation:
 explain-ai-placeholder = Your explanation will appear here...
 explain-ai-loading = Response is being generated...
+
+# Cards Menu Screen
+cards-menu-title = Cards Menu
+cards-menu-back = Back
+cards-menu-manage = Manage Cards
+cards-menu-learn = Learn
+cards-menu-test = Test
+cards-menu-repeat = Repeat
