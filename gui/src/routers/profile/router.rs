@@ -175,8 +175,13 @@ impl ProfileRouter {
                     .map(|(_, actual)| actual.to_string())
                     .unwrap_or(configured_name.clone());
 
-                // Check if configured model is running
-                if running_models.contains(&configured_actual_name) {
+                // Check if configured model is running (with or without :tag)
+                let is_configured_running = running_models.iter().any(|running| {
+                    running == &configured_actual_name
+                        || running.starts_with(&format!("{}:", configured_actual_name))
+                });
+
+                if is_configured_running {
                     Some(AssistantState::new_ollama(configured_name, true))
                 } else if let Some(running_model) =
                     Self::select_best_running_model(&running_models, MODEL_RANKING)
@@ -208,7 +213,12 @@ impl ProfileRouter {
     ) -> Option<String> {
         // Iterate from strongest to weakest
         ranking.iter().rev().find_map(|(friendly, actual)| {
-            if running_models.contains(&actual.to_string()) {
+            // Check if any running model matches (with or without :tag)
+            let matches = running_models
+                .iter()
+                .any(|running| running == actual || running.starts_with(&format!("{}:", actual)));
+
+            if matches {
                 Some(friendly.to_string())
             } else {
                 None
@@ -268,9 +278,6 @@ impl ProfileRouter {
                 (None, Task::none())
             }
             Message::AssistantStateLoaded(assistant_state) => {
-                if let Some(state) = &assistant_state {
-                    println!("Assistant state loaded: {:?}", state);
-                }
                 self.profile_state.assistant_state = assistant_state;
                 (None, Task::none())
             }
