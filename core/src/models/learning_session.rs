@@ -3,7 +3,7 @@
 //! This module defines the state of a learning session, including the current
 //! set of cards being studied, the phase (study or test), and test results.
 
-use super::card::Card;
+use super::card::{Card, CardType};
 use super::test_result::TestResult;
 
 /// Phase of the learning session
@@ -32,6 +32,10 @@ pub struct LearningSession {
     pub test_method: String,
     /// Test results for the current set
     pub test_results: Vec<TestResult>,
+    /// Answers already provided for current card (for multi-answer testing)
+    pub current_card_provided_answers: Vec<String>,
+    /// Whether the current card has been answered incorrectly
+    pub current_card_failed: bool,
 }
 
 impl LearningSession {
@@ -57,6 +61,8 @@ impl LearningSession {
             current_card_in_set: 0,
             test_method,
             test_results: Vec::new(),
+            current_card_provided_answers: Vec::new(),
+            current_card_failed: false,
         }
     }
 
@@ -90,6 +96,8 @@ impl LearningSession {
         self.phase = LearningPhase::Test;
         self.current_card_in_set = 0;
         self.test_results.clear();
+        self.current_card_provided_answers.clear();
+        self.current_card_failed = false;
     }
 
     /// Checks if all cards in the current set have been studied
@@ -134,6 +142,60 @@ impl LearningSession {
         self.phase = LearningPhase::Study;
         self.current_card_in_set = 0;
         self.test_results.clear();
+        self.current_card_provided_answers.clear();
+        self.current_card_failed = false;
+    }
+
+    /// Moves to the next card in test phase, resetting answer tracking
+    pub fn move_to_next_test_card(&mut self) {
+        self.current_card_provided_answers.clear();
+        self.current_card_failed = false;
+    }
+
+    /// Marks current card as failed
+    pub fn mark_current_card_failed(&mut self) {
+        self.current_card_failed = true;
+    }
+
+    /// Records an answer for the current card
+    pub fn add_provided_answer(&mut self, answer: String) {
+        self.current_card_provided_answers.push(answer);
+    }
+
+    /// Checks if current card testing is complete
+    ///
+    /// For Straight cards: Returns true if at least one correct answer per meaning has been provided
+    /// For Reverse cards: Returns true if all translations have been provided
+    ///
+    /// Returns true if card failed or all requirements met
+    pub fn is_current_card_complete(&self) -> bool {
+        if self.current_card_failed {
+            return true;
+        }
+
+        if let Some(card) = self.current_card() {
+            match card.card_type {
+                CardType::Straight => {
+                    // For Straight cards: check if all meanings are covered
+                    // At least one correct translation per meaning is required
+                    // This check needs to be done by comparing provided answers against card meanings
+                    // For now, we'll use a simple count check, but the actual validation
+                    // happens in the learning service
+                    self.current_card_provided_answers.len() >= card.meanings.len()
+                }
+                CardType::Reverse => {
+                    // For Reverse cards: all translations from all meanings are required
+                    let required_count: usize = card
+                        .meanings
+                        .iter()
+                        .map(|m| m.word_translations.len())
+                        .sum();
+                    self.current_card_provided_answers.len() >= required_count
+                }
+            }
+        } else {
+            false
+        }
     }
 
     /// Checks if there are more cards available for learning

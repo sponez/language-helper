@@ -92,9 +92,15 @@ impl CardsMenuRouter {
                 (Some(RouterEvent::Push(manage_cards_router)), Task::none())
             }
             Message::Learn => {
-                // TODO: Navigate to learn mode
-                eprintln!("Learn feature not yet implemented");
-                (None, Task::none())
+                // Navigate to learn router
+                let learn_router: Box<dyn RouterNode> =
+                    Box::new(crate::routers::learn::router::LearnRouter::new(
+                        Rc::clone(&self.user_state),
+                        Rc::clone(&self.profile_state),
+                        Arc::clone(&self.app_api),
+                        Rc::clone(&self.app_state),
+                    ));
+                (Some(RouterEvent::Push(learn_router)), Task::none())
             }
             Message::Test => {
                 // TODO: Navigate to test mode

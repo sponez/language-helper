@@ -6,6 +6,8 @@ use crate::errors::api_error::ApiError;
 use crate::models::assistant_settings::AssistantSettingsDto;
 use crate::models::card::CardDto;
 use crate::models::card_settings::CardSettingsDto;
+use crate::models::learning_session::LearningSessionDto;
+use crate::models::test_result::TestResultDto;
 use async_trait::async_trait;
 
 /// API for managing learning profile databases and content.
@@ -139,4 +141,63 @@ pub trait ProfilesApi: Send + Sync {
         profile_name: &str,
         card: CardDto,
     ) -> Result<Vec<CardDto>, ApiError>;
+
+    // Learning session methods
+
+    /// Creates a new learning session from unlearned cards.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `profile_name` - The profile name
+    /// * `start_card_number` - Starting card number (1-indexed)
+    ///
+    /// # Returns
+    ///
+    /// A new learning session starting from the specified card
+    async fn create_learning_session(
+        &self,
+        username: &str,
+        profile_name: &str,
+        start_card_number: usize,
+    ) -> Result<LearningSessionDto, ApiError>;
+
+    /// Checks a written answer against the session's current card state.
+    ///
+    /// Uses Damerau-Levenshtein distance to allow typos.
+    /// Takes into account which answers have already been provided.
+    ///
+    /// # Arguments
+    ///
+    /// * `session` - The current learning session
+    /// * `user_input` - The user's answer
+    ///
+    /// # Returns
+    ///
+    /// (is_correct, matched_answer) tuple
+    async fn check_answer(
+        &self,
+        session: &LearningSessionDto,
+        user_input: &str,
+    ) -> Result<(bool, String), ApiError>;
+
+    /// Processes a self-review result for a card.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `profile_name` - The profile name
+    /// * `word_name` - The word being tested
+    /// * `is_correct` - Whether the user marked their answer as correct
+    ///
+    /// # Returns
+    ///
+    /// TestResult with the user's self-evaluation
+    async fn process_self_review(
+        &self,
+        username: &str,
+        profile_name: &str,
+        word_name: &str,
+        is_correct: bool,
+    ) -> Result<TestResultDto, ApiError>;
 }

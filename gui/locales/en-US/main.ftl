@@ -211,3 +211,43 @@ inverse-cards-delete = Delete
 inverse-cards-save-all = Save All
 inverse-cards-skip-all = Skip All
 inverse-cards-saving = Saving cards...
+
+# Learn Router - Start Screen
+learn-title = Learn Mode
+learn-start-instruction = Enter the starting card number:
+learn-card-number-placeholder = Card number
+learn-start-button = Start
+learn-back = Back
+
+# Learn Router - Loading
+learn-loading = Loading session...
+
+# Learn Router - Study Phase
+learn-foreign-word-label = Word:
+learn-readings-label = Readings:
+learn-meanings-label = Meanings:
+learn-next-card = Next Card
+learn-start-test = Start Test
+learn-no-cards = No cards available
+
+# Learn Router - Test Phase
+learn-answer-label = Your Answer:
+learn-remaining-answers = Remaining answers
+learn-answer-placeholder = Enter your answer
+learn-submit-answer = Submit
+learn-correct = Correct
+learn-incorrect = Incorrect
+learn-continue = Continue
+
+# Learn Router - Self-Review Mode
+learn-show-answer = Show Answer
+learn-answer-correct = Correct
+learn-answer-incorrect = Incorrect
+
+# Learn Router - Results
+learn-test-passed = Test Passed!
+learn-test-failed = Test Failed
+learn-passed-message = Congratulations! You've mastered this set of cards.
+learn-failed-message = Keep practicing! You can retry this set.
+learn-next-set = Next Set
+learn-retry-set = Retry Set

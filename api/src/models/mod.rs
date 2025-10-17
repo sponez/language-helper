@@ -15,6 +15,8 @@
 //! - **system_requirements**: System requirements and compatibility data transfer objects
 //! - **ai_assistant**: AI assistant and running models data transfer objects
 //! - **card**: Flashcard and vocabulary data transfer objects
+//! - **learning_session**: Learning session state data transfer objects
+//! - **test_result**: Test result data transfer objects
 
 pub mod ai_assistant;
 pub mod ai_explain;
@@ -22,7 +24,9 @@ pub mod app_settings;
 pub mod assistant_settings;
 pub mod card;
 pub mod card_settings;
+pub mod learning_session;
 pub mod profile;
 pub mod system_requirements;
+pub mod test_result;
 pub mod user;
 pub mod user_settings;
