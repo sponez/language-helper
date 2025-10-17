@@ -21,8 +21,8 @@ pub enum Message {
     Modal(ModalWindowMessage),
     /// Result of profile creation attempt
     ProfileCreated(Result<String, String>), // Ok(language_code) or Err(i18n_key)
-    /// Profile languages (locale codes) loaded from API
-    ProfilesLoaded(Result<Vec<String>, String>), // Ok(language_codes) or Err(i18n_key)
+    /// Profile data loaded from API (names + full data for navigation)
+    ProfilesLoaded(Result<(Vec<String>, Vec<super::router::ProfileData>), String>), // Ok((names, data)) or Err(i18n_key)
     /// Message from the error modal
     ErrorModal(ErrorModalMessage),
     /// Global event (keyboard, mouse, etc.)

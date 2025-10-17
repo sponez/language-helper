@@ -59,3 +59,10 @@ error-profile-language-not-selected = Please select a target language
 # Profile List - API Errors
 error-create-profile = Failed to create profile
 error-load-profiles = Failed to load profiles
+
+# Profile Screen
+profile-title = Profile: {$profile} | Learning: {$language}
+profile-back-button = Back
+profile-cards-button = Cards
+profile-explain-ai-button = AI Explanations
+profile-settings-button = Settings

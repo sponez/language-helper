@@ -29,7 +29,7 @@
 
 use iced::{Element, Subscription, Task};
 
-use crate::routers::{main_screen, profile_list, user, user_settings};
+use crate::routers::{main_screen, profile, profile_list, user, user_settings};
 
 /// Identifies a specific router type for navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,8 +99,8 @@ pub enum Message {
     UserSettings(user_settings::message::Message),
     /// Message for the profile list router
     ProfileList(profile_list::message::Message),
-    // /// Message for the profile router
-    // Profile(profile_router::Message),
+    /// Message for the profile router
+    Profile(profile::message::Message),
     // /// Message for the profile settings router
     // ProfileSettings(profile_settings_router::Message),
     // /// Message for the card settings router

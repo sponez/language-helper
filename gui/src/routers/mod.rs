@@ -4,6 +4,7 @@
 //! that handles its own logic and navigation to child screens.
 
 pub mod main_screen;
+pub mod profile;
 pub mod profile_list;
 pub mod user;
 pub mod user_settings;
