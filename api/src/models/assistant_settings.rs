@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 pub struct AssistantSettingsDto {
     /// Selected AI model (e.g., "tiny", "light", "medium", "strong", "api")
     pub ai_model: Option<String>,
-    /// API endpoint URL for external AI services
-    pub api_endpoint: Option<String>,
+    /// API provider (e.g., "openai", "gemini") - only relevant when ai_model is "api"
+    pub api_provider: Option<String>,
     /// API key for authentication
     pub api_key: Option<String>,
     /// Model name to use with the API
@@ -23,13 +23,13 @@ impl AssistantSettingsDto {
     /// Creates a new AssistantSettingsDto.
     pub fn new(
         ai_model: Option<String>,
-        api_endpoint: Option<String>,
+        api_provider: Option<String>,
         api_key: Option<String>,
         api_model_name: Option<String>,
     ) -> Self {
         Self {
             ai_model,
-            api_endpoint,
+            api_provider,
             api_key,
             api_model_name,
         }
@@ -39,7 +39,7 @@ impl AssistantSettingsDto {
     pub fn empty() -> Self {
         Self {
             ai_model: None,
-            api_endpoint: None,
+            api_provider: None,
             api_key: None,
             api_model_name: None,
         }

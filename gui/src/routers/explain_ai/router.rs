@@ -89,6 +89,7 @@ impl ExplainAIRouter {
     async fn explain(
         app_api: Arc<dyn AppApi>,
         username: String,
+        profile_name: String,
         user_language: String,
         target_language: String,
         message_text: String,
@@ -96,7 +97,7 @@ impl ExplainAIRouter {
         // Load assistant settings
         let settings = app_api
             .profile_api()
-            .get_assistant_settings(&username, &target_language)
+            .get_assistant_settings(&username, &profile_name)
             .await
             .map_err(|e| format!("Failed to load settings: {}", e))?;
 
@@ -133,6 +134,7 @@ impl ExplainAIRouter {
 
                 // Prepare parameters for async call
                 let username = self.user_state.username.clone();
+                let profile_name = self.profile_state.profile_name.clone();
                 let user_language = self
                     .user_state
                     .language
@@ -148,6 +150,7 @@ impl ExplainAIRouter {
                     Self::explain(
                         app_api,
                         username,
+                        profile_name,
                         user_language,
                         target_language,
                         message_text,

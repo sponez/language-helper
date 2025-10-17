@@ -148,13 +148,13 @@ impl ManageCardsRouter {
             }
             Message::DeleteCard(word_name) => {
                 let username = self.user_state.username.clone();
-                let target_language = self.profile_state.target_language.clone();
+                let profile_name = self.profile_state.profile_name.clone();
                 let api = Arc::clone(&self.app_api);
 
                 let task = Task::perform(
                     async move {
                         api.profile_api()
-                            .delete_card(&username, &target_language, &word_name)
+                            .delete_card(&username, &profile_name, &word_name)
                             .await
                             .map(|deleted| {
                                 if deleted {
@@ -330,18 +330,18 @@ impl ManageCardsRouter {
     /// Creates a task to load cards from the API
     fn load_cards_task(&self) -> Task<Message> {
         let username = self.user_state.username.clone();
-        let target_language = self.profile_state.target_language.clone();
+        let profile_name = self.profile_state.profile_name.clone();
         let api = Arc::clone(&self.app_api);
 
         Task::perform(
             async move {
                 let unlearned_result = api
                     .profile_api()
-                    .get_unlearned_cards(&username, &target_language)
+                    .get_unlearned_cards(&username, &profile_name)
                     .await;
                 let learned_result = api
                     .profile_api()
-                    .get_learned_cards(&username, &target_language)
+                    .get_learned_cards(&username, &profile_name)
                     .await;
 
                 match (unlearned_result, learned_result) {

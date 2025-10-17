@@ -111,6 +111,9 @@ assistant-settings-strong = แข็งแรง
 assistant-settings-api = API
 
 # API Configuration
+assistant-settings-provider-label = ผู้ให้บริการ API:
+assistant-settings-provider-openai = OpenAI
+assistant-settings-provider-gemini = Google Gemini
 assistant-settings-api-endpoint = ปลายทาง API:
 assistant-settings-api-key = คีย์ API:
 assistant-settings-api-model = ชื่อโมเดล:

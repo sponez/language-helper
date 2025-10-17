@@ -67,8 +67,8 @@ pub struct AssistantSettingsRouter {
     // Settings inputs
     /// Selected model strength
     selected_model: String,
-    /// API endpoint input
-    api_endpoint: String,
+    /// API provider (openai, gemini)
+    api_provider: String,
     /// API key input
     api_key: String,
     /// API model name input
@@ -124,7 +124,7 @@ impl AssistantSettingsRouter {
             app_api,
             app_state,
             selected_model: "API".to_string(),
-            api_endpoint: "https://api.openai.com/v1/responses".to_string(),
+            api_provider: "openai".to_string(), // Default to OpenAI
             api_key: String::new(),
             api_model_name: String::new(),
             model_compatibility: HashMap::new(),
@@ -156,12 +156,10 @@ impl AssistantSettingsRouter {
                     if ai_model.to_lowercase() == "api" {
                         // API mode
                         let model_name = settings_dto.api_model_name.unwrap_or_default();
-                        let api_url = settings_dto
-                            .api_endpoint
-                            .unwrap_or_else(|| "https://api.openai.com/v1/responses".to_string());
                         let api_key = settings_dto.api_key;
 
-                        Ok(Some(AssistantState::new_api(model_name, api_url, api_key)))
+                        // Store api_provider for later use (will be set in SettingsLoaded handler)
+                        Ok(Some(AssistantState::new_api(model_name, api_key)))
                     } else {
                         // Ollama mode - map model name to proper case
                         let model_proper_case = match ai_model.to_lowercase().as_str() {
@@ -199,12 +197,12 @@ impl AssistantSettingsRouter {
         username: String,
         profile_name: String,
         ai_model: String,
-        api_endpoint: Option<String>,
+        api_provider: Option<String>,
         api_key: Option<String>,
         api_model_name: Option<String>,
     ) -> Result<(), String> {
         let settings_dto =
-            AssistantSettingsDto::new(Some(ai_model), api_endpoint, api_key, api_model_name);
+            AssistantSettingsDto::new(Some(ai_model), api_provider, api_key, api_model_name);
 
         match app_api
             .profile_api()
@@ -448,6 +446,10 @@ impl AssistantSettingsRouter {
             Message::ApiConfigForm(msg) => {
                 use super::message::ApiConfigFormMessage;
                 match msg {
+                    ApiConfigFormMessage::ApiProviderChanged(value) => {
+                        self.api_provider = value;
+                        (None, Task::none())
+                    }
                     ApiConfigFormMessage::ApiKeyChanged(value) => {
                         self.api_key = value;
                         (None, Task::none())
@@ -560,7 +562,7 @@ impl AssistantSettingsRouter {
                                 self.user_state.username.clone(),
                                 self.profile_state.profile_name.clone(),
                                 "api".to_string(),
-                                Some(self.api_endpoint.clone()),
+                                Some(self.api_provider.clone()),
                                 Some(self.api_key.clone()),
                                 Some(self.api_model_name.clone()),
                             ),
@@ -615,9 +617,39 @@ impl AssistantSettingsRouter {
                     Ok(Some(assistant_state)) => {
                         if assistant_state.is_api_mode() {
                             self.selected_model = "API".to_string();
-                            self.api_endpoint = assistant_state.api_url.unwrap_or_default();
                             self.api_key = assistant_state.api_key.unwrap_or_default();
                             self.api_model_name = assistant_state.model_name;
+
+                            // Load api_provider separately - we'll need to fetch it again
+                            // For now, we'll make an async call to get the full settings
+                            let username = self.user_state.username.clone();
+                            let profile_name = self.profile_state.profile_name.clone();
+                            let app_api = Arc::clone(&self.app_api);
+
+                            // Spawn a task to load the provider field
+                            let task = Task::perform(
+                                async move {
+                                    match app_api
+                                        .profile_api()
+                                        .get_assistant_settings(&username, &profile_name)
+                                        .await
+                                    {
+                                        Ok(settings) => settings
+                                            .api_provider
+                                            .unwrap_or_else(|| "openai".to_string()),
+                                        Err(_) => "openai".to_string(),
+                                    }
+                                },
+                                |provider| {
+                                    Message::ApiConfigForm(
+                                        super::message::ApiConfigFormMessage::ApiProviderChanged(
+                                            provider,
+                                        ),
+                                    )
+                                },
+                            );
+
+                            return (None, task);
                         } else {
                             self.selected_model = assistant_state.model_name;
                         }
@@ -813,9 +845,9 @@ impl AssistantSettingsRouter {
                                 self.user_state.username.clone(),
                                 self.profile_state.profile_name.clone(),
                                 self.selected_model.to_lowercase(),
-                                None,
-                                None,
-                                None,
+                                None, // api_provider not relevant for Ollama
+                                None, // api_key not relevant for Ollama
+                                None, // api_model_name not relevant for Ollama
                             ),
                             Message::SettingsSaved,
                         );
@@ -906,7 +938,7 @@ impl AssistantSettingsRouter {
             .map(Message::LocalModelRequirements),
             "API" => api_config_form(
                 &self.app_state,
-                &self.api_endpoint,
+                &self.api_provider,
                 &self.api_key,
                 &self.api_model_name,
             )

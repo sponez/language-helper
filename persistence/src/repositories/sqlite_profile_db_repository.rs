@@ -17,7 +17,7 @@ use std::path::PathBuf;
 /// SQLite-based implementation of ProfileRepository.
 ///
 /// This struct manages profile-specific database files. Each profile has its own
-/// database file at `data/{username}/{target_language}_profile.db`.
+/// database file at `data/{username}/{profile_name}_profile.db`.
 pub struct SqliteProfileDbRepository;
 
 impl SqliteProfileDbRepository {
@@ -88,7 +88,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                 "CREATE TABLE IF NOT EXISTS assistant_settings (
                     id INTEGER PRIMARY KEY,
                     ai_model TEXT,
-                    api_endpoint TEXT,
+                    api_provider TEXT,
                     api_key TEXT,
                     api_model_name TEXT
                 )",
@@ -279,7 +279,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
 
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, ai_model, api_endpoint, api_key, api_model_name
+                    "SELECT id, ai_model, api_provider, api_key, api_model_name
                  FROM assistant_settings WHERE id = 1",
                 )
                 .map_err(|e| {
@@ -291,7 +291,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                     Ok(AssistantSettingsEntity {
                         id: row.get(0)?,
                         ai_model: row.get(1)?,
-                        api_endpoint: row.get(2)?,
+                        api_provider: row.get(2)?,
                         api_key: row.get(3)?,
                         api_model_name: row.get(4)?,
                     })
@@ -325,13 +325,13 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
             conn.execute(
                 "UPDATE assistant_settings SET
                     ai_model = ?1,
-                    api_endpoint = ?2,
+                    api_provider = ?2,
                     api_key = ?3,
                     api_model_name = ?4
                  WHERE id = 1",
                 params![
                     settings.ai_model,
-                    settings.api_endpoint,
+                    settings.api_provider,
                     settings.api_key,
                     settings.api_model_name,
                 ],
@@ -361,7 +361,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
             conn.execute(
                 "UPDATE assistant_settings SET
                     ai_model = NULL,
-                    api_endpoint = NULL,
+                    api_provider = NULL,
                     api_key = NULL,
                     api_model_name = NULL
                  WHERE id = 1",

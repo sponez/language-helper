@@ -163,15 +163,10 @@ impl ProfileRouter {
         match configured_model {
             Some(ai_model) if ai_model.to_lowercase() == "api" => {
                 // API mode: check that we have required settings
-                let api_url = settings.api_endpoint?;
                 let model_name = settings.api_model_name?;
 
                 // API mode is always considered "running"
-                Some(AssistantState::new_api(
-                    model_name,
-                    api_url,
-                    settings.api_key,
-                ))
+                Some(AssistantState::new_api(model_name, settings.api_key))
             }
             Some(configured_name) => {
                 // Ollama mode with configured model

@@ -14,8 +14,8 @@ pub struct AssistantSettingsEntity {
     pub id: i64,
     /// Selected AI model (e.g., "tiny", "light", "medium", "strong", "api")
     pub ai_model: Option<String>,
-    /// API endpoint URL for external AI services
-    pub api_endpoint: Option<String>,
+    /// API provider (e.g., "openai", "gemini") - only relevant when ai_model is "api"
+    pub api_provider: Option<String>,
     /// API key for authentication
     pub api_key: Option<String>,
     /// Model name to use with the API
@@ -27,7 +27,7 @@ impl AssistantSettingsEntity {
     pub fn to_domain(self) -> Result<AssistantSettings, PersistenceError> {
         Ok(AssistantSettings::new(
             self.ai_model,
-            self.api_endpoint,
+            self.api_provider,
             self.api_key,
             self.api_model_name,
         ))
@@ -38,7 +38,7 @@ impl AssistantSettingsEntity {
         Self {
             id: 1, // Always use ID 1 for the single settings record
             ai_model: settings.ai_model,
-            api_endpoint: settings.api_endpoint,
+            api_provider: settings.api_provider,
             api_key: settings.api_key,
             api_model_name: settings.api_model_name,
         }

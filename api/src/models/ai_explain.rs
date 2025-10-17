@@ -122,3 +122,58 @@ pub struct ExternalApiContent {
     #[serde(default)]
     pub _ignored: serde_json::Value,
 }
+
+// ============================================================================
+// Gemini API Models
+// ============================================================================
+
+/// Request body for Gemini generateContent API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeminiGenerateRequest {
+    /// Array of conversation contents
+    pub contents: Vec<GeminiContent>,
+}
+
+/// Content object for Gemini API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeminiContent {
+    /// Role of the sender ("user" or "model")
+    pub role: String,
+    /// Array of content parts
+    pub parts: Vec<GeminiPart>,
+}
+
+/// Part of Gemini content (text, image, etc.)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeminiPart {
+    /// Text content
+    pub text: String,
+}
+
+/// Response from Gemini generateContent API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeminiGenerateResponse {
+    /// Array of candidate responses
+    pub candidates: Vec<GeminiCandidate>,
+    // All other fields are ignored
+    #[serde(flatten)]
+    #[serde(default)]
+    pub _ignored: serde_json::Value,
+}
+
+/// Candidate response from Gemini
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeminiCandidate {
+    /// The generated content
+    pub content: GeminiContent,
+    /// Reason for finishing (e.g., "STOP")
+    #[serde(default)]
+    pub finish_reason: Option<String>,
+    /// Candidate index
+    #[serde(default)]
+    pub index: i32,
+    // All other fields are ignored
+    #[serde(flatten)]
+    #[serde(default)]
+    pub _ignored: serde_json::Value,
+}

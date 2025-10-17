@@ -3,6 +3,34 @@
 //! This module defines the AI assistant settings for a profile,
 //! including model selection and API configuration.
 
+/// API provider type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ApiProvider {
+    /// OpenAI API
+    OpenAI,
+    /// Google Gemini API
+    Gemini,
+}
+
+impl ApiProvider {
+    /// Parses an API provider from a string.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "openai" => Some(ApiProvider::OpenAI),
+            "gemini" => Some(ApiProvider::Gemini),
+            _ => None,
+        }
+    }
+
+    /// Converts the API provider to a string.
+    pub fn as_str(&self) -> &str {
+        match self {
+            ApiProvider::OpenAI => "openai",
+            ApiProvider::Gemini => "gemini",
+        }
+    }
+}
+
 /// AI assistant settings for a learning profile.
 ///
 /// These settings control which AI model is used and how to connect to it.
@@ -10,8 +38,8 @@
 pub struct AssistantSettings {
     /// Selected AI model (e.g., "tiny", "light", "medium", "strong", "api")
     pub ai_model: Option<String>,
-    /// API endpoint URL for external AI services
-    pub api_endpoint: Option<String>,
+    /// API provider (OpenAI or Gemini) - only relevant when ai_model is "api"
+    pub api_provider: Option<String>,
     /// API key for authentication
     pub api_key: Option<String>,
     /// Model name to use with the API
@@ -24,18 +52,18 @@ impl AssistantSettings {
     /// # Arguments
     ///
     /// * `ai_model` - Selected AI model identifier
-    /// * `api_endpoint` - API endpoint URL (for API mode)
+    /// * `api_provider` - API provider (OpenAI or Gemini)
     /// * `api_key` - API authentication key (for API mode)
     /// * `api_model_name` - Model name for API requests (for API mode)
     pub fn new(
         ai_model: Option<String>,
-        api_endpoint: Option<String>,
+        api_provider: Option<String>,
         api_key: Option<String>,
         api_model_name: Option<String>,
     ) -> Self {
         Self {
             ai_model,
-            api_endpoint,
+            api_provider,
             api_key,
             api_model_name,
         }
@@ -45,7 +73,7 @@ impl AssistantSettings {
     pub fn empty() -> Self {
         Self {
             ai_model: None,
-            api_endpoint: None,
+            api_provider: None,
             api_key: None,
             api_model_name: None,
         }

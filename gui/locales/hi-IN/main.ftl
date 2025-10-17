@@ -111,6 +111,9 @@ assistant-settings-strong = मजबूत
 assistant-settings-api = API
 
 # API Configuration
+assistant-settings-provider-label = API प्रदाता:
+assistant-settings-provider-openai = OpenAI
+assistant-settings-provider-gemini = Google Gemini
 assistant-settings-api-endpoint = API एंडपॉइंट:
 assistant-settings-api-key = API कुंजी:
 assistant-settings-api-model = मॉडल नाम:

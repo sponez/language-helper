@@ -323,10 +323,32 @@ Instructions:
         profile_language: &str,
         message: &str,
     ) -> Result<String, ApiError> {
+        // Get API provider (default to OpenAI for backward compatibility)
+        let api_provider = assistant_settings
+            .api_provider
+            .as_deref()
+            .unwrap_or("openai");
+
+        // Build the comprehensive explain prompt
+        let full_prompt = Self::build_explain_prompt(user_language, profile_language, message);
+
+        // Route to appropriate API based on provider
+        match api_provider.to_lowercase().as_str() {
+            "gemini" => Self::send_gemini_request(assistant_settings, full_prompt).await,
+            "openai" | _ => {
+                // Default to OpenAI for backward compatibility
+                Self::send_openai_request(assistant_settings, full_prompt).await
+            }
+        }
+    }
+
+    /// Sends a request to OpenAI-compatible API.
+    async fn send_openai_request(
+        assistant_settings: AssistantSettingsDto,
+        prompt: String,
+    ) -> Result<String, ApiError> {
         // Get API configuration
-        let api_endpoint = assistant_settings
-            .api_endpoint
-            .ok_or_else(|| ApiError::validation_error("No API endpoint configured"))?;
+        let api_endpoint = "https://api.openai.com/v1/responses".to_string();
         let api_key = assistant_settings
             .api_key
             .ok_or_else(|| ApiError::validation_error("No API key configured"))?;
@@ -334,13 +356,10 @@ Instructions:
             .api_model_name
             .ok_or_else(|| ApiError::validation_error("No API model name configured"))?;
 
-        // Build the comprehensive explain prompt
-        let full_prompt = Self::build_explain_prompt(user_language, profile_language, message);
-
         // Create request
         let request = ExternalApiRequest {
             model: api_model,
-            input: full_prompt,
+            input: prompt,
             stream: false,
         };
 
@@ -389,6 +408,80 @@ Instructions:
             .map(|content| content.text.clone())
             .ok_or_else(|| {
                 ApiError::internal_error("Message does not contain expected text content")
+            })?;
+
+        Ok(text)
+    }
+
+    /// Sends a request to Gemini API.
+    async fn send_gemini_request(
+        assistant_settings: AssistantSettingsDto,
+        prompt: String,
+    ) -> Result<String, ApiError> {
+        use lh_api::models::ai_explain::{
+            GeminiContent, GeminiGenerateRequest, GeminiGenerateResponse, GeminiPart,
+        };
+
+        // Get API configuration
+        let api_key = assistant_settings
+            .api_key
+            .ok_or_else(|| ApiError::validation_error("No API key configured"))?;
+        let api_model = assistant_settings
+            .api_model_name
+            .ok_or_else(|| ApiError::validation_error("No API model name configured"))?;
+
+        // Construct Gemini endpoint
+        let api_endpoint = format!(
+            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
+            api_model
+        );
+
+        // Create Gemini request
+        let request = GeminiGenerateRequest {
+            contents: vec![GeminiContent {
+                role: "user".to_string(),
+                parts: vec![GeminiPart { text: prompt }],
+            }],
+        };
+
+        // Send request to Gemini API
+        let client = reqwest::Client::new();
+        let response = client
+            .post(&api_endpoint)
+            .header("x-goog-api-key", api_key)
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| ApiError::internal_error(format!("Failed to send request: {}", e)))?;
+
+        // Check response status
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ApiError::internal_error(format!(
+                "Gemini API request failed with status {}: {}",
+                status, error_text
+            )));
+        }
+
+        // Parse response
+        let gemini_response: GeminiGenerateResponse = response
+            .json()
+            .await
+            .map_err(|e| ApiError::internal_error(format!("Failed to parse response: {}", e)))?;
+
+        // Extract text from first candidate
+        let text = gemini_response
+            .candidates
+            .first()
+            .and_then(|candidate| candidate.content.parts.first())
+            .map(|part| part.text.clone())
+            .ok_or_else(|| {
+                ApiError::internal_error("Gemini response does not contain expected text content")
             })?;
 
         Ok(text)
@@ -531,74 +624,21 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
         user_language: &str,
         profile_language: &str,
     ) -> Result<CardDto, ApiError> {
-        // Get API configuration
-        let api_endpoint = assistant_settings
-            .api_endpoint
-            .ok_or_else(|| ApiError::validation_error("No API endpoint configured"))?;
-        let api_key = assistant_settings
-            .api_key
-            .ok_or_else(|| ApiError::validation_error("No API key configured"))?;
-        let api_model = assistant_settings
-            .api_model_name
-            .ok_or_else(|| ApiError::validation_error("No API model name configured"))?;
+        // Get API provider (default to OpenAI for backward compatibility)
+        let api_provider = assistant_settings
+            .api_provider
+            .as_deref()
+            .unwrap_or("openai");
 
         // Build the fill card prompt
         let full_prompt =
             Self::build_fill_card_prompt(card_name, card_type, user_language, profile_language);
 
-        // Create request
-        let request = ExternalApiRequest {
-            model: api_model,
-            input: full_prompt,
-            stream: false,
+        // Route to appropriate API based on provider and parse card
+        let text = match api_provider.to_lowercase().as_str() {
+            "gemini" => Self::send_gemini_request(assistant_settings, full_prompt).await?,
+            "openai" | _ => Self::send_openai_request(assistant_settings, full_prompt).await?,
         };
-
-        // Send request to external API
-        let client = reqwest::Client::new();
-        let response = client
-            .post(&api_endpoint)
-            .header("Authorization", format!("Bearer {}", api_key))
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to send request: {}", e)))?;
-
-        // Check response status
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(ApiError::internal_error(format!(
-                "External API request failed with status {}: {}",
-                status, error_text
-            )));
-        }
-
-        // Parse response
-        let api_response: ExternalApiResponse = response
-            .json()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to parse response: {}", e)))?;
-
-        // Find the first message in the output array (skip reasoning items)
-        let message = api_response
-            .output
-            .iter()
-            .find(|output| output.output_type == "message")
-            .ok_or_else(|| {
-                ApiError::internal_error("Response does not contain a message in output array")
-            })?;
-
-        // Extract text from content[0].text
-        let text = message
-            .content
-            .first()
-            .map(|content| content.text.clone())
-            .ok_or_else(|| {
-                ApiError::internal_error("Message does not contain expected text content")
-            })?;
 
         // Parse the JSON response from the AI
         Self::parse_card_from_json(&text)
@@ -795,16 +835,11 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
         user_language: &str,
         profile_language: &str,
     ) -> Result<Vec<CardDto>, ApiError> {
-        // Get API configuration
-        let api_endpoint = assistant_settings
-            .api_endpoint
-            .ok_or_else(|| ApiError::validation_error("No API endpoint configured"))?;
-        let api_key = assistant_settings
-            .api_key
-            .ok_or_else(|| ApiError::validation_error("No API key configured"))?;
-        let api_model = assistant_settings
-            .api_model_name
-            .ok_or_else(|| ApiError::validation_error("No API model name configured"))?;
+        // Get API provider (default to OpenAI for backward compatibility)
+        let api_provider = assistant_settings
+            .api_provider
+            .as_deref()
+            .unwrap_or("openai");
 
         // Build the merge prompt
         let full_prompt = Self::build_merge_inverse_cards_prompt(
@@ -814,59 +849,11 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
             profile_language,
         );
 
-        // Create request
-        let request = ExternalApiRequest {
-            model: api_model,
-            input: full_prompt,
-            stream: false,
+        // Route to appropriate API based on provider and parse cards
+        let text = match api_provider.to_lowercase().as_str() {
+            "gemini" => Self::send_gemini_request(assistant_settings, full_prompt).await?,
+            "openai" | _ => Self::send_openai_request(assistant_settings, full_prompt).await?,
         };
-
-        // Send request to external API
-        let client = reqwest::Client::new();
-        let response = client
-            .post(&api_endpoint)
-            .header("Authorization", format!("Bearer {}", api_key))
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to send request: {}", e)))?;
-
-        // Check response status
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(ApiError::internal_error(format!(
-                "External API request failed with status {}: {}",
-                status, error_text
-            )));
-        }
-
-        // Parse response
-        let api_response: ExternalApiResponse = response
-            .json()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("Failed to parse response: {}", e)))?;
-
-        // Find the first message in the output array (skip reasoning items)
-        let message = api_response
-            .output
-            .iter()
-            .find(|output| output.output_type == "message")
-            .ok_or_else(|| {
-                ApiError::internal_error("Response does not contain a message in output array")
-            })?;
-
-        // Extract text from content[0].text
-        let text = message
-            .content
-            .first()
-            .map(|content| content.text.clone())
-            .ok_or_else(|| {
-                ApiError::internal_error("Message does not contain expected text content")
-            })?;
 
         // Parse the JSON array response from the AI
         Self::parse_card_array_from_json(&text)

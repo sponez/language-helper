@@ -24,6 +24,8 @@ pub enum LocalModelRequirementsMessage {
 /// Messages from the API config form component
 #[derive(Debug, Clone)]
 pub enum ApiConfigFormMessage {
+    /// API provider selection changed
+    ApiProviderChanged(String),
     /// API key input changed
     ApiKeyChanged(String),
     /// API model name input changed

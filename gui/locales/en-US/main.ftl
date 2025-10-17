@@ -111,6 +111,9 @@ assistant-settings-strong = Strong
 assistant-settings-api = API
 
 # API Configuration
+assistant-settings-provider-label = API Provider:
+assistant-settings-provider-openai = OpenAI
+assistant-settings-provider-gemini = Google Gemini
 assistant-settings-api-endpoint = API Endpoint:
 assistant-settings-api-key = API Key:
 assistant-settings-api-model = Model Name:

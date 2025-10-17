@@ -15,8 +15,6 @@ pub struct AssistantState {
     pub assistant_type: String,
     /// Model name (e.g., "phi4", "gemma2:9b", "gpt-4")
     pub model_name: String,
-    /// Optional API URL (for API mode only)
-    pub api_url: Option<String>,
     /// Optional API key (for API mode only)
     pub api_key: Option<String>,
     /// Whether the assistant is currently running/available
@@ -38,7 +36,6 @@ impl AssistantState {
         Self {
             assistant_type: "Ollama".to_string(),
             model_name,
-            api_url: None,
             api_key: None,
             is_started,
         }
@@ -49,17 +46,15 @@ impl AssistantState {
     /// # Arguments
     ///
     /// * `model_name` - The API model name (e.g., "gpt-4")
-    /// * `api_url` - The API endpoint URL
     /// * `api_key` - Optional API key for authentication
     ///
     /// # Returns
     ///
     /// A new AssistantState configured for API (always started)
-    pub fn new_api(model_name: String, api_url: String, api_key: Option<String>) -> Self {
+    pub fn new_api(model_name: String, api_key: Option<String>) -> Self {
         Self {
             assistant_type: "API".to_string(),
             model_name,
-            api_url: Some(api_url),
             api_key,
             is_started: true, // API mode is always considered started
         }
@@ -86,7 +81,6 @@ mod tests {
 
         assert_eq!(state.assistant_type, "Ollama");
         assert_eq!(state.model_name, "phi4");
-        assert!(state.api_url.is_none());
         assert!(state.api_key.is_none());
         assert!(state.is_started);
         assert!(state.is_ollama_mode());
@@ -95,15 +89,10 @@ mod tests {
 
     #[test]
     fn test_assistant_state_api_with_key() {
-        let state = AssistantState::new_api(
-            "gpt-4".to_string(),
-            "https://api.openai.com".to_string(),
-            Some("sk-123".to_string()),
-        );
+        let state = AssistantState::new_api("gpt-4".to_string(), Some("sk-123".to_string()));
 
         assert_eq!(state.assistant_type, "API");
         assert_eq!(state.model_name, "gpt-4");
-        assert_eq!(state.api_url, Some("https://api.openai.com".to_string()));
         assert_eq!(state.api_key, Some("sk-123".to_string()));
         assert!(state.is_started); // API mode always started
         assert!(state.is_api_mode());
@@ -112,11 +101,7 @@ mod tests {
 
     #[test]
     fn test_assistant_state_api_without_key() {
-        let state = AssistantState::new_api(
-            "gpt-4".to_string(),
-            "https://api.openai.com".to_string(),
-            None,
-        );
+        let state = AssistantState::new_api("gpt-4".to_string(), None);
 
         assert_eq!(state.assistant_type, "API");
         assert!(state.api_key.is_none());
@@ -125,11 +110,7 @@ mod tests {
 
     #[test]
     fn test_is_api_mode_case_insensitive() {
-        let mut state = AssistantState::new_api(
-            "gpt-4".to_string(),
-            "https://api.openai.com".to_string(),
-            None,
-        );
+        let mut state = AssistantState::new_api("gpt-4".to_string(), None);
 
         state.assistant_type = "api".to_string();
         assert!(state.is_api_mode());
@@ -157,16 +138,11 @@ mod tests {
 
     #[test]
     fn test_assistant_state_clone() {
-        let state = AssistantState::new_api(
-            "gpt-4".to_string(),
-            "https://api.openai.com".to_string(),
-            Some("sk-123".to_string()),
-        );
+        let state = AssistantState::new_api("gpt-4".to_string(), Some("sk-123".to_string()));
         let cloned = state.clone();
 
         assert_eq!(state.assistant_type, cloned.assistant_type);
         assert_eq!(state.model_name, cloned.model_name);
-        assert_eq!(state.api_url, cloned.api_url);
         assert_eq!(state.api_key, cloned.api_key);
     }
 

@@ -573,6 +573,7 @@ impl AddCardRouter {
     /// Creates a task to fill card data using AI
     fn ai_fill_task(&self) -> Task<Message> {
         let username = self.user_state.username.clone();
+        let profile_name = self.profile_state.profile_name.clone();
         let target_language = self.profile_state.target_language.clone();
         let card_name = self.word_name.clone();
         let card_type_str = match self.card_type {
@@ -592,7 +593,7 @@ impl AddCardRouter {
                 // Get assistant settings
                 let assistant_settings = api
                     .profile_api()
-                    .get_assistant_settings(&username, &target_language)
+                    .get_assistant_settings(&username, &profile_name)
                     .await
                     .map_err(|e| format!("Failed to get assistant settings: {:?}", e))?;
 
@@ -628,13 +629,13 @@ impl AddCardRouter {
         let card_dto = self.create_card_dto();
 
         let username = self.user_state.username.clone();
-        let target_language = self.profile_state.target_language.clone();
+        let profile_name = self.profile_state.profile_name.clone();
         let api = Arc::clone(&self.app_api);
 
         Task::perform(
             async move {
                 api.profile_api()
-                    .save_card(&username, &target_language, card_dto.clone())
+                    .save_card(&username, &profile_name, card_dto.clone())
                     .await
                     .map(|_| card_dto)
                     .map_err(|e| format!("Failed to save card: {:?}", e))
@@ -727,13 +728,13 @@ impl AddCardRouter {
         };
 
         let username = self.user_state.username.clone();
-        let target_language = self.profile_state.target_language.clone();
+        let profile_name = self.profile_state.profile_name.clone();
         let api = Arc::clone(&self.app_api);
 
         Task::perform(
             async move {
                 api.profile_api()
-                    .get_inverted_cards(&username, &target_language, saved_card)
+                    .get_inverted_cards(&username, &profile_name, saved_card)
                     .await
                     .map_err(|e| format!("Failed to generate inverse cards: {:?}", e))
             },
@@ -753,6 +754,7 @@ impl AddCardRouter {
         };
 
         let username = self.user_state.username.clone();
+        let profile_name = self.profile_state.profile_name.clone();
         let target_language = self.profile_state.target_language.clone();
         let user_language = self
             .user_state
@@ -767,7 +769,7 @@ impl AddCardRouter {
                 // Get assistant settings
                 let assistant_settings = api
                     .profile_api()
-                    .get_assistant_settings(&username, &target_language)
+                    .get_assistant_settings(&username, &profile_name)
                     .await
                     .map_err(|e| format!("Failed to get assistant settings: {:?}", e))?;
 
@@ -778,7 +780,7 @@ impl AddCardRouter {
                 // Get all existing cards
                 let all_cards = api
                     .profile_api()
-                    .get_all_cards(&username, &target_language)
+                    .get_all_cards(&username, &profile_name)
                     .await
                     .map_err(|e| format!("Failed to get all cards: {:?}", e))?;
 
@@ -902,13 +904,13 @@ impl RouterNode for AddCardRouter {
     fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         // Check AI availability when router is initialized
         let username = self.user_state.username.clone();
-        let target_language = self.profile_state.target_language.clone();
+        let profile_name = self.profile_state.profile_name.clone();
         let api = Arc::clone(&self.app_api);
 
         let check_ai_task = Task::perform(
             async move {
                 api.profile_api()
-                    .get_assistant_settings(&username, &target_language)
+                    .get_assistant_settings(&username, &profile_name)
                     .await
                     .ok()
                     .map(|settings| settings.ai_model.is_some())

@@ -303,7 +303,7 @@ impl InverseCardsReviewRouter {
     /// Creates a task to save all pending cards
     fn save_all_cards_task(&self) -> Task<Message> {
         let username = self.user_state.username.clone();
-        let target_language = self.profile_state.target_language.clone();
+        let profile_name = self.profile_state.profile_name.clone();
         let pending_cards = self.pending_cards.clone();
         let api = Arc::clone(&self.app_api);
 
@@ -311,7 +311,7 @@ impl InverseCardsReviewRouter {
             async move {
                 for card in pending_cards {
                     api.profile_api()
-                        .save_card(&username, &target_language, card)
+                        .save_card(&username, &profile_name, card)
                         .await
                         .map_err(|e| format!("Failed to save card: {:?}", e))?;
                 }

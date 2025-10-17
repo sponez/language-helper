@@ -2,49 +2,77 @@
 
 use std::rc::Rc;
 
-use iced::widget::{column, row, text, text_input};
+use iced::widget::{column, pick_list, row, text, text_input};
 use iced::{Alignment, Element, Length};
 
 use crate::app_state::AppState;
 use crate::routers::assistant_settings::message::ApiConfigFormMessage;
 
-/// Renders the API configuration form with endpoint, key, and model inputs.
+/// API provider options for the picklist
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApiProvider {
+    OpenAI,
+    Gemini,
+}
+
+impl ApiProvider {
+    const ALL: [ApiProvider; 2] = [ApiProvider::OpenAI, ApiProvider::Gemini];
+
+    fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "gemini" => ApiProvider::Gemini,
+            _ => ApiProvider::OpenAI, // Default to OpenAI
+        }
+    }
+
+    fn as_str(&self) -> &'static str {
+        match self {
+            ApiProvider::OpenAI => "openai",
+            ApiProvider::Gemini => "gemini",
+        }
+    }
+}
+
+impl std::fmt::Display for ApiProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+/// Renders the API configuration form with provider, key, and model inputs.
 ///
 /// # Arguments
 ///
 /// * `app_state` - Application state for i18n
-/// * `api_endpoint` - Current API endpoint (read-only)
+/// * `api_provider` - Current API provider (openai/gemini)
 /// * `api_key` - Current API key (secure input)
 /// * `api_model_name` - Current API model name
 ///
 /// # Returns
 ///
-/// A column with three rows for endpoint, key, and model inputs
+/// A column with rows for provider selection, key, and model inputs
 pub fn api_config_form<'a>(
     app_state: &Rc<AppState>,
-    api_endpoint: &str,
+    api_provider: &str,
     api_key: &str,
     api_model_name: &str,
 ) -> Element<'a, ApiConfigFormMessage> {
     let i18n = app_state.i18n();
+    let selected_provider = ApiProvider::from_str(api_provider);
 
-    // API Endpoint (read-only)
-    let endpoint_label = text(i18n.get("assistant-settings-api-endpoint", None))
+    // API Provider picklist
+    let provider_label = text(i18n.get("assistant-settings-provider-label", None))
         .size(16)
         .shaping(iced::widget::text::Shaping::Advanced);
 
-    let display_endpoint = if api_endpoint.is_empty() {
-        "https://api.openai.com/v1/responses"
-    } else {
-        api_endpoint
-    };
+    let provider_picklist = pick_list(&ApiProvider::ALL[..], Some(selected_provider), |provider| {
+        ApiConfigFormMessage::ApiProviderChanged(provider.as_str().to_string())
+    })
+    .padding(10)
+    .width(Length::Fixed(300.0))
+    .placeholder(i18n.get("assistant-settings-provider-openai", None));
 
-    let endpoint_input = text_input("https://api.openai.com/v1/responses", display_endpoint)
-        // No on_input handler - field is read-only
-        .padding(10)
-        .width(Length::Fixed(300.0));
-
-    let endpoint_row = row![endpoint_label, endpoint_input]
+    let provider_row = row![provider_label, provider_picklist]
         .spacing(10)
         .align_y(Alignment::Center);
 
@@ -77,7 +105,8 @@ pub fn api_config_form<'a>(
         .spacing(10)
         .align_y(Alignment::Center);
 
-    column![endpoint_row, key_row, model_name_row]
+    // Build form column
+    column![provider_row, key_row, model_name_row]
         .spacing(20)
         .padding(20)
         .align_x(Alignment::Center)
