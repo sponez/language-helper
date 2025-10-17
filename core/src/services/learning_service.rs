@@ -275,6 +275,53 @@ impl<R: ProfileRepository> LearningService<R> {
         ))
     }
 
+    /// Creates a test session from cards (shuffled, test-only mode)
+    ///
+    /// Unlike learn sessions, test sessions:
+    /// - Include ALL cards (not limited by cards_per_set)
+    /// - Start in Test phase (no study phase)
+    /// - Shuffle cards once at creation
+    ///
+    /// # Arguments
+    ///
+    /// * `cards` - All cards to test (unlearned or learned)
+    /// * `test_method` - "manual" or "self_review"
+    ///
+    /// # Returns
+    ///
+    /// A LearningSession in Test phase with shuffled cards
+    ///
+    /// # Errors
+    ///
+    /// Returns error if there are no cards
+    pub fn create_test_session(
+        mut cards: Vec<Card>,
+        test_method: String,
+    ) -> Result<LearningSession, CoreError> {
+        // Validate we have cards
+        if cards.is_empty() {
+            return Err(CoreError::validation_error("No cards available"));
+        }
+
+        // Shuffle cards using thread_rng
+        use rand::seq::SliceRandom;
+        let mut rng = rand::thread_rng();
+        cards.shuffle(&mut rng);
+
+        let total_cards = cards.len();
+
+        // Create session with all cards, starting in Test phase
+        let mut session = LearningSession::new(
+            cards,
+            0,
+            total_cards, // cards_per_set = total cards
+            test_method,
+        );
+        session.phase = crate::models::LearningPhase::Test;
+
+        Ok(session)
+    }
+
     /// Checks a written answer against the session's current card state
     ///
     /// Uses Damerau-Levenshtein distance to allow typos.
@@ -677,5 +724,95 @@ mod tests {
         let result = TestResult::new_self_review(card.word.name.clone(), false);
 
         assert!(!result.is_correct);
+    }
+
+    #[test]
+    fn test_create_test_session_empty_cards() {
+        let result = LearningService::<()>::create_test_session(vec![], "manual".to_string());
+
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("No cards available"));
+        }
+    }
+
+    #[test]
+    fn test_create_test_session_creates_with_all_cards() {
+        let cards = vec![
+            create_straight_card("word1", vec![], vec![("def1", "trans1", vec!["trans1"])]),
+            create_straight_card("word2", vec![], vec![("def2", "trans2", vec!["trans2"])]),
+            create_straight_card("word3", vec![], vec![("def3", "trans3", vec!["trans3"])]),
+        ];
+
+        let session =
+            LearningService::<()>::create_test_session(cards.clone(), "manual".to_string())
+                .expect("Session creation should succeed");
+
+        // All cards should be included
+        assert_eq!(session.all_cards.len(), 3);
+        // cards_per_set should equal total cards
+        assert_eq!(session.cards_per_set, 3);
+        // Should start in Test phase
+        assert!(matches!(session.phase, crate::models::LearningPhase::Test));
+        // Should start at first card
+        assert_eq!(session.current_card_in_set, 0);
+    }
+
+    #[test]
+    fn test_create_test_session_shuffles_cards() {
+        let cards = vec![
+            create_straight_card("word1", vec![], vec![("def1", "trans1", vec!["trans1"])]),
+            create_straight_card("word2", vec![], vec![("def2", "trans2", vec!["trans2"])]),
+            create_straight_card("word3", vec![], vec![("def3", "trans3", vec!["trans3"])]),
+            create_straight_card("word4", vec![], vec![("def4", "trans4", vec!["trans4"])]),
+            create_straight_card("word5", vec![], vec![("def5", "trans5", vec!["trans5"])]),
+        ];
+
+        // Run multiple times to check for shuffling
+        let mut different_orders = 0;
+        let first_session =
+            LearningService::<()>::create_test_session(cards.clone(), "manual".to_string())
+                .expect("Session creation should succeed");
+        let first_order: Vec<String> = first_session
+            .all_cards
+            .iter()
+            .map(|c| c.word.name.clone())
+            .collect();
+
+        for _ in 0..10 {
+            let session =
+                LearningService::<()>::create_test_session(cards.clone(), "manual".to_string())
+                    .expect("Session creation should succeed");
+            let order: Vec<String> = session
+                .all_cards
+                .iter()
+                .map(|c| c.word.name.clone())
+                .collect();
+
+            if order != first_order {
+                different_orders += 1;
+            }
+        }
+
+        // With 5 cards and 10 attempts, we should see at least some different orders
+        // (extremely unlikely to get the same order 10 times by chance)
+        assert!(
+            different_orders > 0,
+            "Cards should be shuffled, but got same order every time"
+        );
+    }
+
+    #[test]
+    fn test_create_test_session_uses_test_method() {
+        let cards = vec![create_straight_card(
+            "word1",
+            vec![],
+            vec![("def1", "trans1", vec!["trans1"])],
+        )];
+
+        let session = LearningService::<()>::create_test_session(cards, "self_review".to_string())
+            .expect("Session creation should succeed");
+
+        assert_eq!(session.test_method, "self_review");
     }
 }

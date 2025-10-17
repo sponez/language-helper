@@ -487,4 +487,63 @@ impl<R: ProfileRepository> ProfileService<R> {
 
         Ok(inverse_cards)
     }
+
+    /// Processes test results and updates card streaks based on performance.
+    ///
+    /// For Test mode (unlearned cards):
+    /// - Correct answer: streak += 1
+    /// - Incorrect answer: streak = 0
+    ///
+    /// For Repeat mode (learned cards):
+    /// - Any incorrect answer: streak = 0 (moves back to unlearned)
+    /// - All correct: streak remains unchanged (stays learned)
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `target_language` - The target language
+    /// * `results` - Test results containing word_name and is_correct
+    /// * `is_repeat_mode` - true for Repeat mode, false for Test mode
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If all streak updates succeeded
+    /// * `Err(CoreError)` - If an error occurs
+    pub async fn process_test_results(
+        &self,
+        username: &str,
+        target_language: &str,
+        results: Vec<crate::models::TestResult>,
+        is_repeat_mode: bool,
+    ) -> Result<(), CoreError> {
+        let db_path = self.get_db_path(username, target_language);
+
+        for result in results {
+            // Get current card to know its current streak
+            let card = self
+                .repository
+                .get_card_by_word_name(db_path.clone(), result.word_name.clone())
+                .await?;
+
+            let new_streak = if result.is_correct {
+                if is_repeat_mode {
+                    // Repeat mode: correct answers don't change streak
+                    card.streak
+                } else {
+                    // Test mode: correct answers increment streak
+                    card.streak + 1
+                }
+            } else {
+                // Both modes: incorrect answers reset streak to 0
+                0
+            };
+
+            // Update the streak
+            self.repository
+                .update_card_streak(db_path.clone(), result.word_name, new_streak)
+                .await?;
+        }
+
+        Ok(())
+    }
 }

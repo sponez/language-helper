@@ -31,7 +31,8 @@ use iced::{Element, Subscription, Task};
 
 use crate::routers::{
     add_card, assistant_settings, card_settings, cards_menu, explain_ai, inverse_cards_review,
-    learn, main_screen, manage_cards, profile, profile_list, profile_settings, user, user_settings,
+    learn, main_screen, manage_cards, profile, profile_list, profile_settings, repeat, test, user,
+    user_settings,
 };
 
 /// Identifies a specific router type for navigation
@@ -122,6 +123,10 @@ pub enum Message {
     InverseCardsReview(inverse_cards_review::message::Message),
     /// Message for the learn router
     Learn(learn::message::Message),
+    /// Message for the test router
+    Test(test::message::Message),
+    /// Message for the repeat router
+    Repeat(repeat::message::Message),
 }
 
 /// Type-erased router node that can be stored in the stack.

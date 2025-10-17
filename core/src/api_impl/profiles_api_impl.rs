@@ -491,4 +491,94 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
 
         Ok(test_result_to_dto(result))
     }
+
+    async fn create_test_session(
+        &self,
+        username: &str,
+        profile_name: &str,
+    ) -> Result<LearningSessionDto, ApiError> {
+        // Get card settings for test_method
+        let card_settings = self
+            .profile_service
+            .get_card_settings(username, profile_name)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Get all unlearned cards
+        let unlearned_cards = self
+            .profile_service
+            .get_unlearned_cards(username, profile_name)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Create test session (shuffled, all cards)
+        let session = LearningService::<R>::create_test_session(
+            unlearned_cards,
+            card_settings.test_answer_method,
+        )
+        .map_err(map_core_error_to_api_error)?;
+
+        Ok(learning_session_to_dto(session))
+    }
+
+    async fn create_repeat_session(
+        &self,
+        username: &str,
+        profile_name: &str,
+    ) -> Result<LearningSessionDto, ApiError> {
+        // Get card settings for test_method
+        let card_settings = self
+            .profile_service
+            .get_card_settings(username, profile_name)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Get all learned cards
+        let learned_cards = self
+            .profile_service
+            .get_learned_cards(username, profile_name)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Create test session (shuffled, all cards)
+        let session = LearningService::<R>::create_test_session(
+            learned_cards,
+            card_settings.test_answer_method,
+        )
+        .map_err(map_core_error_to_api_error)?;
+
+        Ok(learning_session_to_dto(session))
+    }
+
+    async fn complete_test_session(
+        &self,
+        username: &str,
+        profile_name: &str,
+        results: Vec<TestResultDto>,
+    ) -> Result<(), ApiError> {
+        // Convert DTOs to domain TestResults
+        let domain_results: Vec<TestResult> = results.into_iter().map(dto_to_test_result).collect();
+
+        // Process results with is_repeat_mode=false
+        self.profile_service
+            .process_test_results(username, profile_name, domain_results, false)
+            .await
+            .map_err(map_core_error_to_api_error)
+    }
+
+    async fn complete_repeat_session(
+        &self,
+        username: &str,
+        profile_name: &str,
+        results: Vec<TestResultDto>,
+    ) -> Result<(), ApiError> {
+        // Convert DTOs to domain TestResults
+        let domain_results: Vec<TestResult> = results.into_iter().map(dto_to_test_result).collect();
+
+        // Process results with is_repeat_mode=true
+        self.profile_service
+            .process_test_results(username, profile_name, domain_results, true)
+            .await
+            .map_err(map_core_error_to_api_error)
+    }
 }

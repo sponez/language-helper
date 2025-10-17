@@ -15,6 +15,8 @@ pub mod manage_cards;
 pub mod profile;
 pub mod profile_list;
 pub mod profile_settings;
+pub mod repeat;
+pub mod test;
 pub mod user;
 pub mod user_settings;
 

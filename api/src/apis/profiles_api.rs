@@ -200,4 +200,72 @@ pub trait ProfilesApi: Send + Sync {
         word_name: &str,
         is_correct: bool,
     ) -> Result<TestResultDto, ApiError>;
+
+    /// Creates a test session from unlearned cards (shuffled, all cards).
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `profile_name` - The profile name
+    ///
+    /// # Returns
+    ///
+    /// A new test session with all unlearned cards shuffled
+    async fn create_test_session(
+        &self,
+        username: &str,
+        profile_name: &str,
+    ) -> Result<LearningSessionDto, ApiError>;
+
+    /// Creates a repeat session from learned cards (shuffled, all cards).
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `profile_name` - The profile name
+    ///
+    /// # Returns
+    ///
+    /// A new repeat session with all learned cards shuffled
+    async fn create_repeat_session(
+        &self,
+        username: &str,
+        profile_name: &str,
+    ) -> Result<LearningSessionDto, ApiError>;
+
+    /// Completes a test session and updates card streaks.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `profile_name` - The profile name
+    /// * `results` - Test results for each card
+    ///
+    /// # Returns
+    ///
+    /// Ok(()) if all updates succeeded
+    async fn complete_test_session(
+        &self,
+        username: &str,
+        profile_name: &str,
+        results: Vec<TestResultDto>,
+    ) -> Result<(), ApiError>;
+
+    /// Completes a repeat session and updates card streaks.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username
+    /// * `profile_name` - The profile name
+    /// * `results` - Test results for each card
+    ///
+    /// # Returns
+    ///
+    /// Ok(()) if all updates succeeded
+    async fn complete_repeat_session(
+        &self,
+        username: &str,
+        profile_name: &str,
+        results: Vec<TestResultDto>,
+    ) -> Result<(), ApiError>;
 }
