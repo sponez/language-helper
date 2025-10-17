@@ -119,7 +119,7 @@ impl CreateNewProfileModal {
             let username = self.username.clone();
             let profile_name = self.profile_name.trim().to_string();
             let language = self.selected_language.unwrap();
-            let language_code = language.to_locale_code().to_string();
+            let language_name = language.name().to_string();
             let app_api = Arc::clone(&self.app_api);
 
             let task = Task::perform(
@@ -127,7 +127,7 @@ impl CreateNewProfileModal {
                     // Step 1: Create profile metadata
                     match app_api
                         .users_api()
-                        .create_profile(&username, &profile_name, &language_code)
+                        .create_profile(&username, &profile_name, &language_name)
                         .await
                     {
                         Ok(_profile_dto) => {

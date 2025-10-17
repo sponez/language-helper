@@ -257,9 +257,17 @@ impl ProfileRouter {
             },
             Message::AiButton(msg) => match msg {
                 AiButtonMessage::Pressed => {
-                    // TODO: Navigate to AI explanation router
-                    eprintln!("AI button pressed");
-                    (None, Task::none())
+                    // Navigate to AI explanation router
+                    let explain_ai_router =
+                        crate::routers::explain_ai::router::ExplainAIRouter::new(
+                            Rc::clone(&self.user_state),
+                            Rc::new(self.profile_state.clone()),
+                            Arc::clone(&self.app_api),
+                            Rc::clone(&self.app_state),
+                        );
+
+                    let router_box: Box<dyn RouterNode> = Box::new(explain_ai_router);
+                    (Some(RouterEvent::Push(router_box)), Task::none())
                 }
             },
             Message::SettingsButton(msg) => match msg {

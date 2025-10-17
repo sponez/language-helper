@@ -141,3 +141,12 @@ assistant-settings-launch-error = Failed to launch assistant
 error-load-assistant-settings = Failed to load assistant settings
 error-save-assistant-settings = Failed to save assistant settings
 error-clear-assistant-settings = Failed to clear assistant settings
+
+# Explain AI Screen
+explain-ai-title = AI Explanations
+explain-ai-back = Back
+explain-ai-input-label = Enter a phrase to explain:
+explain-ai-send = Send
+explain-ai-response-label = AI Explanation:
+explain-ai-placeholder = Your explanation will appear here...
+explain-ai-loading = Response is being generated...

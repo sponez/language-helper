@@ -30,8 +30,8 @@
 use iced::{Element, Subscription, Task};
 
 use crate::routers::{
-    assistant_settings, card_settings, main_screen, profile, profile_list, profile_settings, user,
-    user_settings,
+    assistant_settings, card_settings, explain_ai, main_screen, profile, profile_list,
+    profile_settings, user, user_settings,
 };
 
 /// Identifies a specific router type for navigation
@@ -110,8 +110,8 @@ pub enum Message {
     CardSettings(card_settings::message::Message),
     /// Message for the assistant settings router
     AssistantSettings(assistant_settings::message::Message),
-    // /// Message for the explain AI router
-    // ExplainAI(explain_ai_router::Message),
+    /// Message for the explain AI router
+    ExplainAI(explain_ai::message::Message),
     // /// Message for the cards menu router
     // CardsMenu(cards_menu_router::Message),
     // /// Message for the manage cards router
