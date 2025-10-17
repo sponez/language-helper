@@ -138,15 +138,7 @@ impl InverseCardsReviewRouter {
                 self.pending_cards
                     .retain(|card| card.word.name != word_name);
 
-                // If no cards left, navigate to manage cards
-                if self.pending_cards.is_empty() {
-                    (
-                        Some(RouterEvent::PopTo(Some(router::RouterTarget::ManageCards))),
-                        Task::none(),
-                    )
-                } else {
-                    (None, Task::none())
-                }
+                (None, Task::none())
             }
             Message::SaveAll => {
                 self.saving = true;
