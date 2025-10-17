@@ -211,3 +211,67 @@ inverse-cards-delete = Delete
 inverse-cards-save-all = Save All
 inverse-cards-skip-all = Skip All
 inverse-cards-saving = Saving cards...
+
+# Learn Router - Start Screen
+learn-title = Learn Mode
+learn-start-instruction = Enter the starting card number:
+learn-card-number-placeholder = Card number
+learn-start-button = Start
+learn-back = Back
+
+# Learn Router - Loading
+learn-loading = Loading session...
+
+# Learn Router - Study Phase
+learn-foreign-word-label = Word:
+learn-readings-label = Readings:
+learn-meanings-label = Meanings:
+learn-next-card = Next Card
+learn-start-test = Start Test
+learn-no-cards = No cards available
+
+# Learn Router - Test Phase
+learn-answer-label = Your Answer:
+learn-remaining-answers = Remaining answers
+learn-answer-placeholder = Enter your answer
+learn-submit-answer = Submit
+learn-correct = Correct
+learn-incorrect = Incorrect
+learn-continue = Continue
+
+# Learn Router - Self-Review Mode
+learn-show-answer = Show Answer
+learn-answer-correct = Correct
+learn-answer-incorrect = Incorrect
+
+# Learn Router - Results
+learn-test-passed = Test Passed!
+learn-test-failed = Test Failed
+learn-passed-message = Congratulations! You've mastered this set of cards.
+learn-failed-message = Keep practicing! You can retry this set.
+learn-next-set = Next Set
+learn-retry-set = Retry Set
+
+# Test Router - Loading
+test-loading = Loading test...
+test-back = Back
+test-no-cards = No cards available for testing
+
+# Test Router - Results
+test-test-passed = Test Passed!
+test-test-failed = Test Failed
+test-passed-message = Great job! All unlearned words tested successfully.
+test-failed-message = Some answers were incorrect. Keep practicing!
+test-retry-test = Retry Test
+
+# Repeat Router - Loading
+repeat-loading = Loading repeat session...
+repeat-back = Back
+repeat-no-cards = No learned cards available to review
+
+# Repeat Router - Results
+repeat-test-passed = Review Passed!
+repeat-test-failed = Review Failed
+repeat-passed-message = Excellent! You remembered all your learned words.
+repeat-failed-message = Some words need more practice. They've been moved back to unlearned.
+repeat-retry-repeat = Retry Review

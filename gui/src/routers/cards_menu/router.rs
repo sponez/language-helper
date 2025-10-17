@@ -92,19 +92,37 @@ impl CardsMenuRouter {
                 (Some(RouterEvent::Push(manage_cards_router)), Task::none())
             }
             Message::Learn => {
-                // TODO: Navigate to learn mode
-                eprintln!("Learn feature not yet implemented");
-                (None, Task::none())
+                // Navigate to learn router
+                let learn_router: Box<dyn RouterNode> =
+                    Box::new(crate::routers::learn::router::LearnRouter::new(
+                        Rc::clone(&self.user_state),
+                        Rc::clone(&self.profile_state),
+                        Arc::clone(&self.app_api),
+                        Rc::clone(&self.app_state),
+                    ));
+                (Some(RouterEvent::Push(learn_router)), Task::none())
             }
             Message::Test => {
-                // TODO: Navigate to test mode
-                eprintln!("Test feature not yet implemented");
-                (None, Task::none())
+                // Navigate to test router
+                let test_router: Box<dyn RouterNode> =
+                    Box::new(crate::routers::test::router::TestRouter::new(
+                        Rc::clone(&self.user_state),
+                        Rc::clone(&self.profile_state),
+                        Arc::clone(&self.app_api),
+                        Rc::clone(&self.app_state),
+                    ));
+                (Some(RouterEvent::Push(test_router)), Task::none())
             }
             Message::Repeat => {
-                // TODO: Navigate to repeat mode
-                eprintln!("Repeat feature not yet implemented");
-                (None, Task::none())
+                // Navigate to repeat router
+                let repeat_router: Box<dyn RouterNode> =
+                    Box::new(crate::routers::repeat::router::RepeatRouter::new(
+                        Rc::clone(&self.user_state),
+                        Rc::clone(&self.profile_state),
+                        Arc::clone(&self.app_api),
+                        Rc::clone(&self.app_state),
+                    ));
+                (Some(RouterEvent::Push(repeat_router)), Task::none())
             }
             Message::Back => (Some(RouterEvent::Pop), Task::none()),
         }

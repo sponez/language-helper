@@ -18,6 +18,7 @@ use lh_core::repositories::adapters::{
     UserRepositoryAdapter, UserSettingsRepositoryAdapter,
 };
 use lh_core::services::app_settings_service::AppSettingsService;
+use lh_core::services::learning_service::LearningService;
 use lh_core::services::profile_service::ProfileService;
 use lh_core::services::user_profiles_service::UserProfilesService;
 use lh_core::services::user_service::UserService;
@@ -230,13 +231,18 @@ fn main() -> iced::Result {
     let profile_db_repository = ProfileDbRepositoryAdapter::new(profile_db_persistence);
     let profile_db_service = ProfileService::new(profile_db_repository, &config.data_dir);
 
+    // For LearningService (needs separate repository instance)
+    let profile_db_persistence2 = SqliteProfileDbRepository::new();
+    let profile_db_repository2 = ProfileDbRepositoryAdapter::new(profile_db_persistence2);
+    let learning_service = LearningService::new(profile_db_repository2);
+
     // 4. Create the API implementations (bridge between core and API)
     let users_api = UsersApiImpl::new(
         user_service,
         user_settings_service,
         profile_metadata_service,
     );
-    let profiles_api = ProfilesApiImpl::new(profile_db_service);
+    let profiles_api = ProfilesApiImpl::new(profile_db_service, learning_service);
     let app_settings_api = AppSettingsApiImpl::new(app_settings_service);
     let system_requirements_api = SystemRequirementsApiImpl::new();
     let ai_assistant_api = AiAssistantApiImpl::new();

@@ -8,10 +8,16 @@ use lh_api::errors::api_error::ApiError;
 use lh_api::models::assistant_settings::AssistantSettingsDto;
 use lh_api::models::card::{CardDto, CardType as ApiCardType, MeaningDto, WordDto};
 use lh_api::models::card_settings::CardSettingsDto;
+use lh_api::models::learning_session::{LearningPhase as ApiLearningPhase, LearningSessionDto};
+use lh_api::models::test_result::TestResultDto;
 
 use crate::errors::CoreError;
-use crate::models::{AssistantSettings, Card, CardSettings, CardType, Meaning, Word};
+use crate::models::{
+    AssistantSettings, Card, CardSettings, CardType, LearningPhase, LearningSession, Meaning,
+    TestResult, Word,
+};
 use crate::repositories::profile_repository::ProfileRepository;
+use crate::services::learning_service::LearningService;
 use crate::services::profile_service::ProfileService;
 
 /// Helper function to map CoreError to ApiError
@@ -88,11 +94,79 @@ fn dto_to_card(dto: CardDto) -> Result<Card, ApiError> {
     }
 }
 
+/// Convert domain LearningSession to DTO
+fn learning_session_to_dto(session: LearningSession) -> LearningSessionDto {
+    LearningSessionDto {
+        all_cards: session.all_cards.into_iter().map(card_to_dto).collect(),
+        current_set_start_index: session.current_set_start_index,
+        cards_per_set: session.cards_per_set,
+        phase: match session.phase {
+            LearningPhase::Study => ApiLearningPhase::Study,
+            LearningPhase::Test => ApiLearningPhase::Test,
+        },
+        current_card_in_set: session.current_card_in_set,
+        test_method: session.test_method,
+        test_results: session
+            .test_results
+            .into_iter()
+            .map(test_result_to_dto)
+            .collect(),
+        current_card_provided_answers: session.current_card_provided_answers,
+        current_card_failed: session.current_card_failed,
+    }
+}
+
+/// Convert DTO to domain LearningSession
+fn dto_to_learning_session(dto: LearningSessionDto) -> Result<LearningSession, ApiError> {
+    let all_cards: Result<Vec<Card>, ApiError> =
+        dto.all_cards.into_iter().map(dto_to_card).collect();
+
+    Ok(LearningSession {
+        all_cards: all_cards?,
+        current_set_start_index: dto.current_set_start_index,
+        cards_per_set: dto.cards_per_set,
+        phase: match dto.phase {
+            ApiLearningPhase::Study => LearningPhase::Study,
+            ApiLearningPhase::Test => LearningPhase::Test,
+        },
+        current_card_in_set: dto.current_card_in_set,
+        test_method: dto.test_method,
+        test_results: dto
+            .test_results
+            .into_iter()
+            .map(dto_to_test_result)
+            .collect(),
+        current_card_provided_answers: dto.current_card_provided_answers,
+        current_card_failed: dto.current_card_failed,
+    })
+}
+
+/// Convert domain TestResult to DTO
+fn test_result_to_dto(result: TestResult) -> TestResultDto {
+    TestResultDto {
+        word_name: result.word_name,
+        is_correct: result.is_correct,
+        user_answer: result.user_answer,
+        expected_answer: result.expected_answer,
+    }
+}
+
+/// Convert DTO to domain TestResult
+fn dto_to_test_result(dto: TestResultDto) -> TestResult {
+    TestResult {
+        word_name: dto.word_name,
+        is_correct: dto.is_correct,
+        user_answer: dto.user_answer,
+        expected_answer: dto.expected_answer,
+    }
+}
+
 /// Implementation of the ProfilesApi trait.
 ///
 /// This struct handles profile database file operations.
 pub struct ProfilesApiImpl<R: ProfileRepository> {
     profile_service: ProfileService<R>,
+    learning_service: LearningService<R>,
 }
 
 impl<R: ProfileRepository> ProfilesApiImpl<R> {
@@ -101,12 +175,16 @@ impl<R: ProfileRepository> ProfilesApiImpl<R> {
     /// # Arguments
     ///
     /// * `profile_service` - The profile service for database file management
+    /// * `learning_service` - The learning service for session management
     ///
     /// # Returns
     ///
     /// A new `ProfilesApiImpl` instance.
-    pub fn new(profile_service: ProfileService<R>) -> Self {
-        Self { profile_service }
+    pub fn new(profile_service: ProfileService<R>, learning_service: LearningService<R>) -> Self {
+        Self {
+            profile_service,
+            learning_service,
+        }
     }
 }
 
@@ -344,5 +422,163 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
 
         // Convert domain Cards to DTOs
         Ok(inverted_cards.into_iter().map(card_to_dto).collect())
+    }
+
+    async fn create_learning_session(
+        &self,
+        username: &str,
+        profile_name: &str,
+        start_card_number: usize,
+    ) -> Result<LearningSessionDto, ApiError> {
+        // Get card settings to determine cards_per_set and test_method
+        let card_settings = self
+            .profile_service
+            .get_card_settings(username, profile_name)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Get all unlearned cards
+        let unlearned_cards = self
+            .profile_service
+            .get_unlearned_cards(username, profile_name)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Create session using learning service
+        let session = LearningService::<R>::create_session_from_cards(
+            unlearned_cards,
+            start_card_number,
+            card_settings.cards_per_set as usize,
+            card_settings.test_answer_method,
+        )
+        .map_err(map_core_error_to_api_error)?;
+
+        Ok(learning_session_to_dto(session))
+    }
+
+    async fn check_answer(
+        &self,
+        session: &LearningSessionDto,
+        user_input: &str,
+    ) -> Result<(bool, String), ApiError> {
+        // Convert DTO to domain session
+        let domain_session = dto_to_learning_session(session.clone())?;
+
+        // Check answer using learning service
+        let result = self
+            .learning_service
+            .check_answer_for_session(&domain_session, user_input);
+
+        Ok(result)
+    }
+
+    async fn process_self_review(
+        &self,
+        username: &str,
+        profile_name: &str,
+        word_name: &str,
+        is_correct: bool,
+    ) -> Result<TestResultDto, ApiError> {
+        // Get the card
+        let card = self
+            .profile_service
+            .get_card_by_word_name(username, profile_name, word_name)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Process self-review
+        let result = self.learning_service.process_self_review(&card, is_correct);
+
+        Ok(test_result_to_dto(result))
+    }
+
+    async fn create_test_session(
+        &self,
+        username: &str,
+        profile_name: &str,
+    ) -> Result<LearningSessionDto, ApiError> {
+        // Get card settings for test_method
+        let card_settings = self
+            .profile_service
+            .get_card_settings(username, profile_name)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Get all unlearned cards
+        let unlearned_cards = self
+            .profile_service
+            .get_unlearned_cards(username, profile_name)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Create test session (shuffled, all cards)
+        let session = LearningService::<R>::create_test_session(
+            unlearned_cards,
+            card_settings.test_answer_method,
+        )
+        .map_err(map_core_error_to_api_error)?;
+
+        Ok(learning_session_to_dto(session))
+    }
+
+    async fn create_repeat_session(
+        &self,
+        username: &str,
+        profile_name: &str,
+    ) -> Result<LearningSessionDto, ApiError> {
+        // Get card settings for test_method
+        let card_settings = self
+            .profile_service
+            .get_card_settings(username, profile_name)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Get all learned cards
+        let learned_cards = self
+            .profile_service
+            .get_learned_cards(username, profile_name)
+            .await
+            .map_err(map_core_error_to_api_error)?;
+
+        // Create test session (shuffled, all cards)
+        let session = LearningService::<R>::create_test_session(
+            learned_cards,
+            card_settings.test_answer_method,
+        )
+        .map_err(map_core_error_to_api_error)?;
+
+        Ok(learning_session_to_dto(session))
+    }
+
+    async fn update_test_streaks(
+        &self,
+        username: &str,
+        profile_name: &str,
+        results: Vec<TestResultDto>,
+    ) -> Result<(), ApiError> {
+        // Convert DTOs to domain TestResults
+        let domain_results: Vec<TestResult> = results.into_iter().map(dto_to_test_result).collect();
+
+        // Process results with is_repeat_mode=false
+        self.profile_service
+            .process_test_results(username, profile_name, domain_results, false)
+            .await
+            .map_err(map_core_error_to_api_error)
+    }
+
+    async fn update_repeat_streaks(
+        &self,
+        username: &str,
+        profile_name: &str,
+        results: Vec<TestResultDto>,
+    ) -> Result<(), ApiError> {
+        // Convert DTOs to domain TestResults
+        let domain_results: Vec<TestResult> = results.into_iter().map(dto_to_test_result).collect();
+
+        // Process results with is_repeat_mode=true
+        self.profile_service
+            .process_test_results(username, profile_name, domain_results, true)
+            .await
+            .map_err(map_core_error_to_api_error)
     }
 }
