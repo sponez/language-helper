@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use iced::widget::{button, column, row, text};
+use iced::widget::{button, column, container, row, text};
 use iced::{Alignment, Element, Length};
 
 use lh_api::models::card::CardType;
@@ -55,5 +55,12 @@ pub fn card_type_selector<'a>(i18n: &Rc<I18n>, current_type: CardType) -> Elemen
         .spacing(10)
         .align_y(Alignment::Center);
 
-    column![label, buttons_row].spacing(10).into()
+    let centered_buttons = container(buttons_row)
+        .width(Length::Fill)
+        .align_x(Alignment::Center);
+
+    column![label, centered_buttons]
+        .spacing(10)
+        .align_x(Alignment::Center)
+        .into()
 }

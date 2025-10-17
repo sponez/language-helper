@@ -52,11 +52,16 @@ pub fn readings_section<'a>(i18n: &Rc<I18n>, readings: &'a [ReadingField]) -> El
         .on_press(Message::AddReading)
         .padding(8);
 
-    readings_column = readings_column.push(add_reading_button);
+    readings_column = readings_column
+        .push(add_reading_button)
+        .align_x(Alignment::Center);
 
     let readings_container = container(readings_column)
         .padding(15)
         .style(container::rounded_box);
 
-    column![label, readings_container].spacing(10).into()
+    column![label, readings_container]
+        .spacing(10)
+        .align_x(Alignment::Center)
+        .into()
 }

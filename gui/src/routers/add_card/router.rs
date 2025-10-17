@@ -26,7 +26,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-use iced::widget::{column, row, scrollable, stack, Container};
+use iced::widget::{column, scrollable, stack, Container};
 use iced::{Alignment, Element, Length, Task};
 
 use lh_api::app_api::AppApi;
@@ -38,6 +38,7 @@ use crate::routers::add_card::message::Message;
 use crate::states::{ProfileState, UserState};
 
 use super::elements::action_buttons::action_buttons;
+use super::elements::ai_filling_modal::ai_filling_modal;
 use super::elements::card_type_selector::card_type_selector;
 use super::elements::inverse_modal::inverse_modal;
 use super::elements::meanings_section::meanings_section;
@@ -291,6 +292,12 @@ impl AddCardRouter {
                 }
                 (None, Task::none())
             }
+            Message::TranslatedDefinitionChanged(meaning_index, value) => {
+                if let Some(meaning) = self.meanings.get_mut(meaning_index) {
+                    meaning.translated_definition = value;
+                }
+                (None, Task::none())
+            }
             Message::FillWithAI => {
                 if self.word_name.trim().is_empty() {
                     self.error_message =
@@ -459,11 +466,12 @@ impl AddCardRouter {
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = &self.app_state.i18n();
 
-        // Title with Fill with AI button
+        // Title (standalone, no AI button)
         let title = iced::widget::text(i18n.get("add-card-title", None))
             .size(24)
             .shaping(iced::widget::text::Shaping::Advanced);
 
+        // AI button (will be overlay in top-right)
         let fill_ai_text = iced::widget::text(i18n.get("add-card-fill-ai", None))
             .size(14)
             .shaping(iced::widget::text::Shaping::Advanced);
@@ -474,14 +482,6 @@ impl AddCardRouter {
         if self.ai_available.unwrap_or(false) && !self.ai_filling {
             fill_ai_button = fill_ai_button.on_press(Message::FillWithAI);
         }
-
-        let title_row = row![
-            title,
-            iced::widget::Space::new().width(Length::Fill),
-            fill_ai_button
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
 
         // Loading indicator for AI filling
         let loading_indicator = if self.ai_filling {
@@ -521,11 +521,11 @@ impl AddCardRouter {
         // Action buttons
         let actions = action_buttons(i18n);
 
-        // Build content column
-        let mut content_column =
-            column![title_row, card_type_section, word_input, readings, meanings,]
-                .spacing(15)
-                .padding(20);
+        // Build centered content column with title and all form elements
+        let mut content_column = column![title, card_type_section, word_input, readings, meanings,]
+            .spacing(20)
+            .padding(20)
+            .align_x(Alignment::Center);
 
         if let Some(loading) = loading_indicator {
             content_column = content_column.push(loading);
@@ -539,13 +539,30 @@ impl AddCardRouter {
 
         let scrollable_content = scrollable(content_column);
 
-        let main_content = Container::new(scrollable_content)
+        // Center content (vertically and horizontally centered)
+        let center_content = Container::new(scrollable_content)
             .width(Length::Fill)
             .height(Length::Fill)
-            .center_x(Length::Fill);
+            .center_x(Length::Fill)
+            .center_y(Length::Fill);
 
-        // If inverse modal is shown, overlay it
-        if self.show_inverse_modal {
+        // Top-right: AI button overlay
+        let ai_button_overlay = Container::new(fill_ai_button)
+            .padding(10)
+            .width(Length::Fill)
+            .align_x(Alignment::End)
+            .align_y(Alignment::Start);
+
+        // Stack center content and AI button overlay
+        let main_content = stack![center_content, ai_button_overlay];
+
+        // Layer modals based on priority: AI filling > inverse modal
+        if self.ai_filling {
+            // Show AI filling modal (blocking, no interaction)
+            let modal = ai_filling_modal(i18n);
+            stack![main_content, modal].into()
+        } else if self.show_inverse_modal {
+            // Show inverse modal
             let modal = inverse_modal(i18n, self.ai_available.unwrap_or(false));
             stack![main_content, modal].into()
         } else {

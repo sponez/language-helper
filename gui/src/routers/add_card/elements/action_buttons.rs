@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use iced::widget::{button, row, text};
+use iced::widget::{button, container, row, text};
 use iced::{Alignment, Element, Length};
 
 use crate::i18n::I18n;
@@ -34,8 +34,12 @@ pub fn action_buttons<'a>(i18n: &Rc<I18n>) -> Element<'a, Message> {
         .padding(10)
         .width(Length::Fixed(120.0));
 
-    row![save_button, cancel_button]
+    let buttons_row = row![save_button, cancel_button]
         .spacing(10)
-        .align_y(Alignment::Center)
+        .align_y(Alignment::Center);
+
+    container(buttons_row)
+        .width(Length::Fill)
+        .align_x(Alignment::Center)
         .into()
 }

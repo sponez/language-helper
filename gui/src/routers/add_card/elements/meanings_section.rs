@@ -50,6 +50,7 @@ pub fn meanings_section<'a>(
             &i18n.get("add-card-translated-def-placeholder", None),
             &meaning.translated_definition,
         )
+        .on_input(move |v| Message::TranslatedDefinitionChanged(meaning_index, v))
         .padding(10)
         .width(Length::Fixed(400.0));
 
@@ -88,7 +89,9 @@ pub fn meanings_section<'a>(
             .on_press(Message::AddTranslation(meaning_index))
             .padding(6);
 
-        translations_column = translations_column.push(add_trans_button);
+        translations_column = translations_column
+            .push(add_trans_button)
+            .align_x(Alignment::Center);
 
         let translations_container = container(translations_column)
             .padding(10)
@@ -112,7 +115,8 @@ pub fn meanings_section<'a>(
             translations_container,
             remove_meaning_button,
         ]
-        .spacing(8);
+        .spacing(8)
+        .align_x(Alignment::Center);
 
         let meaning_container = container(meaning_content)
             .padding(12)
@@ -129,11 +133,16 @@ pub fn meanings_section<'a>(
         .on_press(Message::AddMeaning)
         .padding(8);
 
-    meanings_column = meanings_column.push(add_meaning_button);
+    meanings_column = meanings_column
+        .push(add_meaning_button)
+        .align_x(Alignment::Center);
 
     let meanings_container = container(meanings_column)
         .padding(15)
         .style(container::rounded_box);
 
-    column![label, meanings_container].spacing(10).into()
+    column![label, meanings_container]
+        .spacing(10)
+        .align_x(Alignment::Center)
+        .into()
 }

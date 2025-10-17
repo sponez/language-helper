@@ -33,6 +33,8 @@ pub enum Message {
     AddTranslation(usize),
     /// Remove translation from meaning at meaning_index, translation_index
     RemoveTranslation(usize, usize),
+    /// Translated definition changed for meaning at index
+    TranslatedDefinitionChanged(usize, String),
 
     // AI Assistant actions
     /// Fill card data using AI assistant
