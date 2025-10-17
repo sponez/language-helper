@@ -550,7 +550,7 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         Ok(learning_session_to_dto(session))
     }
 
-    async fn complete_test_session(
+    async fn update_test_streaks(
         &self,
         username: &str,
         profile_name: &str,
@@ -566,7 +566,7 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
             .map_err(map_core_error_to_api_error)
     }
 
-    async fn complete_repeat_session(
+    async fn update_repeat_streaks(
         &self,
         username: &str,
         profile_name: &str,

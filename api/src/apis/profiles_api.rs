@@ -233,36 +233,42 @@ pub trait ProfilesApi: Send + Sync {
         profile_name: &str,
     ) -> Result<LearningSessionDto, ApiError>;
 
-    /// Completes a test session and updates card streaks.
+    /// Updates card streaks based on test results.
+    ///
+    /// Can be called with a single result (after each card) or multiple results (batch).
+    /// For test mode: correct → streak+1, incorrect → streak=0
     ///
     /// # Arguments
     ///
     /// * `username` - The username
     /// * `profile_name` - The profile name
-    /// * `results` - Test results for each card
+    /// * `results` - Test results for one or more cards
     ///
     /// # Returns
     ///
     /// Ok(()) if all updates succeeded
-    async fn complete_test_session(
+    async fn update_test_streaks(
         &self,
         username: &str,
         profile_name: &str,
         results: Vec<TestResultDto>,
     ) -> Result<(), ApiError>;
 
-    /// Completes a repeat session and updates card streaks.
+    /// Updates card streaks based on repeat session results.
+    ///
+    /// Can be called with a single result (after each card) or multiple results (batch).
+    /// For repeat mode: correct → no change, incorrect → streak=0
     ///
     /// # Arguments
     ///
     /// * `username` - The username
     /// * `profile_name` - The profile name
-    /// * `results` - Test results for each card
+    /// * `results` - Test results for one or more cards
     ///
     /// # Returns
     ///
     /// Ok(()) if all updates succeeded
-    async fn complete_repeat_session(
+    async fn update_repeat_streaks(
         &self,
         username: &str,
         profile_name: &str,

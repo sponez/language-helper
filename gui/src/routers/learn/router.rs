@@ -560,7 +560,7 @@ impl LearnRouter {
                 // Handle keyboard events
                 if let Event::Keyboard(iced::keyboard::Event::KeyPressed { key, .. }) = event {
                     match key {
-                        // Enter key: Submit answer in Test phase
+                        // Enter key: Submit answer in Test phase, navigate in Study phase
                         Key::Named(Named::Enter) => {
                             if let ScreenState::Test {
                                 answer_input,
@@ -571,7 +571,13 @@ impl LearnRouter {
                                 // If no feedback shown and input is not empty, submit answer
                                 if feedback.is_none() && !answer_input.trim().is_empty() {
                                     return self.update(Message::SubmitAnswer);
+                                } else if feedback.is_some() {
+                                    // If feedback is shown, continue to next card
+                                    return self.update(Message::Continue);
                                 }
+                            } else if let ScreenState::Study { .. } = &self.screen_state {
+                                // In Study screen, Enter triggers NextCardInStudy
+                                return self.update(Message::NextCardInStudy);
                             } else if let ScreenState::Start {
                                 start_card_input, ..
                             } = &self.screen_state

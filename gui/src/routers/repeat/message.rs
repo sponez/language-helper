@@ -22,6 +22,8 @@ pub enum Message {
 
     /// Continue button pressed (after incorrect answer or complete card)
     Continue,
+    /// Card completed (async result of updating streak)
+    CardCompleted(Result<(), String>),
     /// Session completed (async result)
     SessionCompleted(Result<(), String>),
     /// Retry button pressed (after failing test)

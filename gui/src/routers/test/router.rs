@@ -196,9 +196,12 @@ impl TestRouter {
                         user_answer: None,
                         expected_answer: None,
                     };
-                    updated_session.test_results.push(result);
+                    updated_session.test_results.push(result.clone());
 
                     updated_session.current_card_in_set += 1;
+
+                    // Update streak immediately
+                    let task = self.update_card_streak(card.word.name.clone(), true);
 
                     if updated_session.current_card_in_set >= updated_session.all_cards.len() {
                         // Complete session
@@ -211,6 +214,7 @@ impl TestRouter {
                             answer_shown: false,
                         };
                     }
+                    return (None, task);
                 }
                 (None, Task::none())
             }
@@ -228,9 +232,12 @@ impl TestRouter {
                         user_answer: None,
                         expected_answer: None,
                     };
-                    updated_session.test_results.push(result);
+                    updated_session.test_results.push(result.clone());
 
                     updated_session.current_card_in_set += 1;
+
+                    // Update streak immediately
+                    let task = self.update_card_streak(card.word.name.clone(), false);
 
                     if updated_session.current_card_in_set >= updated_session.all_cards.len() {
                         // Complete session
@@ -243,6 +250,7 @@ impl TestRouter {
                             answer_shown: false,
                         };
                     }
+                    return (None, task);
                 }
                 (None, Task::none())
             }
@@ -268,17 +276,21 @@ impl TestRouter {
                         || updated_session.current_card_failed;
 
                     if is_card_complete {
+                        let is_correct = !session.current_card_failed;
                         let result = lh_api::models::test_result::TestResultDto {
                             word_name: card.word.name.clone(),
-                            is_correct: !session.current_card_failed,
+                            is_correct,
                             user_answer: Some(session.current_card_provided_answers.join(", ")),
                             expected_answer: None,
                         };
-                        updated_session.test_results.push(result);
+                        updated_session.test_results.push(result.clone());
 
                         updated_session.current_card_in_set += 1;
                         updated_session.current_card_provided_answers.clear();
                         updated_session.current_card_failed = false;
+
+                        // Update streak immediately
+                        let task = self.update_card_streak(card.word.name.clone(), is_correct);
 
                         if updated_session.current_card_in_set >= updated_session.all_cards.len() {
                             // Complete session
@@ -291,6 +303,7 @@ impl TestRouter {
                                 answer_shown: false,
                             };
                         }
+                        return (None, task);
                     } else {
                         self.screen_state = ScreenState::Testing {
                             session: updated_session,
@@ -303,25 +316,18 @@ impl TestRouter {
                 (None, Task::none())
             }
 
-            Message::SessionCompleted(result) => match result {
-                Ok(()) => {
-                    // Session completed successfully, check if passed
-                    if let ScreenState::Testing { session, .. } = &self.screen_state {
-                        let passed = session.test_results.iter().all(|r| r.is_correct);
-                        self.screen_state = ScreenState::Results { passed };
-                    }
-                    (None, Task::none())
+            Message::CardCompleted(result) => {
+                if let Err(err) = result {
+                    eprintln!("Failed to update card streak: {}", err);
                 }
-                Err(err) => {
-                    eprintln!("Failed to complete test session: {}", err);
-                    // Show results anyway
-                    if let ScreenState::Testing { session, .. } = &self.screen_state {
-                        let passed = session.test_results.iter().all(|r| r.is_correct);
-                        self.screen_state = ScreenState::Results { passed };
-                    }
-                    (None, Task::none())
-                }
-            },
+                // Continue regardless of error
+                (None, Task::none())
+            }
+
+            Message::SessionCompleted(_result) => {
+                // This message is no longer used since we update streaks per-card
+                (None, Task::none())
+            }
 
             Message::RetryTest => {
                 // Restart by creating new session
@@ -358,6 +364,8 @@ impl TestRouter {
                             {
                                 if feedback.is_none() && !answer_input.trim().is_empty() {
                                     return self.update(Message::SubmitAnswer);
+                                } else if feedback.is_some() {
+                                    return self.update(Message::Continue);
                                 }
                             }
                         }
@@ -372,27 +380,38 @@ impl TestRouter {
         }
     }
 
-    fn complete_session(
-        &self,
-        session: LearningSessionDto,
-    ) -> (Option<RouterEvent>, Task<Message>) {
+    fn update_card_streak(&self, word_name: String, is_correct: bool) -> Task<Message> {
         let app_api = Arc::clone(&self.app_api);
         let username = self.user_state.username.clone();
         let profile_name = self.profile_state.profile_name.clone();
-        let results = session.test_results.clone();
 
-        let task = Task::perform(
+        let result = lh_api::models::test_result::TestResultDto {
+            word_name,
+            is_correct,
+            user_answer: None,
+            expected_answer: None,
+        };
+
+        Task::perform(
             async move {
                 app_api
                     .profile_api()
-                    .complete_test_session(&username, &profile_name, results)
+                    .update_test_streaks(&username, &profile_name, vec![result])
                     .await
-                    .map_err(|e| format!("Failed to complete session: {}", e))
+                    .map_err(|e| format!("Failed to update card streak: {}", e))
             },
-            |result| Message::SessionCompleted(result),
-        );
+            |result| Message::CardCompleted(result),
+        )
+    }
 
-        (None, task)
+    fn complete_session(
+        &mut self,
+        session: LearningSessionDto,
+    ) -> (Option<RouterEvent>, Task<Message>) {
+        // Check if passed
+        let passed = session.test_results.iter().all(|r| r.is_correct);
+        self.screen_state = ScreenState::Results { passed };
+        (None, Task::none())
     }
 
     /// Render the router's view.
