@@ -1,8 +1,7 @@
 //! Ollama CLI client for managing running models.
 
-use std::process::Command;
-use std::thread;
 use std::time::Duration;
+use tokio::process::Command;
 
 /// Get list of currently running models from Ollama.
 ///
@@ -36,9 +35,9 @@ use std::time::Duration;
 ///     println!("Running: {:?}", running_models);
 /// }
 /// ```
-pub fn get_running_models() -> Vec<String> {
+pub async fn get_running_models() -> Vec<String> {
     // Execute "ollama ps" command
-    match Command::new("ollama").arg("ps").output() {
+    match Command::new("ollama").arg("ps").output().await {
         Ok(output) => {
             if !output.status.success() {
                 eprintln!("Ollama ps command failed with status: {}", output.status);
@@ -96,9 +95,14 @@ pub fn get_running_models() -> Vec<String> {
 ///     Err(e) => eprintln!("Failed to stop model: {}", e),
 /// }
 /// ```
-pub fn stop_model(model_name: &str) -> Result<(), String> {
+pub async fn stop_model(model_name: &str) -> Result<(), String> {
     // Execute "ollama stop <model_name>" command
-    match Command::new("ollama").arg("stop").arg(model_name).output() {
+    match Command::new("ollama")
+        .arg("stop")
+        .arg(model_name)
+        .output()
+        .await
+    {
         Ok(output) => {
             if output.status.success() {
                 Ok(())
@@ -133,13 +137,13 @@ pub fn stop_model(model_name: &str) -> Result<(), String> {
 ///     Err(e) => eprintln!("Error checking server: {}", e),
 /// }
 /// ```
-pub fn check_server_status() -> Result<bool, String> {
-    let client = reqwest::blocking::Client::builder()
+pub async fn check_server_status() -> Result<bool, String> {
+    let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(2))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
-    match client.get("http://localhost:11434/api/tags").send() {
+    match client.get("http://localhost:11434/api/tags").send().await {
         Ok(response) => Ok(response.status().is_success()),
         Err(e) => {
             // Check if it's a connection refused error
@@ -176,7 +180,7 @@ pub fn check_server_status() -> Result<bool, String> {
 ///     Err(e) => eprintln!("Failed to start server: {}", e),
 /// }
 /// ```
-pub fn start_server_and_wait() -> Result<(), String> {
+pub async fn start_server_and_wait() -> Result<(), String> {
     // Spawn ollama serve as a background process
     Command::new("ollama")
         .arg("serve")
@@ -185,9 +189,9 @@ pub fn start_server_and_wait() -> Result<(), String> {
 
     // Wait for server to be ready (poll up to 30 seconds)
     for attempt in 1..=60 {
-        thread::sleep(Duration::from_millis(500));
+        tokio::time::sleep(Duration::from_millis(500)).await;
 
-        match check_server_status() {
+        match check_server_status().await {
             Ok(true) => {
                 println!("Ollama server ready after {} attempts", attempt);
                 return Ok(());
@@ -235,9 +239,9 @@ pub fn start_server_and_wait() -> Result<(), String> {
 ///     println!("Available: {:?}", available_models);
 /// }
 /// ```
-pub fn get_available_models() -> Vec<String> {
+pub async fn get_available_models() -> Vec<String> {
     // Execute "ollama ls" command
-    match Command::new("ollama").arg("ls").output() {
+    match Command::new("ollama").arg("ls").output().await {
         Ok(output) => {
             if !output.status.success() {
                 eprintln!("Ollama ls command failed with status: {}", output.status);
@@ -301,11 +305,16 @@ pub fn get_available_models() -> Vec<String> {
 ///     Err(e) => eprintln!("Failed to pull model: {}", e),
 /// }
 /// ```
-pub fn pull_model(model_name: &str) -> Result<(), String> {
+pub async fn pull_model(model_name: &str) -> Result<(), String> {
     println!("Starting pull for model: {}", model_name);
 
     // Execute "ollama pull <model_name>" and wait for completion
-    match Command::new("ollama").arg("pull").arg(model_name).output() {
+    match Command::new("ollama")
+        .arg("pull")
+        .arg(model_name)
+        .output()
+        .await
+    {
         Ok(output) => {
             if output.status.success() {
                 println!("Model pull completed successfully");
@@ -353,11 +362,11 @@ pub fn pull_model(model_name: &str) -> Result<(), String> {
 ///     Err(e) => eprintln!("Failed to load model: {}", e),
 /// }
 /// ```
-pub fn run_model(model_name: &str) -> Result<(), String> {
+pub async fn run_model(model_name: &str) -> Result<(), String> {
     println!("Loading model into memory: {}", model_name);
 
     // Create HTTP client with 60 second timeout (model loading can take time)
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
@@ -374,16 +383,17 @@ pub fn run_model(model_name: &str) -> Result<(), String> {
         .post("http://localhost:11434/api/generate")
         .json(&payload)
         .send()
+        .await
     {
         Ok(response) => {
             if response.status().is_success() {
                 println!("Model '{}' loaded successfully via API", model_name);
 
                 // Give the model a moment to fully initialize
-                thread::sleep(Duration::from_millis(500));
+                tokio::time::sleep(Duration::from_millis(500)).await;
 
                 // Verify model appears in running list
-                let running = get_running_models();
+                let running = get_running_models().await;
                 if running.iter().any(|m| m.contains(model_name)) {
                     println!("Model verified in running list");
                     Ok(())
@@ -394,7 +404,7 @@ pub fn run_model(model_name: &str) -> Result<(), String> {
                 }
             } else {
                 let status = response.status();
-                let error_text = response.text().unwrap_or_default();
+                let error_text = response.text().await.unwrap_or_default();
                 Err(format!(
                     "Failed to load model via API: {} - {}",
                     status, error_text
@@ -420,10 +430,10 @@ pub fn run_model(model_name: &str) -> Result<(), String> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_get_running_models_no_panic() {
+    #[tokio::test]
+    async fn test_get_running_models_no_panic() {
         // Should not panic even if Ollama is not running
-        let models = get_running_models();
+        let models = get_running_models().await;
         // We can't assert the content since Ollama might or might not be running
         // Just verify it returns without panicking
         assert!(models.is_empty() || !models.is_empty());

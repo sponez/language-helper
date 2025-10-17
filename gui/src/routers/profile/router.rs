@@ -152,6 +152,7 @@ impl ProfileRouter {
         let running_models = app_api
             .ai_assistant_api()
             .get_running_models()
+            .await
             .ok()
             .unwrap_or_default();
 

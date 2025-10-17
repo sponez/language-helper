@@ -244,40 +244,64 @@ impl AssistantSettingsRouter {
         }
     }
 
+    /// Asynchronously checks if the Ollama server is running
+    async fn check_server_status_async(app_api: Arc<dyn AppApi>) -> Result<bool, String> {
+        app_api
+            .ai_assistant_api()
+            .check_server_status()
+            .await
+            .map_err(|err| {
+                eprintln!("Failed to check server status: {:?}", err);
+                "Failed to check server status".to_string()
+            })
+    }
+
+    /// Asynchronously gets the list of available (downloaded) models
+    async fn check_available_models(app_api: Arc<dyn AppApi>) -> Result<Vec<String>, String> {
+        app_api
+            .ai_assistant_api()
+            .get_available_models()
+            .await
+            .map_err(|err| {
+                eprintln!("Failed to get available models: {:?}", err);
+                "Failed to check available models".to_string()
+            })
+    }
+
     /// Asynchronously starts the Ollama server
     async fn start_server(app_api: Arc<dyn AppApi>) -> Result<(), String> {
-        // start_server_and_wait is synchronous, not async
-        match app_api.ai_assistant_api().start_server_and_wait() {
-            Ok(_) => Ok(()),
-            Err(err) => {
+        app_api
+            .ai_assistant_api()
+            .start_server_and_wait()
+            .await
+            .map_err(|err| {
                 eprintln!("Failed to start Ollama server: {:?}", err);
-                Err("Failed to start Ollama server".to_string())
-            }
-        }
+                "Failed to start Ollama server".to_string()
+            })
     }
 
     /// Asynchronously pulls/downloads a model
     async fn pull_model(app_api: Arc<dyn AppApi>, model_name: String) -> Result<(), String> {
-        // pull_model is synchronous, not async
-        match app_api.ai_assistant_api().pull_model(&model_name) {
-            Ok(_) => Ok(()),
-            Err(err) => {
+        app_api
+            .ai_assistant_api()
+            .pull_model(&model_name)
+            .await
+            .map_err(|err| {
                 eprintln!("Failed to pull model {}: {:?}", model_name, err);
-                Err(format!("Failed to download model: {}", model_name))
-            }
-        }
+                format!("Failed to download model: {}", model_name)
+            })
     }
 
     /// Asynchronously launches a model
     async fn launch_model(app_api: Arc<dyn AppApi>, model_name: String) -> Result<(), String> {
-        // run_model is synchronous, not async
-        match app_api.ai_assistant_api().run_model(&model_name) {
-            Ok(_) => Ok(()),
-            Err(err) => {
+        app_api
+            .ai_assistant_api()
+            .run_model(&model_name)
+            .await
+            .map_err(|err| {
                 eprintln!("Failed to launch model {}: {:?}", model_name, err);
-                Err(format!("Failed to launch model: {}", model_name))
-            }
-        }
+                format!("Failed to launch model: {}", model_name)
+            })
     }
 
     /// Map model strength to Ollama model name
@@ -346,7 +370,7 @@ impl AssistantSettingsRouter {
         };
 
         // Check which models are currently running
-        let running_models = match app_api.ai_assistant_api().get_running_models() {
+        let running_models = match app_api.ai_assistant_api().get_running_models().await {
             Ok(models) => models,
             Err(e) => {
                 eprintln!("Failed to check running models: {:?}", e);
@@ -361,17 +385,16 @@ impl AssistantSettingsRouter {
         })
     }
 
-    /// Check which models are currently running (synchronous helper for refresh)
-    fn check_running_models(&mut self) {
-        match self.app_api.ai_assistant_api().get_running_models() {
-            Ok(models) => {
-                self.running_models = models;
-            }
-            Err(e) => {
-                eprintln!("Failed to check running models: {:?}", e);
-                self.running_models = Vec::new();
-            }
-        }
+    /// Asynchronously refresh running models state
+    async fn refresh_running_models(app_api: Arc<dyn AppApi>) -> Result<Vec<String>, String> {
+        app_api
+            .ai_assistant_api()
+            .get_running_models()
+            .await
+            .map_err(|err| {
+                eprintln!("Failed to refresh running models: {:?}", err);
+                "Failed to refresh running models".to_string()
+            })
     }
 
     /// Update the router state based on messages.
@@ -445,66 +468,89 @@ impl AssistantSettingsRouter {
                         self.launch_progress_message = self
                             .app_state
                             .i18n()
-                            .get("assistant-settings-launching", None);
+                            .get("assistant-settings-checking-server", None);
                         self.launch_error_message = None;
 
-                        // TODO: Implement async launch sequence
-                        // For now, just show the modal
-                        (None, Task::none())
+                        // Start the launch sequence by checking server status
+                        let task = Task::perform(
+                            Self::check_server_status_async(Arc::clone(&self.app_api)),
+                            Message::ServerStatusChecked,
+                        );
+
+                        (None, task)
                     }
                     AssistantActionButtonsMessage::StopPressed => {
-                        // Stop the model
+                        // Stop the model and clear settings
                         let model_name = self.get_ollama_model_name(&self.selected_model);
+                        let app_api = Arc::clone(&self.app_api);
+                        let username = self.user_state.username.clone();
+                        let profile_name = self.profile_state.profile_name.clone();
 
-                        match self.app_api.ai_assistant_api().stop_model(&model_name) {
-                            Ok(_) => {
+                        let task = Task::perform(
+                            async move {
+                                // Stop the model
+                                if let Err(e) =
+                                    app_api.ai_assistant_api().stop_model(&model_name).await
+                                {
+                                    eprintln!("Failed to stop model '{}': {:?}", model_name, e);
+                                    return Err("Failed to stop model".to_string());
+                                }
                                 println!("Model '{}' stopped successfully", model_name);
+
                                 // Give Ollama a moment to fully unload
-                                std::thread::sleep(std::time::Duration::from_millis(500));
+                                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-                                // Clear settings asynchronously
-                                let task = Task::perform(
-                                    Self::clear_assistant_settings(
-                                        Arc::clone(&self.app_api),
-                                        self.user_state.username.clone(),
-                                        self.profile_state.profile_name.clone(),
-                                    ),
-                                    Message::SettingsCleared,
-                                );
+                                // Clear settings
+                                Self::clear_assistant_settings(app_api, username, profile_name)
+                                    .await
+                            },
+                            Message::SettingsCleared,
+                        );
 
-                                (None, task)
-                            }
-                            Err(e) => {
-                                eprintln!("Failed to stop model '{}': {:?}", model_name, e);
-                                (None, Task::none())
-                            }
-                        }
+                        (None, task)
                     }
                     AssistantActionButtonsMessage::ChangePressed => {
-                        // Stop current model and start selected
-                        if let Some(current_model) = self.running_models.first() {
-                            match self.app_api.ai_assistant_api().stop_model(current_model) {
-                                Ok(_) => {
-                                    println!("Model '{}' stopped successfully", current_model);
-                                    std::thread::sleep(std::time::Duration::from_millis(500));
-                                }
-                                Err(e) => {
-                                    eprintln!("Failed to stop model '{}': {:?}", current_model, e);
-                                }
-                            }
-                        }
-
-                        // Now launch the selected model
+                        // Show modal immediately
                         self.show_launch_modal = true;
                         self.launch_status = LaunchStatus::CheckingServer;
                         self.launch_progress_message = self
                             .app_state
                             .i18n()
-                            .get("assistant-settings-launching", None);
+                            .get("assistant-settings-checking-server", None);
                         self.launch_error_message = None;
 
-                        // TODO: Implement async launch sequence
-                        (None, Task::none())
+                        // Stop current model if running, then start new one
+                        let app_api = Arc::clone(&self.app_api);
+                        let current_model = self.running_models.first().cloned();
+
+                        let task = Task::perform(
+                            async move {
+                                // Stop current model if one is running
+                                if let Some(model_name) = current_model {
+                                    match app_api.ai_assistant_api().stop_model(&model_name).await {
+                                        Ok(_) => {
+                                            println!("Model '{}' stopped successfully", model_name);
+                                            tokio::time::sleep(tokio::time::Duration::from_millis(
+                                                500,
+                                            ))
+                                            .await;
+                                        }
+                                        Err(e) => {
+                                            eprintln!(
+                                                "Failed to stop model '{}': {:?}",
+                                                model_name, e
+                                            );
+                                        }
+                                    }
+                                }
+
+                                // Now check server status to begin launch sequence
+                                Self::check_server_status_async(app_api).await
+                            },
+                            Message::ServerStatusChecked,
+                        );
+
+                        (None, task)
                     }
                     AssistantActionButtonsMessage::SavePressed => {
                         // Save API configuration
@@ -559,8 +605,7 @@ impl AssistantSettingsRouter {
                         self.launch_status = LaunchStatus::Idle;
                         self.launch_progress_message = String::new();
                         self.launch_error_message = None;
-                        // Refresh running models
-                        self.check_running_models();
+                        // Note: Running models list will be refreshed on next init or via RefreshState message
                         (None, Task::none())
                     }
                 }
@@ -605,7 +650,8 @@ impl AssistantSettingsRouter {
                 match result {
                     Ok(_) => {
                         println!("Assistant settings cleared successfully");
-                        self.check_running_models();
+                        // Model was stopped, so clear running models list
+                        self.running_models.clear();
                     }
                     Err(error_key) => {
                         eprintln!("Failed to clear assistant settings: {}", error_key);
@@ -615,23 +661,110 @@ impl AssistantSettingsRouter {
                 }
                 (None, Task::none())
             }
-            Message::ServerStarted(result) => {
+            Message::ServerStatusChecked(result) => {
                 match result {
-                    Ok(_) => {
-                        // Server started, continue with launch
-                        // TODO: Continue launch sequence
-                        self.launch_status = LaunchStatus::Complete;
-                        self.launch_progress_message = self
-                            .app_state
-                            .i18n()
-                            .get("assistant-settings-launch-success", None);
+                    Ok(is_running) => {
+                        if is_running {
+                            // Server is running, check available models
+                            self.launch_status = LaunchStatus::CheckingModels;
+                            self.launch_progress_message = self
+                                .app_state
+                                .i18n()
+                                .get("assistant-settings-checking-models", None);
+
+                            let task = Task::perform(
+                                Self::check_available_models(Arc::clone(&self.app_api)),
+                                Message::ModelsChecked,
+                            );
+
+                            (None, task)
+                        } else {
+                            // Server is not running, start it
+                            self.launch_status = LaunchStatus::StartingServer;
+                            self.launch_progress_message = self
+                                .app_state
+                                .i18n()
+                                .get("assistant-settings-starting-server", None);
+
+                            let task = Task::perform(
+                                Self::start_server(Arc::clone(&self.app_api)),
+                                Message::ServerStarted,
+                            );
+
+                            (None, task)
+                        }
                     }
                     Err(error_msg) => {
                         self.launch_status = LaunchStatus::Error;
                         self.launch_error_message = Some(error_msg);
+                        (None, Task::none())
                     }
                 }
-                (None, Task::none())
+            }
+            Message::ModelsChecked(result) => {
+                match result {
+                    Ok(available_models) => {
+                        let model_name = self.get_ollama_model_name(&self.selected_model);
+
+                        // Check if the model is already downloaded
+                        let is_model_available =
+                            available_models.iter().any(|m| m.contains(&model_name));
+
+                        if is_model_available {
+                            // Model is available, launch it directly
+                            self.launch_status = LaunchStatus::LaunchingModel;
+                            self.launch_progress_message = self
+                                .app_state
+                                .i18n()
+                                .get("assistant-settings-launching-model", None);
+
+                            let task = Task::perform(
+                                Self::launch_model(Arc::clone(&self.app_api), model_name),
+                                Message::ModelLaunched,
+                            );
+
+                            (None, task)
+                        } else {
+                            // Model is not available, prompt user to download
+                            self.launch_status = LaunchStatus::PromptingPull;
+                            self.launch_progress_message = format!(
+                                "Model '{}' is not downloaded. Would you like to download it?",
+                                model_name
+                            );
+
+                            (None, Task::none())
+                        }
+                    }
+                    Err(error_msg) => {
+                        self.launch_status = LaunchStatus::Error;
+                        self.launch_error_message = Some(error_msg);
+                        (None, Task::none())
+                    }
+                }
+            }
+            Message::ServerStarted(result) => {
+                match result {
+                    Ok(_) => {
+                        // Server started, now check available models
+                        self.launch_status = LaunchStatus::CheckingModels;
+                        self.launch_progress_message = self
+                            .app_state
+                            .i18n()
+                            .get("assistant-settings-checking-models", None);
+
+                        let task = Task::perform(
+                            Self::check_available_models(Arc::clone(&self.app_api)),
+                            Message::ModelsChecked,
+                        );
+
+                        (None, task)
+                    }
+                    Err(error_msg) => {
+                        self.launch_status = LaunchStatus::Error;
+                        self.launch_error_message = Some(error_msg);
+                        (None, Task::none())
+                    }
+                }
             }
             Message::ModelPulled(result) => {
                 match result {
@@ -667,6 +800,12 @@ impl AssistantSettingsRouter {
                             .i18n()
                             .get("assistant-settings-launch-success", None);
 
+                        // Model was successfully launched - add to running models list
+                        let model_name = self.get_ollama_model_name(&self.selected_model);
+                        if !self.running_models.contains(&model_name) {
+                            self.running_models.push(model_name);
+                        }
+
                         // Save the selected model to database
                         let task = Task::perform(
                             Self::save_assistant_settings(
@@ -680,8 +819,6 @@ impl AssistantSettingsRouter {
                             ),
                             Message::SettingsSaved,
                         );
-
-                        self.check_running_models();
 
                         (None, task)
                     }
@@ -699,8 +836,24 @@ impl AssistantSettingsRouter {
                 (None, Task::none())
             }
             Message::RefreshState => {
-                self.check_running_models();
-                (None, Task::none())
+                // Trigger async refresh of running models
+                let task = Task::perform(
+                    Self::refresh_running_models(Arc::clone(&self.app_api)),
+                    |result| match result {
+                        Ok(models) => {
+                            Message::SystemChecksCompleted(Ok(super::message::SystemCheckData {
+                                model_compatibility: HashMap::new(), // Will be ignored
+                                ollama_status: None,                 // Will be ignored
+                                running_models: models,
+                            }))
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to refresh running models: {}", e);
+                            Message::SystemChecksCompleted(Err(e))
+                        }
+                    },
+                );
+                (None, task)
             }
             Message::ErrorModal(msg) => match msg {
                 ErrorModalMessage::Close => {

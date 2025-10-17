@@ -28,7 +28,9 @@ pub trait AiAssistantApi: Send + Sync {
     /// # Errors
     ///
     /// Returns an error only if there's a system-level failure during the check.
-    fn get_running_models(&self) -> Result<Vec<String>, ApiError>;
+    fn get_running_models(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<String>, ApiError>> + Send + '_>>;
 
     /// Stops a running AI model in Ollama.
     ///
@@ -45,7 +47,10 @@ pub trait AiAssistantApi: Send + Sync {
     /// # Errors
     ///
     /// Returns an error if the request fails for reasons other than Ollama not being available.
-    fn stop_model(&self, model_name: &str) -> Result<(), ApiError>;
+    fn stop_model(
+        &self,
+        model_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ApiError>> + Send + '_>>;
 
     /// Checks if the Ollama server is running and responding.
     ///
@@ -57,11 +62,13 @@ pub trait AiAssistantApi: Send + Sync {
     /// # Errors
     ///
     /// Returns an error if there's a system-level failure during the check.
-    fn check_server_status(&self) -> Result<bool, ApiError>;
+    fn check_server_status(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<bool, ApiError>> + Send + '_>>;
 
     /// Starts the Ollama server and waits for it to be ready.
     ///
-    /// This operation blocks until the server is ready or a timeout occurs (30 seconds).
+    /// This operation waits until the server is ready or a timeout occurs (30 seconds).
     ///
     /// # Returns
     ///
@@ -70,7 +77,9 @@ pub trait AiAssistantApi: Send + Sync {
     /// # Errors
     ///
     /// Returns an error if the server failed to start or timeout occurred.
-    fn start_server_and_wait(&self) -> Result<(), ApiError>;
+    fn start_server_and_wait(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ApiError>> + Send + '_>>;
 
     /// Gets the list of available (downloaded) models.
     ///
@@ -82,11 +91,13 @@ pub trait AiAssistantApi: Send + Sync {
     /// # Errors
     ///
     /// Returns an error only if there's a system-level failure during the check.
-    fn get_available_models(&self) -> Result<Vec<String>, ApiError>;
+    fn get_available_models(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<String>, ApiError>> + Send + '_>>;
 
     /// Pulls (downloads) a model from the Ollama registry.
     ///
-    /// This operation blocks until the download completes, which can take several minutes.
+    /// This operation waits until the download completes, which can take several minutes.
     ///
     /// # Arguments
     ///
@@ -99,11 +110,14 @@ pub trait AiAssistantApi: Send + Sync {
     /// # Errors
     ///
     /// Returns an error if the pull operation failed.
-    fn pull_model(&self, model_name: &str) -> Result<(), ApiError>;
+    fn pull_model(
+        &self,
+        model_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ApiError>> + Send + '_>>;
 
     /// Runs (starts) a model and waits for it to be ready.
     ///
-    /// This operation blocks until the model is verified as running (up to 10 seconds).
+    /// This operation waits until the model is verified as running (up to 60 seconds).
     ///
     /// # Arguments
     ///
@@ -116,7 +130,10 @@ pub trait AiAssistantApi: Send + Sync {
     /// # Errors
     ///
     /// Returns an error if the model failed to start or timeout occurred.
-    fn run_model(&self, model_name: &str) -> Result<(), ApiError>;
+    fn run_model(
+        &self,
+        model_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ApiError>> + Send + '_>>;
 
     /// Explains a phrase or word using AI.
     ///

@@ -90,6 +90,10 @@ pub enum Message {
     SettingsSaved(Result<(), String>),
     /// Assistant settings cleared from database
     SettingsCleared(Result<(), String>),
+    /// Server status checked (is server running?)
+    ServerStatusChecked(Result<bool, String>),
+    /// Available models checked (which models are downloaded?)
+    ModelsChecked(Result<Vec<String>, String>),
     /// Ollama server started
     ServerStarted(Result<(), String>),
     /// Model pulled/downloaded

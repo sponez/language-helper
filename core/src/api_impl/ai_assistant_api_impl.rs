@@ -40,34 +40,78 @@ impl Default for AiAssistantApiImpl {
 }
 
 impl AiAssistantApi for AiAssistantApiImpl {
-    fn get_running_models(&self) -> Result<Vec<String>, ApiError> {
-        let models = ollama_client::get_running_models();
-        Ok(models)
+    fn get_running_models(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<String>, ApiError>> + Send + '_>> {
+        Box::pin(async {
+            let models = ollama_client::get_running_models().await;
+            Ok(models)
+        })
     }
 
-    fn stop_model(&self, model_name: &str) -> Result<(), ApiError> {
-        ollama_client::stop_model(model_name).map_err(|e| ApiError::internal_error(e))
+    fn stop_model(
+        &self,
+        model_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ApiError>> + Send + '_>> {
+        let model_name = model_name.to_string();
+        Box::pin(async move {
+            ollama_client::stop_model(&model_name)
+                .await
+                .map_err(|e| ApiError::internal_error(e))
+        })
     }
 
-    fn check_server_status(&self) -> Result<bool, ApiError> {
-        ollama_client::check_server_status().map_err(|e| ApiError::internal_error(e))
+    fn check_server_status(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<bool, ApiError>> + Send + '_>> {
+        Box::pin(async {
+            ollama_client::check_server_status()
+                .await
+                .map_err(|e| ApiError::internal_error(e))
+        })
     }
 
-    fn start_server_and_wait(&self) -> Result<(), ApiError> {
-        ollama_client::start_server_and_wait().map_err(|e| ApiError::internal_error(e))
+    fn start_server_and_wait(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ApiError>> + Send + '_>> {
+        Box::pin(async {
+            ollama_client::start_server_and_wait()
+                .await
+                .map_err(|e| ApiError::internal_error(e))
+        })
     }
 
-    fn get_available_models(&self) -> Result<Vec<String>, ApiError> {
-        let models = ollama_client::get_available_models();
-        Ok(models)
+    fn get_available_models(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<String>, ApiError>> + Send + '_>> {
+        Box::pin(async {
+            let models = ollama_client::get_available_models().await;
+            Ok(models)
+        })
     }
 
-    fn pull_model(&self, model_name: &str) -> Result<(), ApiError> {
-        ollama_client::pull_model(model_name).map_err(|e| ApiError::internal_error(e))
+    fn pull_model(
+        &self,
+        model_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ApiError>> + Send + '_>> {
+        let model_name = model_name.to_string();
+        Box::pin(async move {
+            ollama_client::pull_model(&model_name)
+                .await
+                .map_err(|e| ApiError::internal_error(e))
+        })
     }
 
-    fn run_model(&self, model_name: &str) -> Result<(), ApiError> {
-        ollama_client::run_model(model_name).map_err(|e| ApiError::internal_error(e))
+    fn run_model(
+        &self,
+        model_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ApiError>> + Send + '_>> {
+        let model_name = model_name.to_string();
+        Box::pin(async move {
+            ollama_client::run_model(&model_name)
+                .await
+                .map_err(|e| ApiError::internal_error(e))
+        })
     }
 
     fn explain(
