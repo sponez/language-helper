@@ -32,6 +32,7 @@ use iced::{event, Alignment, Element, Length, Subscription, Task};
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
+use crate::components::back_button::back_button;
 use crate::components::error_modal::error_modal::{
     error_modal, handle_error_modal_event, ErrorModalMessage,
 };
@@ -42,7 +43,6 @@ use crate::states::UserState;
 
 use super::elements::{
     add_profile_button::{add_profile_button, AddProfileButtonMessage},
-    back_button::{back_button, BackButtonMessage},
     create_new_profile::modal_window::CreateNewProfileModal,
     profile_pick_list::{profile_pick_list, ProfilePickListMessage},
 };
@@ -179,9 +179,7 @@ impl ProfileListRouter {
     /// A tuple of (Optional RouterEvent for navigation, Task for async operations)
     pub fn update(&mut self, message: Message) -> (Option<RouterEvent>, Task<Message>) {
         match message {
-            Message::BackButton(msg) => match msg {
-                BackButtonMessage::Pressed => (Some(RouterEvent::Pop), Task::none()),
-            },
+            Message::BackButton => (Some(RouterEvent::Pop), Task::none()),
             Message::ProfilePicker(msg) => match msg {
                 ProfilePickListMessage::Selected(profile_name) => {
                     // Find the selected profile's data
@@ -343,8 +341,7 @@ impl ProfileListRouter {
         .align_y(Alignment::Center);
 
         // Top-left: Back button (positioned absolutely in top-left)
-        let back_label = i18n.get("profile-list-back-button", None);
-        let back_btn = back_button(back_label).map(Message::BackButton);
+        let back_btn = back_button(&i18n, "profile-list-back-button", Message::BackButton);
         let top_bar = Container::new(
             row![back_btn]
                 .spacing(10)

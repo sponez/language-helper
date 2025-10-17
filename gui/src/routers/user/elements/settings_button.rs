@@ -21,20 +21,23 @@ pub enum SettingsButtonMessage {
 /// # Arguments
 ///
 /// * `i18n` - Internationalization instance for label
+/// * `enabled` - Whether the button is enabled (clickable)
 ///
 /// # Returns
 ///
-/// An Element that produces SettingsButtonMessage::Pressed when clicked
-pub fn settings_button<'a>(i18n: &Rc<I18n>) -> Element<'a, SettingsButtonMessage> {
+/// An Element that produces SettingsButtonMessage::Pressed when clicked (if enabled)
+pub fn settings_button<'a>(i18n: &Rc<I18n>, enabled: bool) -> Element<'a, SettingsButtonMessage> {
     let button_text = text(i18n.get("user-settings-button", None))
         .size(14)
         .shaping(iced::widget::text::Shaping::Advanced);
 
-    button(button_text)
-        .on_press(SettingsButtonMessage::Pressed)
-        .width(Length::Fixed(200.0))
-        .padding(10)
-        .into()
+    let mut btn = button(button_text).width(Length::Fixed(200.0)).padding(10);
+
+    if enabled {
+        btn = btn.on_press(SettingsButtonMessage::Pressed);
+    }
+
+    btn.into()
 }
 
 #[cfg(test)]
@@ -58,7 +61,14 @@ mod tests {
     #[test]
     fn test_settings_button_creates_element() {
         let i18n = Rc::new(I18n::new("en"));
-        let _element = settings_button(&i18n);
+        let _element = settings_button(&i18n, true);
         // Should create element without panicking
+    }
+
+    #[test]
+    fn test_settings_button_disabled() {
+        let i18n = Rc::new(I18n::new("en"));
+        let _element = settings_button(&i18n, false);
+        // Should create disabled element without panicking
     }
 }

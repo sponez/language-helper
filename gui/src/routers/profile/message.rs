@@ -1,5 +1,6 @@
 //! Message types for the profile router.
 
+use crate::components::error_modal::error_modal::ErrorModalMessage;
 use crate::states::{AssistantState, CardState};
 
 use super::elements::{
@@ -23,4 +24,8 @@ pub enum Message {
     CardStateLoaded(Result<CardState, String>),
     /// Assistant state loaded from API (None if not configured/running)
     AssistantStateLoaded(Option<AssistantState>),
+    /// Message from the error modal
+    ErrorModal(ErrorModalMessage),
+    /// Global event (keyboard, mouse, etc.)
+    Event(iced::Event),
 }

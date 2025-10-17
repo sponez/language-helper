@@ -3,7 +3,7 @@
 use crate::components::error_modal::error_modal::ErrorModalMessage;
 
 use super::elements::{
-    add_profile_button::AddProfileButtonMessage, back_button::BackButtonMessage,
+    add_profile_button::AddProfileButtonMessage,
     create_new_profile::modal_window::ModalWindowMessage,
     profile_pick_list::ProfilePickListMessage,
 };
@@ -11,8 +11,8 @@ use super::elements::{
 /// Messages for the profile list router
 #[derive(Debug, Clone)]
 pub enum Message {
-    /// Message from the back button
-    BackButton(BackButtonMessage),
+    /// Message from the back button (global)
+    BackButton,
     /// Message from the profile picker
     ProfilePicker(ProfilePickListMessage),
     /// Message from the add profile button

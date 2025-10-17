@@ -17,6 +17,7 @@ error-language-not-selected = Please select a language
 error-create-user = Failed to create user
 error-update-theme = Failed to update theme
 error-update-language = Failed to update language
+error-load-user-settings = Failed to load user settings
 
 # User Screen - Navigation
 user-back-button = Back

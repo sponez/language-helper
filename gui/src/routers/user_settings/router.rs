@@ -27,18 +27,21 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use iced::widget::{column, container, row, stack, Container};
-use iced::{Alignment, Element, Length, Task};
+use iced::{event, Alignment, Element, Length, Subscription, Task};
 
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
+use crate::components::back_button::back_button;
+use crate::components::error_modal::error_modal::{
+    error_modal, handle_error_modal_event, ErrorModalMessage,
+};
 use crate::languages::Language;
 use crate::router::{self, RouterEvent, RouterNode, RouterTarget};
 use crate::routers::user_settings::message::Message;
 use iced::Theme;
 
 use super::elements::{
-    back_button::{back_button, BackButtonMessage},
     delete_user_button::{delete_confirmation_modal, delete_user_button, DeleteUserButtonMessage},
     theme_pick_list::{theme_pick_list, ThemePickListMessage},
 };
@@ -57,6 +60,8 @@ pub struct UserSettingsRouter {
     app_state: Rc<AppState>,
     /// Show delete confirmation modal
     show_delete_confirmation: bool,
+    /// Error message to display (None = no error)
+    error_message: Option<String>,
 }
 
 impl UserSettingsRouter {
@@ -87,6 +92,7 @@ impl UserSettingsRouter {
             app_api,
             app_state,
             show_delete_confirmation: false,
+            error_message: None,
         }
     }
 
@@ -131,9 +137,7 @@ impl UserSettingsRouter {
     /// A tuple of (Optional RouterEvent for navigation, Task for async operations)
     pub fn update(&mut self, message: Message) -> (Option<RouterEvent>, Task<Message>) {
         match message {
-            Message::BackButton(msg) => match msg {
-                BackButtonMessage::Pressed => (Some(RouterEvent::Pop), Task::none()),
-            },
+            Message::BackButton => (Some(RouterEvent::Pop), Task::none()),
             Message::ThemePicker(msg) => match msg {
                 ThemePickListMessage::Selected(new_theme) => {
                     // Convert Theme enum to String for API call
@@ -180,10 +184,12 @@ impl UserSettingsRouter {
                 match result {
                     Ok(_) => {
                         println!("Theme updated successfully");
+                        self.error_message = None;
                     }
                     Err(error_key) => {
                         eprintln!("Failed to update theme: {}", error_key);
-                        // TODO: Show error to user
+                        let error_msg = self.app_state.i18n().get(&error_key, None);
+                        self.error_message = Some(error_msg);
                     }
                 }
                 (None, Task::none())
@@ -200,23 +206,50 @@ impl UserSettingsRouter {
                             )
                         } else {
                             eprintln!("User not found during deletion");
-                            (
-                                Some(RouterEvent::PopTo(Some(RouterTarget::MainScreen))),
-                                Task::none(),
-                            )
+                            let error_msg = self
+                                .app_state
+                                .i18n()
+                                .get("user-settings-api-error-delete", None);
+                            self.error_message = Some(error_msg);
+                            (None, Task::none())
                         }
                     }
                     Err(error_key) => {
                         eprintln!("Failed to delete user: {}", error_key);
-                        // Still navigate back even on error
-                        (
-                            Some(RouterEvent::PopTo(Some(RouterTarget::MainScreen))),
-                            Task::none(),
-                        )
+                        let error_msg = self.app_state.i18n().get(&error_key, None);
+                        self.error_message = Some(error_msg);
+                        (None, Task::none())
                     }
                 }
             }
+            Message::ErrorModal(msg) => match msg {
+                ErrorModalMessage::Close => {
+                    self.error_message = None;
+                    (None, Task::none())
+                }
+            },
+            Message::Event(event) => {
+                // If error modal is showing, handle Enter/Esc to close
+                if self.error_message.is_some() {
+                    if handle_error_modal_event(event) {
+                        self.error_message = None;
+                    }
+                }
+                (None, Task::none())
+            }
         }
+    }
+
+    /// Subscribe to keyboard events for error modal shortcuts
+    ///
+    /// This subscription enables:
+    /// - **Error Modal**: Enter/Escape (dismiss)
+    ///
+    /// # Returns
+    ///
+    /// A Subscription that listens for all keyboard, mouse, and window events
+    pub fn subscription(&self) -> Subscription<Message> {
+        event::listen().map(Message::Event)
     }
 
     /// Render the router's view.
@@ -256,7 +289,7 @@ impl UserSettingsRouter {
         .align_y(Alignment::Center);
 
         // Top-left: Back button (positioned absolutely in top-left)
-        let back_btn = back_button(Rc::clone(&i18n)).map(Message::BackButton);
+        let back_btn = back_button(&i18n, "user-settings-back-button", Message::BackButton);
         let top_bar = Container::new(
             row![back_btn]
                 .spacing(10)
@@ -276,6 +309,13 @@ impl UserSettingsRouter {
         if self.show_delete_confirmation {
             let modal = delete_confirmation_modal(i18n).map(Message::DeleteUserButton);
             return iced::widget::stack![base_view, modal].into();
+        }
+
+        // If error modal is open, render it on top using stack
+        if let Some(ref error_msg) = self.error_message {
+            let error_overlay =
+                error_modal(&self.app_state.i18n(), &error_msg).map(Message::ErrorModal);
+            return iced::widget::stack![base_view, error_overlay].into();
         }
 
         base_view.into()
@@ -317,5 +357,9 @@ impl RouterNode for UserSettingsRouter {
     fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         // No need to load user data - state is already initialized from parent router
         incoming_task
+    }
+
+    fn subscription(&self) -> Subscription<router::Message> {
+        UserSettingsRouter::subscription(self).map(router::Message::UserSettings)
     }
 }

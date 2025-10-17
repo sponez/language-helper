@@ -26,12 +26,15 @@ use std::sync::Arc;
 
 use fluent_bundle::FluentArgs;
 use iced::widget::{column, container, row, stack, Container};
-use iced::{Alignment, Element, Length, Task};
+use iced::{event, Alignment, Element, Length, Subscription, Task};
 
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
 use crate::components::back_button::back_button;
+use crate::components::error_modal::error_modal::{
+    error_modal, handle_error_modal_event, ErrorModalMessage,
+};
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::routers::profile::message::Message;
 use crate::states::{AssistantState, CardState, ProfileState, UserState};
@@ -52,6 +55,8 @@ pub struct ProfileRouter {
     app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n)
     app_state: Rc<AppState>,
+    /// Error message to display (None = no error)
+    error_message: Option<String>,
 }
 
 impl ProfileRouter {
@@ -82,6 +87,7 @@ impl ProfileRouter {
             profile_state: ProfileState::new(profile_name, target_language),
             app_api,
             app_state,
+            error_message: None,
         }
     }
 
@@ -267,9 +273,12 @@ impl ProfileRouter {
                     Ok(card_state) => {
                         println!("Card state loaded: {:?}", card_state);
                         self.profile_state.card_state = Some(card_state);
+                        self.error_message = None;
                     }
-                    Err(error_msg) => {
-                        eprintln!("Failed to load card state: {}", error_msg);
+                    Err(error_key) => {
+                        eprintln!("Failed to load card state: {}", error_key);
+                        let error_msg = self.app_state.i18n().get(&error_key, None);
+                        self.error_message = Some(error_msg);
                         // Set default settings to allow UI to proceed
                         self.profile_state.card_state =
                             Some(CardState::new(10, "manual".to_string(), 5));
@@ -281,7 +290,34 @@ impl ProfileRouter {
                 self.profile_state.assistant_state = assistant_state;
                 (None, Task::none())
             }
+            Message::ErrorModal(msg) => match msg {
+                ErrorModalMessage::Close => {
+                    self.error_message = None;
+                    (None, Task::none())
+                }
+            },
+            Message::Event(event) => {
+                // If error modal is showing, handle Enter/Esc to close
+                if self.error_message.is_some() {
+                    if handle_error_modal_event(event) {
+                        self.error_message = None;
+                    }
+                }
+                (None, Task::none())
+            }
         }
+    }
+
+    /// Subscribe to keyboard events for error modal shortcuts
+    ///
+    /// This subscription enables:
+    /// - **Error Modal**: Enter/Escape (dismiss)
+    ///
+    /// # Returns
+    ///
+    /// A Subscription that listens for all keyboard, mouse, and window events
+    pub fn subscription(&self) -> Subscription<Message> {
+        event::listen().map(Message::Event)
     }
 
     /// Render the router's view.
@@ -339,10 +375,18 @@ impl ProfileRouter {
         .align_y(Alignment::Start);
 
         // Use stack to overlay back button on top of centered content
-        container(stack![center_content, top_bar])
+        let base: Container<'_, Message> = container(stack![center_content, top_bar])
             .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+            .height(Length::Fill);
+
+        // If error modal is open, render it on top using stack
+        if let Some(ref error_msg) = self.error_message {
+            let error_overlay =
+                error_modal(&self.app_state.i18n(), &error_msg).map(Message::ErrorModal);
+            return iced::widget::stack![base, error_overlay].into();
+        }
+
+        base.into()
     }
 }
 
@@ -402,6 +446,10 @@ impl RouterNode for ProfileRouter {
 
         // Batch all tasks
         Task::batch(vec![incoming_task, load_cards_task, load_assistant_task])
+    }
+
+    fn subscription(&self) -> Subscription<router::Message> {
+        ProfileRouter::subscription(self).map(router::Message::Profile)
     }
 }
 

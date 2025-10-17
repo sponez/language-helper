@@ -28,18 +28,21 @@ use std::sync::Arc;
 
 use fluent_bundle::FluentArgs;
 use iced::widget::{column, container, row, stack, Container};
-use iced::{Alignment, Element, Length, Task};
+use iced::{event, Alignment, Element, Length, Subscription, Task};
 
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
+use crate::components::back_button::back_button;
+use crate::components::error_modal::error_modal::{
+    error_modal, handle_error_modal_event, ErrorModalMessage,
+};
 use crate::languages::Language;
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::routers::user::message::Message;
 use crate::states::UserState;
 
 use super::elements::{
-    back_button::{back_button, BackButtonMessage},
     profiles_button::{profiles_button, ProfilesButtonMessage},
     settings_button::{settings_button, SettingsButtonMessage},
 };
@@ -52,6 +55,10 @@ pub struct UserRouter {
     app_api: Arc<dyn AppApi>,
     /// Global application state (theme, language, i18n) - read-only
     app_state: Rc<AppState>,
+    /// Whether user settings have been loaded from API
+    settings_loaded: bool,
+    /// Error message to display (None = no error)
+    error_message: Option<String>,
 }
 
 impl UserRouter {
@@ -76,6 +83,8 @@ impl UserRouter {
             user_state,
             app_api,
             app_state,
+            settings_loaded: false,
+            error_message: None,
         }
     }
 
@@ -121,9 +130,7 @@ impl UserRouter {
     /// A tuple of (Optional RouterEvent for navigation, Task for async operations)
     pub fn update(&mut self, message: Message) -> (Option<RouterEvent>, Task<Message>) {
         match message {
-            Message::BackButton(msg) => match msg {
-                BackButtonMessage::Pressed => (Some(RouterEvent::Pop), Task::none()),
-            },
+            Message::BackButton => (Some(RouterEvent::Pop), Task::none()),
             Message::ProfilesButton(msg) => match msg {
                 ProfilesButtonMessage::Pressed => {
                     let profile_list_router =
@@ -154,10 +161,44 @@ impl UserRouter {
             Message::UserLoaded(user_state_opt) => {
                 if let Some(user_state) = user_state_opt {
                     self.user_state = user_state;
+                    self.settings_loaded = true;
+                    self.error_message = None;
+                } else {
+                    eprintln!("Failed to load user settings");
+                    self.settings_loaded = false;
+                    let error_msg = self.app_state.i18n().get("error-load-user-settings", None);
+                    self.error_message = Some(error_msg);
+                }
+                (None, Task::none())
+            }
+            Message::ErrorModal(msg) => match msg {
+                ErrorModalMessage::Close => {
+                    self.error_message = None;
+                    (None, Task::none())
+                }
+            },
+            Message::Event(event) => {
+                // If error modal is showing, handle Enter/Esc to close
+                if self.error_message.is_some() {
+                    if handle_error_modal_event(event) {
+                        self.error_message = None;
+                    }
                 }
                 (None, Task::none())
             }
         }
+    }
+
+    /// Subscribe to keyboard events for error modal shortcuts
+    ///
+    /// This subscription enables:
+    /// - **Error Modal**: Enter/Escape (dismiss)
+    ///
+    /// # Returns
+    ///
+    /// A Subscription that listens for all keyboard, mouse, and window events
+    pub fn subscription(&self) -> Subscription<Message> {
+        event::listen().map(Message::Event)
     }
 
     /// Render the router's view.
@@ -181,7 +222,8 @@ impl UserRouter {
             .shaping(iced::widget::text::Shaping::Advanced);
 
         let profiles_btn = profiles_button(&i18n).map(Message::ProfilesButton);
-        let settings_btn = settings_button(&i18n).map(Message::SettingsButton);
+        let settings_btn =
+            settings_button(&i18n, self.settings_loaded).map(Message::SettingsButton);
 
         let center_content = Container::new(
             column![username_text, profiles_btn, settings_btn,]
@@ -194,7 +236,7 @@ impl UserRouter {
         .align_y(Alignment::Center);
 
         // Top-left: Back button (positioned absolutely in top-left)
-        let back_btn = back_button(&i18n).map(Message::BackButton);
+        let back_btn = back_button(&i18n, "user-back-button", Message::BackButton);
         let top_bar = Container::new(
             row![back_btn]
                 .spacing(10)
@@ -207,10 +249,18 @@ impl UserRouter {
 
         // Use stack to overlay back button on top of centered content
         // This prevents the back button from pushing the center content down
-        container(stack![center_content, top_bar])
+        let base: Container<'_, Message> = container(stack![center_content, top_bar])
             .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+            .height(Length::Fill);
+
+        // If error modal is open, render it on top using stack
+        if let Some(ref error_msg) = self.error_message {
+            let error_overlay =
+                error_modal(&self.app_state.i18n(), &error_msg).map(Message::ErrorModal);
+            return iced::widget::stack![base, error_overlay].into();
+        }
+
+        base.into()
     }
 }
 
@@ -257,6 +307,10 @@ impl RouterNode for UserRouter {
 
         // Batch the incoming task with the init task
         Task::batch(vec![incoming_task, init_task])
+    }
+
+    fn subscription(&self) -> Subscription<router::Message> {
+        UserRouter::subscription(self).map(router::Message::User)
     }
 }
 
@@ -313,8 +367,7 @@ mod tests {
     fn test_back_button_triggers_pop() {
         let mut router = create_test_router();
 
-        let back_msg = BackButtonMessage::Pressed;
-        let (event, _task) = router.update(Message::BackButton(back_msg));
+        let (event, _task) = router.update(Message::BackButton);
 
         assert!(event.is_some(), "Back button should trigger an event");
         match event.unwrap() {
@@ -325,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_message_is_cloneable() {
-        let msg = Message::BackButton(BackButtonMessage::Pressed);
+        let msg = Message::BackButton;
         let _cloned = msg.clone();
         // If this compiles, Clone is working
     }
