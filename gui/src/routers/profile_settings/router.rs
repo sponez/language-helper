@@ -134,16 +134,32 @@ impl ProfileSettingsRouter {
             Message::BackButton => (Some(RouterEvent::Pop), Task::none()),
             Message::CardSettingsButton(msg) => match msg {
                 CardSettingsButtonMessage::Pressed => {
-                    // TODO: Navigate to card settings router
-                    eprintln!("Card settings button pressed");
-                    (None, Task::none())
+                    // Navigate to card settings router
+                    let card_settings_router =
+                        crate::routers::card_settings::router::CardSettingsRouter::new(
+                            Rc::clone(&self.user_state),
+                            Rc::clone(&self.profile_state),
+                            Arc::clone(&self.app_api),
+                            Rc::clone(&self.app_state),
+                        );
+
+                    let router_box: Box<dyn RouterNode> = Box::new(card_settings_router);
+                    (Some(RouterEvent::Push(router_box)), Task::none())
                 }
             },
             Message::AssistantSettingsButton(msg) => match msg {
                 AssistantSettingsButtonMessage::Pressed => {
-                    // TODO: Navigate to assistant settings router
-                    eprintln!("Assistant settings button pressed");
-                    (None, Task::none())
+                    // Navigate to assistant settings router
+                    let assistant_settings_router =
+                        crate::routers::assistant_settings::router::AssistantSettingsRouter::new(
+                            Rc::clone(&self.user_state),
+                            Rc::clone(&self.profile_state),
+                            Arc::clone(&self.app_api),
+                            Rc::clone(&self.app_state),
+                        );
+
+                    let router_box: Box<dyn RouterNode> = Box::new(assistant_settings_router);
+                    (Some(RouterEvent::Push(router_box)), Task::none())
                 }
             },
             Message::DeleteProfileButton(msg) => match msg {
