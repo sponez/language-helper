@@ -263,9 +263,17 @@ impl ProfileRouter {
             },
             Message::SettingsButton(msg) => match msg {
                 SettingsButtonMessage::Pressed => {
-                    // TODO: Navigate to profile settings router
-                    eprintln!("Settings button pressed");
-                    (None, Task::none())
+                    // Navigate to profile settings router
+                    let profile_settings_router =
+                        crate::routers::profile_settings::router::ProfileSettingsRouter::new(
+                            Rc::clone(&self.user_state),
+                            Rc::new(self.profile_state.clone()),
+                            Arc::clone(&self.app_api),
+                            Rc::clone(&self.app_state),
+                        );
+
+                    let router_box: Box<dyn RouterNode> = Box::new(profile_settings_router);
+                    (Some(RouterEvent::Push(router_box)), Task::none())
                 }
             },
             Message::CardStateLoaded(result) => {

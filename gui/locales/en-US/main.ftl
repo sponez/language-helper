@@ -67,3 +67,16 @@ profile-back-button = Back
 profile-cards-button = Cards
 profile-explain-ai-button = AI Explanations
 profile-settings-button = Settings
+
+# Profile Screen - API Errors
+error-load-card-settings = Failed to load card settings
+
+# Profile Settings Screen
+profile-settings-back-button = Back
+profile-settings-card-settings-button = Card Settings
+profile-settings-assistant-settings-button = AI Assistant Settings
+profile-settings-delete-profile = Delete Profile
+profile-settings-delete-warning = Are you sure you want to delete this profile? This will permanently delete all cards and progress.
+profile-settings-delete-yes = Yes, Delete
+profile-settings-delete-no = Cancel
+profile-settings-api-error-delete = Failed to delete profile
