@@ -17,7 +17,7 @@ use std::path::PathBuf;
 /// SQLite-based implementation of ProfileRepository.
 ///
 /// This struct manages profile-specific database files. Each profile has its own
-/// database file at `data/{username}/{target_language}_profile.db`.
+/// database file at `data/{username}/{profile_name}_profile.db`.
 pub struct SqliteProfileDbRepository;
 
 impl SqliteProfileDbRepository {
