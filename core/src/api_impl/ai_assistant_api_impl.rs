@@ -428,7 +428,7 @@ Instructions:
 Do not add any extra text before or after the JSON.
 
 Task:
-Fill a vocabulary card for the given word.
+Fill a vocabulary card for the given word or expression.
 
 Output JSON schema (must match exactly):
 {{
@@ -450,11 +450,11 @@ Output JSON schema (must match exactly):
   ]
 }}
 
-For the word "{card_name}" you must fill all possible readings and meanings. Do not repeat similar meanings.
-"readings" is transcriptions, kana, romaji, and more.
-Each "meaning" must have a "definition". "definition" is the definition of a word, as in a dictionary in the {card_language} language.
+For the word or expression "{card_name}" you must fill all possible readings and meanings. Do not repeat similar meanings.
+"readings" is transcriptions, kana, romaji, and more (leave blank for expressions)
+Each "meaning" must have a "definition". "definition" is the definition of the word or expression, as in a dictionary in the {card_language} language.
 "translated_definition" is a translation of the definition into {target_language} language.
-"word_translations" are possible translations in the {target_language} language of the word "{card_name}" for this "definition".
+"word_translations" are possible translations in the {target_language} language of the word or expression "{card_name}" for this "definition".
 
 OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
             card_type = card_type,
