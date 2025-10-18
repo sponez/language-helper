@@ -32,7 +32,7 @@ impl UserSettings {
     ///
     /// # Arguments
     ///
-    /// * `ui_theme` - The UI theme preference (any string, validated by GUI layer)
+    /// * `ui_theme` - The UI theme preference (validated against known themes)
     /// * `ui_language` - The UI language code
     ///
     /// # Returns
@@ -58,6 +58,7 @@ impl UserSettings {
         UL: AsRef<str> + Into<String>,
     {
         Self::validate_not_empty("UI theme", ui_theme.as_ref())?;
+        Self::validate_theme(ui_theme.as_ref())?;
         Self::validate_language_code(ui_language.as_ref())?;
         Ok(Self {
             ui_theme: ui_theme.into(),
@@ -95,6 +96,49 @@ impl UserSettings {
         Ok(())
     }
 
+    /// Validates the theme against known Iced themes.
+    ///
+    /// Accepted themes: Dark, Light, Dracula, Nord, Solarized Light, Solarized Dark,
+    /// Gruvbox Light, Gruvbox Dark, Catppuccin Latte, Catppuccin Frappé,
+    /// Catppuccin Macchiato, Catppuccin Mocha, Tokyo Night, Tokyo Night Storm,
+    /// Tokyo Night Light, Kanagawa Wave, Kanagawa Dragon, Kanagawa Lotus,
+    /// Moonfly, Nightfly, Oxocarbon, Ferra
+    fn validate_theme(theme: &str) -> Result<(), CoreError> {
+        const VALID_THEMES: &[&str] = &[
+            "Dark",
+            "Light",
+            "Dracula",
+            "Nord",
+            "Solarized Light",
+            "Solarized Dark",
+            "Gruvbox Light",
+            "Gruvbox Dark",
+            "Catppuccin Latte",
+            "Catppuccin Frappé",
+            "Catppuccin Macchiato",
+            "Catppuccin Mocha",
+            "Tokyo Night",
+            "Tokyo Night Storm",
+            "Tokyo Night Light",
+            "Kanagawa Wave",
+            "Kanagawa Dragon",
+            "Kanagawa Lotus",
+            "Moonfly",
+            "Nightfly",
+            "Oxocarbon",
+            "Ferra",
+        ];
+
+        if !VALID_THEMES.contains(&theme) {
+            return Err(CoreError::validation_error(format!(
+                "Invalid theme '{}'. Must be one of: {}",
+                theme,
+                VALID_THEMES.join(", ")
+            )));
+        }
+        Ok(())
+    }
+
     /// Validates the language code.
     fn validate_language_code(code: &str) -> Result<(), CoreError> {
         if code.is_empty() {
@@ -121,12 +165,33 @@ mod tests {
     }
 
     #[test]
-    fn test_any_theme_accepted() {
-        // Core should accept any non-empty theme string
-        let themes = vec!["Dark", "Light", "CustomTheme", "MyAwesomeTheme"];
+    fn test_valid_themes_accepted() {
+        // Core should accept all valid Iced themes
+        let themes = vec![
+            "Dark",
+            "Light",
+            "Dracula",
+            "Nord",
+            "Solarized Light",
+            "Gruvbox Dark",
+            "Tokyo Night",
+        ];
         for theme in themes {
             let result = UserSettings::new(theme.to_string(), "English".to_string());
             assert!(result.is_ok(), "Theme '{}' should be accepted", theme);
+        }
+    }
+
+    #[test]
+    fn test_invalid_theme_rejected() {
+        let invalid_themes = vec!["CustomTheme", "MyAwesomeTheme", "InvalidTheme"];
+        for theme in invalid_themes {
+            let result = UserSettings::new(theme.to_string(), "English".to_string());
+            assert!(result.is_err(), "Theme '{}' should be rejected", theme);
+            assert!(matches!(
+                result.unwrap_err(),
+                CoreError::ValidationError { .. }
+            ));
         }
     }
 

@@ -24,8 +24,6 @@ pub enum Message {
     Continue,
     /// Card completed (async result of updating streak)
     CardCompleted(Result<(), String>),
-    /// Session completed (async result)
-    SessionCompleted(Result<(), String>),
     /// Retry button pressed (after failing test)
     RetryRepeat,
 

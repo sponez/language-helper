@@ -333,6 +333,15 @@ impl<R: ProfileRepository> ProfileService<R> {
         let db_path = self.get_db_path(username, profile_name);
         // Get streak threshold from card settings
         let settings = self.repository.get_card_settings(db_path.clone()).await?;
+
+        // Validate streak_length
+        if settings.streak_length < 1 {
+            return Err(CoreError::validation_error(format!(
+                "Invalid streak_length: {} (must be positive)",
+                settings.streak_length
+            )));
+        }
+
         self.repository
             .get_cards_by_learned_status(db_path, settings.streak_length as i32, false)
             .await
@@ -347,6 +356,15 @@ impl<R: ProfileRepository> ProfileService<R> {
         let db_path = self.get_db_path(username, profile_name);
         // Get streak threshold from card settings
         let settings = self.repository.get_card_settings(db_path.clone()).await?;
+
+        // Validate streak_length
+        if settings.streak_length < 1 {
+            return Err(CoreError::validation_error(format!(
+                "Invalid streak_length: {} (must be positive)",
+                settings.streak_length
+            )));
+        }
+
         self.repository
             .get_cards_by_learned_status(db_path, settings.streak_length as i32, true)
             .await

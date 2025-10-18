@@ -291,7 +291,14 @@ impl LearnRouter {
                                 // Check if card is complete
                                 let current_index = updated_session.current_set_start_index
                                     + updated_session.current_card_in_set;
-                                let card = &updated_session.all_cards[current_index];
+                                let Some(card) = updated_session.all_cards.get(current_index)
+                                else {
+                                    eprintln!("Invalid card index: {}", current_index);
+                                    *feedback = Some(AnswerFeedback::Incorrect {
+                                        expected_answer: "Error: Invalid card index".to_string(),
+                                    });
+                                    return (None, Task::none());
+                                };
 
                                 let required_answers = match card.card_type {
                                     lh_api::models::card::CardType::Straight => card.meanings.len(),
@@ -340,7 +347,10 @@ impl LearnRouter {
                     // Check if card is complete
                     let current_index = updated_session.current_set_start_index
                         + updated_session.current_card_in_set;
-                    let card = &updated_session.all_cards[current_index];
+                    let Some(card) = updated_session.all_cards.get(current_index) else {
+                        eprintln!("Invalid card index: {}", current_index);
+                        return (Some(RouterEvent::Pop), Task::none());
+                    };
 
                     let required_answers = match card.card_type {
                         lh_api::models::card::CardType::Straight => card.meanings.len(),
@@ -465,7 +475,10 @@ impl LearnRouter {
                     // Get current card
                     let current_index = updated_session.current_set_start_index
                         + updated_session.current_card_in_set;
-                    let card = &updated_session.all_cards[current_index];
+                    let Some(card) = updated_session.all_cards.get(current_index) else {
+                        eprintln!("Invalid card index: {}", current_index);
+                        return (Some(RouterEvent::Pop), Task::none());
+                    };
 
                     // Record correct result
                     let result = lh_api::models::test_result::TestResultDto {
@@ -513,7 +526,10 @@ impl LearnRouter {
                     // Get current card
                     let current_index = updated_session.current_set_start_index
                         + updated_session.current_card_in_set;
-                    let card = &updated_session.all_cards[current_index];
+                    let Some(card) = updated_session.all_cards.get(current_index) else {
+                        eprintln!("Invalid card index: {}", current_index);
+                        return (Some(RouterEvent::Pop), Task::none());
+                    };
 
                     // Record incorrect result
                     let result = lh_api::models::test_result::TestResultDto {
@@ -699,8 +715,16 @@ impl LearnRouter {
                         .spacing(20)
                         .align_x(Alignment::Center);
 
-                    // Center content vertically and horizontally
-                    let center_content = Container::new(content)
+                    // Wrap content in scrollable so both card and buttons are accessible
+                    let scrollable_content = iced::widget::scrollable(
+                        Container::new(content)
+                            .width(Length::Fill)
+                            .align_x(Alignment::Center),
+                    )
+                    .width(Length::Fill);
+
+                    // Center scrollable area
+                    let center_content = Container::new(scrollable_content)
                         .width(Length::Fill)
                         .height(Length::Fill)
                         .align_x(Alignment::Center)
@@ -903,8 +927,16 @@ impl LearnRouter {
                         content = content.push(element);
                     }
 
-                    // Center content
-                    let center_content = Container::new(content)
+                    // Wrap content in scrollable so both card and buttons are accessible
+                    let scrollable_content = iced::widget::scrollable(
+                        Container::new(content)
+                            .width(Length::Fill)
+                            .align_x(Alignment::Center),
+                    )
+                    .width(Length::Fill);
+
+                    // Center scrollable area
+                    let center_content = Container::new(scrollable_content)
                         .width(Length::Fill)
                         .height(Length::Fill)
                         .align_x(Alignment::Center)

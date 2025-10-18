@@ -187,11 +187,21 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
             return Err(CoreError::not_found("User", username));
         }
 
+        // Check if profile with this name already exists
+        if let Some(_) = self
+            .profile_repository
+            .find_by_username_and_profile_name(username, profile_name)
+            .await?
+        {
+            return Err(CoreError::validation_error(format!(
+                "Profile '{}' already exists",
+                profile_name
+            )));
+        }
+
         // Domain validation happens in Profile::new()
         let profile = Profile::new(profile_name, target_language)?;
 
-        // Note: The composite key (username, profile_name) ensures uniqueness
-        // The repository will handle any database-level uniqueness constraints
         self.profile_repository.save(username, profile).await
     }
 

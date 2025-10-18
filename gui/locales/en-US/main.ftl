@@ -38,6 +38,7 @@ user-settings-delete-yes = Yes, Delete
 user-settings-delete-no = Cancel
 user-settings-api-error-theme = Failed to update theme
 user-settings-api-error-delete = Failed to delete user
+error-delete-user-folder = Failed to delete user folder
 
 # Error Modal
 error-modal-close-button = Close
@@ -59,10 +60,12 @@ profile-cancel-button = Cancel
 # Profile List - Validation Errors
 error-profile-name-too-short = Profile name must be at least 5 characters
 error-profile-name-too-long = Profile name cannot exceed 50 characters
+error-profile-name-invalid-characters = Profile name cannot contain / \\ or special characters
 error-profile-language-not-selected = Please select a target language
 
 # Profile List - API Errors
 error-create-profile = Failed to create profile
+error-create-profile-cleanup-failed = Failed to create profile and could not clean up incomplete data
 error-load-profiles = Failed to load profiles
 
 # Profile Screen
@@ -84,6 +87,7 @@ profile-settings-delete-warning = Are you sure you want to delete this profile? 
 profile-settings-delete-yes = Yes, Delete
 profile-settings-delete-no = Cancel
 profile-settings-api-error-delete = Failed to delete profile
+error-delete-profile-database = Failed to delete profile database
 
 # Card Settings Screen
 card-settings-title = Card Settings
@@ -148,6 +152,9 @@ assistant-settings-launch-error = Failed to launch assistant
 error-load-assistant-settings = Failed to load assistant settings
 error-save-assistant-settings = Failed to save assistant settings
 error-clear-assistant-settings = Failed to clear assistant settings
+
+# Success Messages
+assistant-settings-saved = Settings saved successfully
 
 # Explain AI Screen
 explain-ai-title = AI Explanations

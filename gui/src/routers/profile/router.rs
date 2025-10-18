@@ -153,8 +153,10 @@ impl ProfileRouter {
             .ai_assistant_api()
             .get_running_models()
             .await
-            .ok()
-            .unwrap_or_default();
+            .unwrap_or_else(|e| {
+                eprintln!("Failed to query AI service: {:?}", e);
+                Vec::new()
+            });
 
         // 3. Check configured model
         let configured_model = settings.ai_model.filter(|m| !m.is_empty());
@@ -291,12 +293,14 @@ impl ProfileRouter {
             Message::CardStateLoaded(result) => {
                 match result {
                     Ok(card_state) => {
-                        println!("Card state loaded: {:?}", card_state);
                         self.profile_state.card_state = Some(card_state);
                         self.error_message = None;
                     }
                     Err(error_key) => {
                         eprintln!("Failed to load card state: {}", error_key);
+                        eprintln!(
+                            "WARNING: Using hardcoded defaults (cards=10, method=manual, streak=5)"
+                        );
                         let error_msg = self.app_state.i18n().get(&error_key, None);
                         self.error_message = Some(error_msg);
                         // Set default settings to allow UI to proceed

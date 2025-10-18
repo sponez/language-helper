@@ -103,7 +103,8 @@ pub fn card_display<'a, Message: 'a>(
     // Meanings container with styling - this container is centered
     let meanings_container = Container::new(meanings_column.align_x(Alignment::Start))
         .padding(20)
-        .width(Length::Fixed(550.0))
+        .width(Length::Shrink)
+        .max_width(550.0)
         .style(|theme: &iced::Theme| container::Style {
             background: Some(iced::Background::Color(theme.palette().background)),
             border: iced::Border {
@@ -122,7 +123,8 @@ pub fn card_display<'a, Message: 'a>(
         .align_x(Alignment::Center);
 
     Container::new(content)
-        .width(Length::Fixed(600.0))
+        .width(Length::Shrink)
+        .max_width(600.0)
         .padding(20)
         .into()
 }

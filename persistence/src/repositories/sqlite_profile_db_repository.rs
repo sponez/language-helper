@@ -382,15 +382,15 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
 
     async fn save_card(&self, db_path: PathBuf, card: Card) -> Result<(), Self::Error> {
         tokio::task::spawn_blocking(move || {
-            let conn = Connection::open(&db_path).map_err(|e| {
+            let mut conn = Connection::open(&db_path).map_err(|e| {
                 PersistenceError::database_error(format!(
                     "Failed to open database at {:?}: {}",
                     db_path, e
                 ))
             })?;
 
-            // Start transaction
-            let tx = conn.unchecked_transaction().map_err(|e| {
+            // Start transaction (with automatic rollback on drop if not committed)
+            let tx = conn.transaction().map_err(|e| {
                 PersistenceError::database_error(format!("Failed to start transaction: {}", e))
             })?;
 
@@ -498,6 +498,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
         db_path: PathBuf,
         word_name: String,
     ) -> Result<Card, Self::Error> {
+        let db_path_clone = db_path.clone();
         tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path).map_err(|e| {
                 PersistenceError::database_error(format!(
@@ -513,7 +514,11 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
             )?;
 
             cards.into_iter().next().ok_or_else(|| {
-                PersistenceError::database_error(format!("Card with word_name '{}' not found", word_name))
+                PersistenceError::database_error(format!(
+                    "Card '{}' not found in database: {:?}",
+                    word_name,
+                    db_path_clone
+                ))
             })
         })
         .await

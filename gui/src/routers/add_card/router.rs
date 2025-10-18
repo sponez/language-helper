@@ -261,7 +261,13 @@ impl AddCardRouter {
                 (None, Task::none())
             }
             Message::AddMeaning => {
-                self.meanings.push(MeaningFields::new());
+                // Limit to 10 meanings per card
+                if self.meanings.len() >= 10 {
+                    self.error_message = Some("Maximum 10 meanings per card allowed".to_string());
+                } else {
+                    self.meanings.push(MeaningFields::new());
+                    self.error_message = None;
+                }
                 (None, Task::none())
             }
             Message::RemoveMeaning(index) => {
@@ -280,7 +286,14 @@ impl AddCardRouter {
             }
             Message::AddTranslation(meaning_index) => {
                 if let Some(meaning) = self.meanings.get_mut(meaning_index) {
-                    meaning.translations.push(TranslationField::new());
+                    // Limit to 20 translations per meaning
+                    if meaning.translations.len() >= 20 {
+                        self.error_message =
+                            Some("Maximum 20 translations per meaning allowed".to_string());
+                    } else {
+                        meaning.translations.push(TranslationField::new());
+                        self.error_message = None;
+                    }
                 }
                 (None, Task::none())
             }
@@ -816,7 +829,7 @@ impl AddCardRouter {
 
                 // AI-merge existing cards
                 if !existing_cards_to_merge.is_empty() {
-                    match api
+                    let merged_cards = api
                         .ai_assistant_api()
                         .merge_inverse_cards(
                             assistant_settings.clone(),
@@ -826,10 +839,13 @@ impl AddCardRouter {
                             target_language.clone(),
                         )
                         .await
-                    {
-                        Ok(merged_cards) => result_cards.extend(merged_cards),
-                        Err(e) => eprintln!("AI merging failed: {:?}", e),
-                    }
+                        .map_err(|e| {
+                            format!(
+                                "AI merging failed: {:?}. Try using manual inverse generation instead.",
+                                e
+                            )
+                        })?;
+                    result_cards.extend(merged_cards);
                 }
 
                 // Manually create cards for new translations

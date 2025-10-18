@@ -18,7 +18,12 @@ pub trait UsersApi: Send + Sync {
     async fn get_usernames(&self) -> Result<Vec<String>, ApiError>;
 
     /// Retrieves a user by their username.
-    async fn get_user_by_username(&self, username: &str) -> Option<UserDto>;
+    ///
+    /// Returns:
+    /// - `Ok(UserDto)` if user found
+    /// - `Err(ApiError::NotFound)` if user doesn't exist
+    /// - `Err(ApiError::InternalError)` for other errors
+    async fn get_user_by_username(&self, username: &str) -> Result<UserDto, ApiError>;
 
     /// Creates a new user with the given username and language preference.
     async fn create_user(&self, username: &str, language: &str) -> Result<UserDto, ApiError>;

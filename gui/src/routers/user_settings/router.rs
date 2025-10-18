@@ -115,9 +115,11 @@ impl UserSettingsRouter {
     /// Asynchronously deletes user and all associated data
     async fn delete_user(app_api: Arc<dyn AppApi>, username: String) -> Result<bool, String> {
         // Step 1: Delete the entire user folder (includes all profile databases)
-        if let Err(e) = app_api.profile_api().delete_user_folder(&username).await {
-            eprintln!("Failed to delete user folder: {:?}", e);
-        }
+        app_api
+            .profile_api()
+            .delete_user_folder(&username)
+            .await
+            .map_err(|_e| "error-delete-user-folder".to_string())?;
 
         // Step 2: Delete user (which deletes profile metadata, settings, and user record)
         match app_api.users_api().delete_user(&username).await {
@@ -140,18 +142,27 @@ impl UserSettingsRouter {
             Message::BackButton => (Some(RouterEvent::Pop), Task::none()),
             Message::ThemePicker(msg) => match msg {
                 ThemePickListMessage::Selected(new_theme) => {
+                    // Store old theme for potential rollback
+                    let old_theme = self.theme.clone();
+
                     // Convert Theme enum to String for API call
                     let theme_str = new_theme.to_string();
 
                     // Create async task to update theme
                     let username = self.username.clone();
+                    let old_theme_clone = old_theme.clone();
+                    let new_theme_clone = new_theme.clone();
                     let task = Task::perform(
                         Self::update_user_theme(
                             Arc::clone(&self.app_api),
                             username,
                             theme_str.clone(),
                         ),
-                        Message::ThemeUpdated,
+                        move |result| Message::ThemeUpdated {
+                            old_theme: old_theme_clone,
+                            new_theme: new_theme_clone,
+                            result,
+                        },
                     );
 
                     // Optimistically update local theme
@@ -180,20 +191,25 @@ impl UserSettingsRouter {
                     (None, Task::none())
                 }
             },
-            Message::ThemeUpdated(result) => {
-                match result {
-                    Ok(_) => {
-                        println!("Theme updated successfully");
-                        self.error_message = None;
-                    }
-                    Err(error_key) => {
-                        eprintln!("Failed to update theme: {}", error_key);
-                        let error_msg = self.app_state.i18n().get(&error_key, None);
-                        self.error_message = Some(error_msg);
-                    }
+            Message::ThemeUpdated {
+                old_theme,
+                new_theme,
+                result,
+            } => match result {
+                Ok(_) => {
+                    println!("Theme updated successfully to: {}", new_theme);
+                    self.error_message = None;
+                    (None, Task::none())
                 }
-                (None, Task::none())
-            }
+                Err(error_key) => {
+                    eprintln!("Failed to update theme: {}", error_key);
+                    // Rollback to old theme on failure
+                    self.theme = old_theme;
+                    let error_msg = self.app_state.i18n().get(&error_key, None);
+                    self.error_message = Some(error_msg);
+                    (None, Task::none())
+                }
+            },
             Message::UserDeleted(result) => {
                 match result {
                     Ok(deleted) => {

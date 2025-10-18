@@ -106,7 +106,7 @@ impl ProfileListRouter {
         username: String,
     ) -> Result<(Vec<String>, Vec<ProfileData>), String> {
         match app_api.users_api().get_user_by_username(&username).await {
-            Some(user_dto) => {
+            Ok(user_dto) => {
                 // Extract profile names for display and full data for navigation
                 let profile_names: Vec<String> = user_dto
                     .profiles
@@ -125,8 +125,8 @@ impl ProfileListRouter {
 
                 Ok((profile_names, profile_data))
             }
-            None => {
-                eprintln!("Failed to load profiles for user: {}", username);
+            Err(e) => {
+                eprintln!("Failed to load profiles for user '{}': {:?}", username, e);
                 Err("error-load-profiles".to_string())
             }
         }

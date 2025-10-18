@@ -84,15 +84,30 @@ impl CreateNewProfileModal {
     ///
     /// # Returns
     ///
-    /// `true` if profile name is 5-50 characters and language is selected
+    /// `true` if profile name is 5-50 characters, contains no path separators, and language is selected
     fn is_valid(&self) -> bool {
-        let name_len = self.profile_name.trim().len();
-        name_len >= 5 && name_len <= 50 && self.selected_language.is_some()
+        let trimmed_name = self.profile_name.trim();
+        let name_len = trimmed_name.len();
+
+        // Check length
+        if name_len < 5 || name_len > 50 {
+            return false;
+        }
+
+        // Check for path separators and invalid characters
+        if trimmed_name.contains('/') || trimmed_name.contains('\\') || trimmed_name.contains('\0')
+        {
+            return false;
+        }
+
+        // Check language selection
+        self.selected_language.is_some()
     }
 
     /// Updates the validation error message based on current state
     fn update_validation(&mut self, i18n: &Rc<I18n>) {
-        let name_len = self.profile_name.trim().len();
+        let trimmed_name = self.profile_name.trim();
+        let name_len = trimmed_name.len();
 
         if self.profile_name.is_empty() {
             self.error_message = None;
@@ -100,6 +115,11 @@ impl CreateNewProfileModal {
             self.error_message = Some(i18n.get("error-profile-name-too-short", None));
         } else if name_len > 50 {
             self.error_message = Some(i18n.get("error-profile-name-too-long", None));
+        } else if trimmed_name.contains('/')
+            || trimmed_name.contains('\\')
+            || trimmed_name.contains('\0')
+        {
+            self.error_message = Some(i18n.get("error-profile-name-invalid-characters", None));
         } else if self.selected_language.is_none() {
             self.error_message = Some(i18n.get("error-profile-language-not-selected", None));
         } else {
@@ -138,17 +158,36 @@ impl CreateNewProfileModal {
                                 .await
                             {
                                 Ok(_) => Ok(profile_name.clone()),
-                                Err(_e) => {
+                                Err(e) => {
+                                    eprintln!(
+                                        "Profile database creation failed for '{}': {:?}",
+                                        profile_name, e
+                                    );
                                     // Cleanup: delete metadata if database creation failed
-                                    let _ = app_api
+                                    match app_api
                                         .users_api()
                                         .delete_profile(&username, &profile_name)
-                                        .await;
-                                    Err("error-create-profile".to_string())
+                                        .await
+                                    {
+                                        Ok(_) => {
+                                            eprintln!("Successfully rolled back profile metadata after database creation failure");
+                                            Err("error-create-profile".to_string())
+                                        }
+                                        Err(cleanup_err) => {
+                                            eprintln!("CRITICAL: Profile metadata cleanup failed for '{}': {:?}", profile_name, cleanup_err);
+                                            Err("error-create-profile-cleanup-failed".to_string())
+                                        }
+                                    }
                                 }
                             }
                         }
-                        Err(_e) => Err("error-create-profile".to_string()),
+                        Err(e) => {
+                            eprintln!(
+                                "Profile metadata creation failed for '{}': {:?}",
+                                profile_name, e
+                            );
+                            Err("error-create-profile".to_string())
+                        }
                     }
                 },
                 Message::ProfileCreated,

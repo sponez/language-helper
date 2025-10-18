@@ -143,7 +143,8 @@ impl ManageCardsRouter {
                     }
                 }
 
-                eprintln!("Card not found for editing: {}", word_name);
+                // Card not found - show error modal
+                self.error_message = Some(format!("Card not found for editing: {}", word_name));
                 (None, Task::none())
             }
             Message::DeleteCard(word_name) => {
@@ -156,11 +157,14 @@ impl ManageCardsRouter {
                         api.profile_api()
                             .delete_card(&username, &profile_name, &word_name)
                             .await
-                            .map(|deleted| {
+                            .and_then(|deleted| {
                                 if deleted {
-                                    word_name
+                                    Ok(word_name)
                                 } else {
-                                    panic!("Card not found") // Will be caught as error
+                                    Err(lh_api::errors::api_error::ApiError::not_found(format!(
+                                        "Card not found: {}",
+                                        word_name
+                                    )))
                                 }
                             })
                             .map_err(|e| format!("Failed to delete card: {:?}", e))

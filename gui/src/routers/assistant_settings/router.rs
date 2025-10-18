@@ -29,8 +29,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use iced::widget::{column, container, row, stack, Container};
-use iced::{event, Alignment, Element, Length, Subscription, Task};
+use iced::widget::{column, container, row, stack, text, Container};
+use iced::{event, Alignment, Color, Element, Length, Subscription, Task};
 
 use lh_api::app_api::AppApi;
 use lh_api::models::assistant_settings::AssistantSettingsDto;
@@ -97,6 +97,8 @@ pub struct AssistantSettingsRouter {
     // Error handling
     /// Error message to display (None = no error)
     error_message: Option<String>,
+    /// Success message to display (None = no success)
+    success_message: Option<String>,
 }
 
 impl AssistantSettingsRouter {
@@ -136,6 +138,7 @@ impl AssistantSettingsRouter {
             launch_progress_message: String::new(),
             launch_error_message: None,
             error_message: None,
+            success_message: None,
         }
     }
 
@@ -428,6 +431,7 @@ impl AssistantSettingsRouter {
                 match msg {
                     ModelPickerMessage::ModelSelected(model) => {
                         self.selected_model = model;
+                        self.success_message = None;
                         (None, Task::none())
                     }
                 }
@@ -448,14 +452,17 @@ impl AssistantSettingsRouter {
                 match msg {
                     ApiConfigFormMessage::ApiProviderChanged(value) => {
                         self.api_provider = value;
+                        self.success_message = None;
                         (None, Task::none())
                     }
                     ApiConfigFormMessage::ApiKeyChanged(value) => {
                         self.api_key = value;
+                        self.success_message = None;
                         (None, Task::none())
                     }
                     ApiConfigFormMessage::ApiModelChanged(value) => {
                         self.api_model_name = value;
+                        self.success_message = None;
                         (None, Task::none())
                     }
                 }
@@ -669,11 +676,16 @@ impl AssistantSettingsRouter {
                 match result {
                     Ok(_) => {
                         println!("Assistant settings saved successfully");
+                        let success_msg =
+                            self.app_state.i18n().get("assistant-settings-saved", None);
+                        self.success_message = Some(success_msg);
+                        self.error_message = None;
                     }
                     Err(error_key) => {
                         eprintln!("Failed to save assistant settings: {}", error_key);
                         let error_msg = self.app_state.i18n().get(&error_key, None);
                         self.error_message = Some(error_msg);
+                        self.success_message = None;
                     }
                 }
                 (None, Task::none())
@@ -956,8 +968,27 @@ impl AssistantSettingsRouter {
         )
         .map(Message::AssistantActionButtons);
 
+        // Success/Error message widget
+        let message_widget = if let Some(ref msg) = self.success_message {
+            let color = Color::from_rgb(0.0, 0.8, 0.0);
+            Some(
+                text(msg)
+                    .shaping(iced::widget::text::Shaping::Advanced)
+                    .style(move |_theme| iced::widget::text::Style { color: Some(color) }),
+            )
+        } else if let Some(ref msg) = self.error_message {
+            let color = Color::from_rgb(0.8, 0.0, 0.0);
+            Some(
+                text(msg)
+                    .shaping(iced::widget::text::Shaping::Advanced)
+                    .style(move |_theme| iced::widget::text::Style { color: Some(color) }),
+            )
+        } else {
+            None
+        };
+
         // Main content
-        let main_content = column![
+        let mut main_content = column![
             title,
             model_picker_widget,
             content_section,
@@ -966,6 +997,13 @@ impl AssistantSettingsRouter {
         .spacing(20)
         .padding(30)
         .align_x(Alignment::Center);
+
+        // Add message widget if present
+        if let Some(msg_widget) = message_widget {
+            main_content = main_content.push(msg_widget);
+        }
+
+        let main_content = main_content;
 
         let center_content = Container::new(main_content)
             .width(Length::Fill)

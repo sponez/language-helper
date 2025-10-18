@@ -54,8 +54,10 @@ pub fn meanings_section<'a>(
         .padding(10)
         .width(Length::Fixed(400.0));
 
-        // Translations
-        let translations_label = text(i18n.get("add-card-translations-label", None))
+        // Translations (required)
+        let translations_label_text =
+            format!("{} *", i18n.get("add-card-translations-label", None));
+        let translations_label = text(translations_label_text)
             .size(12)
             .shaping(iced::widget::text::Shaping::Advanced);
 

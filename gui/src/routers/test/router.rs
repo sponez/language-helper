@@ -188,7 +188,10 @@ impl TestRouter {
                     let mut updated_session = session.clone();
 
                     let current_index = updated_session.current_card_in_set;
-                    let card = &updated_session.all_cards[current_index];
+                    let Some(card) = updated_session.all_cards.get(current_index) else {
+                        eprintln!("Invalid card index: {}", current_index);
+                        return (Some(RouterEvent::Pop), Task::none());
+                    };
 
                     let result = lh_api::models::test_result::TestResultDto {
                         word_name: card.word.name.clone(),
@@ -224,7 +227,10 @@ impl TestRouter {
                     let mut updated_session = session.clone();
 
                     let current_index = updated_session.current_card_in_set;
-                    let card = &updated_session.all_cards[current_index];
+                    let Some(card) = updated_session.all_cards.get(current_index) else {
+                        eprintln!("Invalid card index: {}", current_index);
+                        return (Some(RouterEvent::Pop), Task::none());
+                    };
 
                     let result = lh_api::models::test_result::TestResultDto {
                         word_name: card.word.name.clone(),
@@ -260,7 +266,10 @@ impl TestRouter {
                     let mut updated_session = session.clone();
 
                     let current_index = updated_session.current_card_in_set;
-                    let card = &updated_session.all_cards[current_index];
+                    let Some(card) = updated_session.all_cards.get(current_index) else {
+                        eprintln!("Invalid card index: {}", current_index);
+                        return (Some(RouterEvent::Pop), Task::none());
+                    };
 
                     let required_answers = match card.card_type {
                         lh_api::models::card::CardType::Straight => card.meanings.len(),
@@ -321,11 +330,6 @@ impl TestRouter {
                     eprintln!("Failed to update card streak: {}", err);
                 }
                 // Continue regardless of error
-                (None, Task::none())
-            }
-
-            Message::SessionCompleted(_result) => {
-                // This message is no longer used since we update streaks per-card
                 (None, Task::none())
             }
 
@@ -570,7 +574,16 @@ impl TestRouter {
                         content = content.push(element);
                     }
 
-                    let center_content = Container::new(content)
+                    // Wrap content in scrollable so both card and buttons are accessible
+                    let scrollable_content = iced::widget::scrollable(
+                        Container::new(content)
+                            .width(Length::Fill)
+                            .align_x(Alignment::Center),
+                    )
+                    .width(Length::Fill);
+
+                    // Center scrollable area
+                    let center_content = Container::new(scrollable_content)
                         .width(Length::Fill)
                         .height(Length::Fill)
                         .align_x(Alignment::Center)

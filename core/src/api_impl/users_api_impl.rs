@@ -112,14 +112,18 @@ impl<
             .map_err(map_core_error_to_api_error)
     }
 
-    async fn get_user_by_username(&self, username: &str) -> Option<UserDto> {
+    async fn get_user_by_username(&self, username: &str) -> Result<UserDto, ApiError> {
         // Get user
-        let user = self
-            .user_service
-            .get_user_by_username(username)
-            .await
-            .ok()
-            .flatten()?;
+        let user = match self.user_service.get_user_by_username(username).await {
+            Ok(Some(user)) => user,
+            Ok(None) => {
+                return Err(ApiError::not_found(format!(
+                    "User '{}' not found",
+                    username
+                )))
+            }
+            Err(e) => return Err(map_core_error_to_api_error(e)),
+        };
 
         // Get settings (or use defaults if not found)
         let settings = self
@@ -144,7 +148,7 @@ impl<
             .map(map_profile_to_dto)
             .collect();
 
-        Some(UserDto {
+        Ok(UserDto {
             username: user.username,
             settings,
             profiles,
@@ -255,10 +259,16 @@ impl<
             .await
         {
             for profile in profiles {
-                let _ = self
+                if let Err(e) = self
                     .profile_metadata_service
                     .delete_profile(username, &profile.profile_name)
-                    .await;
+                    .await
+                {
+                    eprintln!(
+                        "Failed to delete profile '{}' for user '{}': {:?}",
+                        profile.profile_name, username, e
+                    );
+                }
             }
         }
 
@@ -569,7 +579,7 @@ mod tests {
 
         let result = api.get_user_by_username("alice").await;
 
-        assert!(result.is_some());
+        assert!(result.is_ok());
         assert_eq!(result.unwrap().username, "alice");
     }
 
@@ -583,7 +593,16 @@ mod tests {
 
         let result = api.get_user_by_username("charlie").await;
 
-        assert!(result.is_none());
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ApiError::Simple(code, _) => {
+                assert!(matches!(
+                    code,
+                    lh_api::errors::api_error::ApiErrorCode::NotFound
+                ));
+            }
+            _ => panic!("Expected Simple variant"),
+        }
     }
 
     #[tokio::test]

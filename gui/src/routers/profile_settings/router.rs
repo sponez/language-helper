@@ -100,14 +100,12 @@ impl ProfileSettingsRouter {
         username: String,
         profile_name: String,
     ) -> Result<bool, String> {
-        // Step 1: Delete profile database
-        if let Err(e) = app_api
+        // Step 1: Delete profile database (propagate error instead of ignoring)
+        app_api
             .profile_api()
             .delete_profile_database(&username, &profile_name)
             .await
-        {
-            eprintln!("Failed to delete profile database: {:?}", e);
-        }
+            .map_err(|_e| "error-delete-profile-database".to_string())?;
 
         // Step 2: Delete profile metadata
         match app_api
@@ -187,7 +185,6 @@ impl ProfileSettingsRouter {
                 match result {
                     Ok(deleted) => {
                         if deleted {
-                            println!("Profile deleted successfully");
                             // Navigate back to profile list
                             (
                                 Some(RouterEvent::PopTo(Some(RouterTarget::ProfileList))),

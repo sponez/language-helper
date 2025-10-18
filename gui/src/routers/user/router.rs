@@ -91,7 +91,7 @@ impl UserRouter {
     /// Asynchronously loads fresh user data from the API
     async fn load_user_data(app_api: Arc<dyn AppApi>, username: String) -> Option<UserState> {
         match app_api.users_api().get_user_by_username(&username).await {
-            Some(user_dto) => {
+            Ok(user_dto) => {
                 // Convert DTO settings to UserState
                 use crate::languages::{language_name_to_enum, Language};
                 use iced::Theme;
@@ -112,8 +112,8 @@ impl UserRouter {
 
                 Some(user_state)
             }
-            None => {
-                eprintln!("Failed to load user data for: {}", username);
+            Err(e) => {
+                eprintln!("Failed to load user data for '{}': {:?}", username, e);
                 None
             }
         }
@@ -145,12 +145,19 @@ impl UserRouter {
             },
             Message::SettingsButton(msg) => match msg {
                 SettingsButtonMessage::Pressed => {
-                    // Pass user state fields directly to UserSettingsRouter
+                    // Use fallbacks from app state if user settings not loaded yet
+                    let theme = self
+                        .user_state
+                        .theme
+                        .clone()
+                        .unwrap_or(self.app_state.theme());
+                    let language = self.user_state.language.unwrap_or(Language::English);
+
                     let user_settings_router: Box<dyn RouterNode> = Box::new(
                         crate::routers::user_settings::router::UserSettingsRouter::new(
                             self.user_state.username.clone(),
-                            self.user_state.theme.clone().unwrap(),
-                            self.user_state.language.unwrap(),
+                            theme,
+                            language,
                             Arc::clone(&self.app_api),
                             Rc::clone(&self.app_state),
                         ),
