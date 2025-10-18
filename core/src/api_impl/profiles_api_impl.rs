@@ -17,7 +17,9 @@ use crate::models::{
     TestResult, Word,
 };
 use crate::repositories::profile_repository::ProfileRepository;
-use crate::services::learning_service::{create_session_from_cards, create_test_session, LearningService};
+use crate::services::learning_service::{
+    create_session_from_cards, create_test_session, LearningService,
+};
 use crate::services::profile_service::ProfileService;
 
 /// Helper function to map CoreError to ApiError
@@ -512,11 +514,8 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
             .map_err(map_core_error_to_api_error)?;
 
         // Create test session (shuffled, all cards)
-        let session = create_test_session(
-            unlearned_cards,
-            card_settings.test_answer_method,
-        )
-        .map_err(map_core_error_to_api_error)?;
+        let session = create_test_session(unlearned_cards, card_settings.test_answer_method)
+            .map_err(map_core_error_to_api_error)?;
 
         Ok(learning_session_to_dto(session))
     }
@@ -541,11 +540,8 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
             .map_err(map_core_error_to_api_error)?;
 
         // Create test session (shuffled, all cards)
-        let session = create_test_session(
-            learned_cards,
-            card_settings.test_answer_method,
-        )
-        .map_err(map_core_error_to_api_error)?;
+        let session = create_test_session(learned_cards, card_settings.test_answer_method)
+            .map_err(map_core_error_to_api_error)?;
 
         Ok(learning_session_to_dto(session))
     }

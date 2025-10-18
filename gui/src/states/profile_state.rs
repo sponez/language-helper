@@ -61,7 +61,7 @@ impl ProfileState {
     pub fn has_assistant(&self) -> bool {
         self.assistant_state
             .as_ref()
-            .map_or(false, |state| state.is_started)
+            .is_some_and(|state| state.is_started)
     }
 
     /// Returns true if assistant configuration exists (even if not started)

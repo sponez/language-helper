@@ -33,9 +33,7 @@ use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
 use crate::components::back_button::back_button;
-use crate::components::error_modal::error_modal::{
-    error_modal, handle_error_modal_event, ErrorModalMessage,
-};
+use crate::components::error_modal::{error_modal, handle_error_modal_event, ErrorModalMessage};
 use crate::languages::Language;
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::routers::profile_list::message::Message;
@@ -153,11 +151,7 @@ impl ProfileListRouter {
     ///
     /// A vector of available Language enums
     fn get_available_languages(&self) -> Vec<Language> {
-        let domain_language = self
-            .user_state
-            .language
-            .clone()
-            .unwrap_or(Language::English);
+        let domain_language = self.user_state.language.unwrap_or(Language::English);
 
         // Note: We can't filter out existing languages since profiles are now identified by name,
         // not language. Users can have multiple profiles for the same language.
@@ -292,10 +286,8 @@ impl ProfileListRouter {
                 };
 
                 // If error modal is showing, handle Enter/Esc to close
-                if self.error_message.is_some() {
-                    if handle_error_modal_event(event) {
-                        self.error_message = None;
-                    }
+                if self.error_message.is_some() && handle_error_modal_event(event) {
+                    self.error_message = None;
                 }
 
                 (None, Task::none())
@@ -360,13 +352,13 @@ impl ProfileListRouter {
         // If create profile modal is open, render it on top
         if let Some(modal) = &self.create_profile_modal {
             let modal_view = modal.view(&self.app_state.i18n()).map(Message::Modal);
-            return modal_view.into();
+            return modal_view;
         }
 
         // If error modal is open, render it on top using stack
         if let Some(ref error_msg) = self.error_message {
             let error_overlay =
-                error_modal(&self.app_state.i18n(), &error_msg).map(Message::ErrorModal);
+                error_modal(&self.app_state.i18n(), error_msg).map(Message::ErrorModal);
             return iced::widget::stack![base, error_overlay].into();
         }
 

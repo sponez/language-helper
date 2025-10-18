@@ -33,7 +33,7 @@ impl UserState {
         Self {
             username,
             theme: theme.clone(),
-            language: language,
+            language,
         }
     }
 

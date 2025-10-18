@@ -33,7 +33,7 @@ use lh_api::models::card::CardDto;
 
 use crate::app_state::AppState;
 use crate::components::back_button::back_button;
-use crate::components::error_modal::error_modal::{error_modal, ErrorModalMessage};
+use crate::components::error_modal::{error_modal, ErrorModalMessage};
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::routers::inverse_cards_review::message::Message;
 use crate::states::{ProfileState, UserState};

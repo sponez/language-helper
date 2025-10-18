@@ -31,7 +31,7 @@ use lh_api::models::card::CardDto;
 
 use crate::app_state::AppState;
 use crate::components::back_button::back_button;
-use crate::components::error_modal::error_modal::{error_modal, ErrorModalMessage};
+use crate::components::error_modal::{error_modal, ErrorModalMessage};
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::routers::manage_cards::message::{Message, SelectedTab};
 use crate::states::{ProfileState, UserState};
@@ -392,11 +392,10 @@ impl RouterNode for ManageCardsRouter {
 
     fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
         // Load cards when router is initialized
-        let load_task = self
-            .load_cards_task()
+
+        self.load_cards_task()
             .map(router::Message::ManageCards)
-            .chain(incoming_task);
-        load_task
+            .chain(incoming_task)
     }
 
     fn subscription(&self) -> iced::Subscription<router::Message> {

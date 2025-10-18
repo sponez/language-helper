@@ -105,7 +105,7 @@ impl CreateNewUserModal {
     /// `true` if username is 5-50 characters and language is selected
     fn is_valid(&self) -> bool {
         let username_len = self.username.trim().len();
-        username_len >= 5 && username_len <= 50 && self.selected_language.is_some()
+        (5..=50).contains(&username_len) && self.selected_language.is_some()
     }
 
     /// Updates the validation error message based on current state

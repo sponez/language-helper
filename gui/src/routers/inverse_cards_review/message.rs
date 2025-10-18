@@ -1,4 +1,4 @@
-use crate::components::error_modal::error_modal::ErrorModalMessage;
+use crate::components::error_modal::ErrorModalMessage;
 use lh_api::models::card::CardDto;
 
 /// Messages that can be sent within the inverse cards review router

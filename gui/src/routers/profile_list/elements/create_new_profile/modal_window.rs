@@ -90,7 +90,7 @@ impl CreateNewProfileModal {
         let name_len = trimmed_name.len();
 
         // Check length
-        if name_len < 5 || name_len > 50 {
+        if !(5..=50).contains(&name_len) {
             return false;
         }
 

@@ -1,6 +1,6 @@
 //! Messages for the card settings router.
 
-use crate::components::error_modal::error_modal::ErrorModalMessage;
+use crate::components::error_modal::ErrorModalMessage;
 use crate::states::CardState;
 
 /// Messages that can be sent within the card settings router

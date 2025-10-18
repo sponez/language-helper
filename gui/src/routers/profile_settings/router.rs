@@ -34,9 +34,7 @@ use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
 use crate::components::back_button::back_button;
-use crate::components::error_modal::error_modal::{
-    error_modal, handle_error_modal_event, ErrorModalMessage,
-};
+use crate::components::error_modal::{error_modal, handle_error_modal_event, ErrorModalMessage};
 use crate::router::{self, RouterEvent, RouterNode, RouterTarget};
 use crate::routers::profile_settings::message::Message;
 use crate::states::{ProfileState, UserState};
@@ -216,10 +214,8 @@ impl ProfileSettingsRouter {
             },
             Message::Event(event) => {
                 // If error modal is showing, handle Enter/Esc to close
-                if self.error_message.is_some() {
-                    if handle_error_modal_event(event) {
-                        self.error_message = None;
-                    }
+                if self.error_message.is_some() && handle_error_modal_event(event) {
+                    self.error_message = None;
                 }
                 (None, Task::none())
             }
@@ -289,7 +285,7 @@ impl ProfileSettingsRouter {
         // If error modal is open, render it on top using stack
         if let Some(ref error_msg) = self.error_message {
             let error_overlay =
-                error_modal(&self.app_state.i18n(), &error_msg).map(Message::ErrorModal);
+                error_modal(&self.app_state.i18n(), error_msg).map(Message::ErrorModal);
             return iced::widget::stack![base_view, error_overlay].into();
         }
 

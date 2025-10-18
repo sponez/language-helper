@@ -1,6 +1,6 @@
 //! Messages for the user router.
 
-use crate::components::error_modal::error_modal::ErrorModalMessage;
+use crate::components::error_modal::ErrorModalMessage;
 use crate::routers::user::elements::{
     profiles_button::ProfilesButtonMessage, settings_button::SettingsButtonMessage,
 };

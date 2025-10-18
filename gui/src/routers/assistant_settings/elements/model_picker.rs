@@ -34,7 +34,7 @@ pub fn model_picker<'a>(
         .shaping(iced::widget::text::Shaping::Advanced);
 
     // All available models
-    let all_models = vec!["Tiny", "Light", "Weak", "Medium", "Strong", "API"];
+    let all_models = ["Tiny", "Light", "Weak", "Medium", "Strong", "API"];
 
     // Create model options with status indicators
     let model_options: Vec<String> = all_models

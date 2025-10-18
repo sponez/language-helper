@@ -1,6 +1,6 @@
 use iced::Event;
 
-use crate::components::error_modal::error_modal::ErrorModalMessage;
+use crate::components::error_modal::ErrorModalMessage;
 use crate::routers::main_screen::elements::{
     add_new_user_button::AddNewUserButtonMessage,
     create_new_user::modal_window::ModalWindowMessage, language_pick_list::LanguagePickListMessage,

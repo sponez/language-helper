@@ -15,7 +15,8 @@ use crate::errors::CoreError;
 /// ```
 /// use lh_core::models::profile::Profile;
 ///
-/// let profile = Profile::new("spanish").unwrap();
+/// let profile = Profile::new("My Spanish", "spanish").unwrap();
+/// assert_eq!(profile.profile_name, "My Spanish");
 /// assert_eq!(profile.target_language, "spanish");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -144,7 +145,7 @@ impl Profile {
     /// use std::thread;
     /// use std::time::Duration;
     ///
-    /// let mut profile = Profile::new("spanish").unwrap();
+    /// let mut profile = Profile::new("My Profile", "spanish").unwrap();
     /// let original_time = profile.last_activity_at;
     ///
     /// thread::sleep(Duration::from_secs(1));

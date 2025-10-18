@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use lh_api::models::system_requirements::{OllamaStatusDto, SystemCompatibilityDto};
 
-use crate::components::error_modal::error_modal::ErrorModalMessage;
+use crate::components::error_modal::ErrorModalMessage;
 use crate::states::AssistantState;
 
 /// Messages from the model picker component

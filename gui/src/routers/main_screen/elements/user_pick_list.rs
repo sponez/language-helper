@@ -28,15 +28,16 @@ pub enum UserPickListMessage {
 /// # Returns
 ///
 /// An Element that produces UserPickListMessage when a user is selected
-pub fn user_pick_list<'a>(
-    users: &Vec<String>,
-    i18n: &Rc<I18n>,
-) -> Element<'a, UserPickListMessage> {
-    pick_list(users.clone(), None::<String>, UserPickListMessage::Selected)
-        .placeholder(i18n.get("user-list-select-placeholder", None))
-        .width(300)
-        .text_shaping(iced::widget::text::Shaping::Advanced)
-        .into()
+pub fn user_pick_list<'a>(users: &[String], i18n: &Rc<I18n>) -> Element<'a, UserPickListMessage> {
+    pick_list(
+        users.to_owned(),
+        None::<String>,
+        UserPickListMessage::Selected,
+    )
+    .placeholder(i18n.get("user-list-select-placeholder", None))
+    .width(300)
+    .text_shaping(iced::widget::text::Shaping::Advanced)
+    .into()
 }
 
 #[cfg(test)]

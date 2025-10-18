@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 /// use lh_api::models::profile::ProfileDto;
 ///
 /// let profile = ProfileDto {
+///     profile_name: "My Spanish".to_string(),
 ///     target_language: "spanish".to_string(),
 ///     created_at: 1234567890,
 ///     last_activity: 1234567900,

@@ -55,7 +55,7 @@ impl AppState {
 
     /// Gets the current language.
     pub fn language(&self) -> Language {
-        self.language.clone()
+        self.language
     }
 
     /// Gets a shared reference to the i18n instance.

@@ -32,9 +32,7 @@ use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
 use crate::components::back_button::back_button;
-use crate::components::error_modal::error_modal::{
-    error_modal, handle_error_modal_event, ErrorModalMessage,
-};
+use crate::components::error_modal::{error_modal, handle_error_modal_event, ErrorModalMessage};
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::routers::profile::message::Message;
 use crate::states::{AssistantState, CardState, ProfileState, UserState};
@@ -199,13 +197,8 @@ impl ProfileRouter {
             }
             None => {
                 // No configured model - check if any supported model is running
-                if let Some(running_model) =
-                    Self::select_best_running_model(&running_models, MODEL_RANKING)
-                {
-                    Some(AssistantState::new_ollama(running_model, true))
-                } else {
-                    None
-                }
+                Self::select_best_running_model(&running_models, MODEL_RANKING)
+                    .map(|running_model| AssistantState::new_ollama(running_model, true))
             }
         }
     }
@@ -322,10 +315,8 @@ impl ProfileRouter {
             },
             Message::Event(event) => {
                 // If error modal is showing, handle Enter/Esc to close
-                if self.error_message.is_some() {
-                    if handle_error_modal_event(event) {
-                        self.error_message = None;
-                    }
+                if self.error_message.is_some() && handle_error_modal_event(event) {
+                    self.error_message = None;
                 }
                 (None, Task::none())
             }
@@ -406,7 +397,7 @@ impl ProfileRouter {
         // If error modal is open, render it on top using stack
         if let Some(ref error_msg) = self.error_message {
             let error_overlay =
-                error_modal(&self.app_state.i18n(), &error_msg).map(Message::ErrorModal);
+                error_modal(&self.app_state.i18n(), error_msg).map(Message::ErrorModal);
             return iced::widget::stack![base, error_overlay].into();
         }
 

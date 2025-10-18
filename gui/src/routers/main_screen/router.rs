@@ -33,9 +33,7 @@ use iced::{event, Alignment, Element, Length, Subscription, Task};
 use lh_api::app_api::AppApi;
 
 use crate::app_state::AppState;
-use crate::components::error_modal::error_modal::{
-    error_modal, handle_error_modal_event, ErrorModalMessage,
-};
+use crate::components::error_modal::{error_modal, handle_error_modal_event, ErrorModalMessage};
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::routers::main_screen::message::Message;
 
@@ -149,7 +147,7 @@ impl MainScreenRouter {
                             Message::ThemeUpdated,
                         );
 
-                        return (None, task);
+                        (None, task)
                     }
                 }
             }
@@ -167,7 +165,7 @@ impl MainScreenRouter {
                             Message::LanguageUpdated,
                         );
 
-                        return (None, task);
+                        (None, task)
                     }
                 }
             }
@@ -290,10 +288,8 @@ impl MainScreenRouter {
                 };
 
                 // If error modal is showing, handle Enter/Esc to close
-                if self.error_message.is_some() {
-                    if handle_error_modal_event(event) {
-                        self.error_message = None;
-                    }
+                if self.error_message.is_some() && handle_error_modal_event(event) {
+                    self.error_message = None;
                 }
 
                 (None, Task::none())
@@ -362,13 +358,13 @@ impl MainScreenRouter {
         // If create user modal is open, render it on top
         if let Some(modal) = &self.create_user_modal {
             let modal_view = modal.view(&self.app_state.i18n()).map(Message::Modal);
-            return modal_view.into();
+            return modal_view;
         }
 
         // If error modal is open, render it on top using stack
         if let Some(ref error_msg) = self.error_message {
             let error_overlay =
-                error_modal(&self.app_state.i18n(), &error_msg).map(Message::ErrorModal);
+                error_modal(&self.app_state.i18n(), error_msg).map(Message::ErrorModal);
             return iced::widget::stack![base, error_overlay].into();
         }
 

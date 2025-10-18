@@ -1,6 +1,6 @@
 //! Messages for the profile settings router.
 
-use crate::components::error_modal::error_modal::ErrorModalMessage;
+use crate::components::error_modal::ErrorModalMessage;
 use crate::routers::profile_settings::elements::{
     assistant_settings_button::AssistantSettingsButtonMessage,
     card_settings_button::CardSettingsButtonMessage,

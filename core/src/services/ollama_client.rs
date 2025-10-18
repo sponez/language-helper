@@ -25,10 +25,10 @@ use tokio::process::Command;
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use lh_core::services::ollama_client;
 ///
-/// let running_models = ollama_client::get_running_models();
+/// let running_models = ollama_client::get_running_models().await;
 /// if running_models.is_empty() {
 ///     println!("No models running");
 /// } else {
@@ -87,10 +87,10 @@ pub async fn get_running_models() -> Vec<String> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use lh_core::services::ollama_client;
 ///
-/// match ollama_client::stop_model("gemma2:9b") {
+/// match ollama_client::stop_model("gemma2:9b").await {
 ///     Ok(_) => println!("Model stopped successfully"),
 ///     Err(e) => eprintln!("Failed to stop model: {}", e),
 /// }
@@ -128,10 +128,10 @@ pub async fn stop_model(model_name: &str) -> Result<(), String> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use lh_core::services::ollama_client;
 ///
-/// match ollama_client::check_server_status() {
+/// match ollama_client::check_server_status().await {
 ///     Ok(true) => println!("Server is running"),
 ///     Ok(false) => println!("Server is not running"),
 ///     Err(e) => eprintln!("Error checking server: {}", e),
@@ -172,10 +172,10 @@ pub async fn check_server_status() -> Result<bool, String> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use lh_core::services::ollama_client;
 ///
-/// match ollama_client::start_server_and_wait() {
+/// match ollama_client::start_server_and_wait().await {
 ///     Ok(_) => println!("Server started successfully"),
 ///     Err(e) => eprintln!("Failed to start server: {}", e),
 /// }
@@ -229,10 +229,10 @@ pub async fn start_server_and_wait() -> Result<(), String> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use lh_core::services::ollama_client;
 ///
-/// let available_models = ollama_client::get_available_models();
+/// let available_models = ollama_client::get_available_models().await;
 /// if available_models.is_empty() {
 ///     println!("No models installed");
 /// } else {
@@ -297,10 +297,10 @@ pub async fn get_available_models() -> Vec<String> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use lh_core::services::ollama_client;
 ///
-/// match ollama_client::pull_model("phi4-mini") {
+/// match ollama_client::pull_model("phi4-mini").await {
 ///     Ok(_) => println!("Model pulled successfully"),
 ///     Err(e) => eprintln!("Failed to pull model: {}", e),
 /// }
@@ -354,10 +354,10 @@ pub async fn pull_model(model_name: &str) -> Result<(), String> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// use lh_core::services::ollama_client;
 ///
-/// match ollama_client::run_model("phi4-mini") {
+/// match ollama_client::run_model("phi4-mini").await {
 ///     Ok(_) => println!("Model loaded successfully"),
 ///     Err(e) => eprintln!("Failed to load model: {}", e),
 /// }

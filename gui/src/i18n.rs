@@ -82,15 +82,14 @@ impl I18n {
         let mut loaded = false;
         for path in locale_paths {
             if let Ok(ftl_string) = fs::read_to_string(&path) {
-                let resource = FluentResource::try_new(ftl_string).expect(&format!(
-                    "Failed to parse FTL resource for locale: {}",
-                    self.current_locale
-                ));
+                let locale = &self.current_locale;
+                let resource = FluentResource::try_new(ftl_string).unwrap_or_else(|_| {
+                    panic!("Failed to parse FTL resource for locale: {}", locale)
+                });
 
-                bundle.add_resource(resource).expect(&format!(
-                    "Failed to add resource to bundle: {}",
-                    self.current_locale
-                ));
+                bundle
+                    .add_resource(resource)
+                    .unwrap_or_else(|_| panic!("Failed to add resource to bundle: {}", locale));
 
                 loaded = true;
                 break;

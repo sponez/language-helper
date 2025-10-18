@@ -33,9 +33,7 @@ use lh_api::models::card_settings::CardSettingsDto;
 
 use crate::app_state::AppState;
 use crate::components::back_button::back_button;
-use crate::components::error_modal::error_modal::{
-    error_modal, handle_error_modal_event, ErrorModalMessage,
-};
+use crate::components::error_modal::{error_modal, handle_error_modal_event, ErrorModalMessage};
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::routers::card_settings::message::Message;
 use crate::states::{CardState, ProfileState, UserState};
@@ -184,7 +182,7 @@ impl CardSettingsRouter {
 
                 // Validate cards per set
                 let cards_per_set = match self.cards_per_set_input.parse::<u32>() {
-                    Ok(n) if n >= 1 && n <= 100 => n,
+                    Ok(n) if (1..=100).contains(&n) => n,
                     Ok(_) => {
                         self.error_message = Some(i18n.get("error-cards-per-set-range", None));
                         self.success_message = None;
@@ -199,7 +197,7 @@ impl CardSettingsRouter {
 
                 // Validate streak length
                 let streak_length = match self.streak_length_input.parse::<u32>() {
-                    Ok(n) if n >= 1 && n <= 50 => n,
+                    Ok(n) if (1..=50).contains(&n) => n,
                     Ok(_) => {
                         self.error_message = Some(i18n.get("error-streak-length-range", None));
                         self.success_message = None;
@@ -275,10 +273,8 @@ impl CardSettingsRouter {
             },
             Message::Event(event) => {
                 // If error modal is showing, handle Enter/Esc to close
-                if self.error_message.is_some() {
-                    if handle_error_modal_event(event) {
-                        self.error_message = None;
-                    }
+                if self.error_message.is_some() && handle_error_modal_event(event) {
+                    self.error_message = None;
                 }
                 (None, Task::none())
             }
@@ -446,7 +442,7 @@ impl CardSettingsRouter {
         if let Some(ref error_msg) = self.error_message {
             if error_msg.contains("Failed to load") || error_msg.contains("Failed to save") {
                 let error_overlay =
-                    error_modal(&self.app_state.i18n(), &error_msg).map(Message::ErrorModal);
+                    error_modal(&self.app_state.i18n(), error_msg).map(Message::ErrorModal);
                 return iced::widget::stack![base_view, error_overlay].into();
             }
         }

@@ -27,7 +27,7 @@ pub fn profile_pick_list<'a>(
     i18n: &I18n,
 ) -> Element<'a, ProfilePickListMessage> {
     // Build options list directly from profile names
-    let profile_options: Vec<String> = profile_names.iter().map(|name| name.clone()).collect();
+    let profile_options: Vec<String> = profile_names.to_vec();
 
     let placeholder = i18n.get("profile-list-title", None);
 

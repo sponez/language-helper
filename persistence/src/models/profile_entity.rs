@@ -24,6 +24,7 @@
 ///
 /// let entity = ProfileEntity::new(
 ///     "user1".to_string(),
+///     "My Spanish".to_string(),
 ///     "spanish".to_string()
 /// );
 /// ```
@@ -130,7 +131,11 @@ impl ProfileEntity {
     /// use std::thread;
     /// use std::time::Duration;
     ///
-    /// let mut entity = ProfileEntity::new("test".to_string(), "spanish".to_string());
+    /// let mut entity = ProfileEntity::new(
+    ///     "test".to_string(),
+    ///     "My Profile".to_string(),
+    ///     "spanish".to_string()
+    /// );
     /// let original_time = entity.last_activity_at;
     ///
     /// thread::sleep(Duration::from_secs(1));

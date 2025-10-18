@@ -263,7 +263,7 @@ impl LearnRouter {
                                 .await
                                 .map_err(|e| format!("Failed to check answer: {}", e))
                         },
-                        |result| Message::AnswerChecked(result),
+                        Message::AnswerChecked,
                     );
 
                     return (None, task);
@@ -844,7 +844,7 @@ impl LearnRouter {
                             // Show "Show Answer" button
                             let show_answer_btn =
                                 action_button(i18n, "learn-show-answer", Some(Message::ShowAnswer));
-                            content_elements.push(show_answer_btn.into());
+                            content_elements.push(show_answer_btn);
                         } else {
                             // Answer is shown - display Correct/False buttons
                             let correct_btn = action_button(
@@ -889,7 +889,7 @@ impl LearnRouter {
                                 },
                             );
 
-                            content_elements.push(submit_btn.into());
+                            content_elements.push(submit_btn);
                         }
 
                         // Show feedback if available
@@ -917,7 +917,7 @@ impl LearnRouter {
                                 action_button(i18n, "learn-continue", Some(Message::Continue));
 
                             content_elements.push(feedback_text.into());
-                            content_elements.push(continue_btn.into());
+                            content_elements.push(continue_btn);
                         }
                     }
 

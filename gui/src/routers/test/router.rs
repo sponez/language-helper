@@ -129,7 +129,7 @@ impl TestRouter {
                                 .await
                                 .map_err(|e| format!("Failed to check answer: {}", e))
                         },
-                        |result| Message::AnswerChecked(result),
+                        Message::AnswerChecked,
                     );
 
                     return (None, task);
@@ -348,7 +348,7 @@ impl TestRouter {
                             .await
                             .map_err(|e| format!("Failed to create test session: {}", e))
                     },
-                    |result| Message::SessionStarted(result),
+                    Message::SessionStarted,
                 );
 
                 (None, task)
@@ -404,7 +404,7 @@ impl TestRouter {
                     .await
                     .map_err(|e| format!("Failed to update card streak: {}", e))
             },
-            |result| Message::CardCompleted(result),
+            Message::CardCompleted,
         )
     }
 
@@ -493,7 +493,7 @@ impl TestRouter {
                         if !answer_shown {
                             let show_answer_btn =
                                 action_button(i18n, "learn-show-answer", Some(Message::ShowAnswer));
-                            content_elements.push(show_answer_btn.into());
+                            content_elements.push(show_answer_btn);
                         } else {
                             let correct_btn = action_button(
                                 i18n,
@@ -538,7 +538,7 @@ impl TestRouter {
                                 },
                             );
 
-                            content_elements.push(submit_btn.into());
+                            content_elements.push(submit_btn);
                         }
 
                         if let Some(fb) = feedback {
@@ -565,7 +565,7 @@ impl TestRouter {
                                 action_button(i18n, "learn-continue", Some(Message::Continue));
 
                             content_elements.push(feedback_text.into());
-                            content_elements.push(continue_btn.into());
+                            content_elements.push(continue_btn);
                         }
                     }
 

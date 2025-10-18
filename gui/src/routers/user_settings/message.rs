@@ -2,7 +2,7 @@
 
 use iced::Theme;
 
-use crate::components::error_modal::error_modal::ErrorModalMessage;
+use crate::components::error_modal::ErrorModalMessage;
 use crate::routers::user_settings::elements::{
     delete_user_button::DeleteUserButtonMessage, theme_pick_list::ThemePickListMessage,
 };

@@ -1,6 +1,6 @@
 //! Message types for the profile router.
 
-use crate::components::error_modal::error_modal::ErrorModalMessage;
+use crate::components::error_modal::ErrorModalMessage;
 use crate::states::{AssistantState, CardState};
 
 use super::elements::{

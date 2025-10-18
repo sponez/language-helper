@@ -745,9 +745,8 @@ mod tests {
             create_straight_card("word3", vec![], vec![("def3", "trans3", vec!["trans3"])]),
         ];
 
-        let session =
-            create_test_session(cards.clone(), "manual".to_string())
-                .expect("Session creation should succeed");
+        let session = create_test_session(cards.clone(), "manual".to_string())
+            .expect("Session creation should succeed");
 
         // All cards should be included
         assert_eq!(session.all_cards.len(), 3);
@@ -771,9 +770,8 @@ mod tests {
 
         // Run multiple times to check for shuffling
         let mut different_orders = 0;
-        let first_session =
-            create_test_session(cards.clone(), "manual".to_string())
-                .expect("Session creation should succeed");
+        let first_session = create_test_session(cards.clone(), "manual".to_string())
+            .expect("Session creation should succeed");
         let first_order: Vec<String> = first_session
             .all_cards
             .iter()
@@ -781,9 +779,8 @@ mod tests {
             .collect();
 
         for _ in 0..10 {
-            let session =
-                create_test_session(cards.clone(), "manual".to_string())
-                    .expect("Session creation should succeed");
+            let session = create_test_session(cards.clone(), "manual".to_string())
+                .expect("Session creation should succeed");
             let order: Vec<String> = session
                 .all_cards
                 .iter()

@@ -1,6 +1,6 @@
 //! Messages for the profile list router.
 
-use crate::components::error_modal::error_modal::ErrorModalMessage;
+use crate::components::error_modal::ErrorModalMessage;
 
 use super::elements::{
     add_profile_button::AddProfileButtonMessage,

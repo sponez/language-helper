@@ -38,9 +38,7 @@ use lh_api::models::system_requirements::{OllamaStatusDto, SystemCompatibilityDt
 
 use crate::app_state::AppState;
 use crate::components::back_button::back_button;
-use crate::components::error_modal::error_modal::{
-    error_modal, handle_error_modal_event, ErrorModalMessage,
-};
+use crate::components::error_modal::{error_modal, handle_error_modal_event, ErrorModalMessage};
 use crate::router::{self, RouterEvent, RouterNode};
 use crate::routers::assistant_settings::message::Message;
 use crate::states::{AssistantState, ProfileState, UserState};
@@ -907,10 +905,8 @@ impl AssistantSettingsRouter {
             },
             Message::Event(event) => {
                 // If error modal is showing, handle Enter/Esc to close
-                if self.error_message.is_some() {
-                    if handle_error_modal_event(event) {
-                        self.error_message = None;
-                    }
+                if self.error_message.is_some() && handle_error_modal_event(event) {
+                    self.error_message = None;
                 }
                 (None, Task::none())
             }

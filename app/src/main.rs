@@ -258,7 +258,7 @@ fn main() -> iced::Result {
     let app_api_rc: Arc<dyn lh_api::app_api::AppApi> = Arc::new(app_api);
 
     // 6. Load embedded fonts
-    let fonts = vec![
+    let fonts = [
         // Noto Sans for Latin/Cyrillic
         include_bytes!("assets/fonts/NotoSans-Regular.ttf").as_slice(),
         // Noto Sans Arabic

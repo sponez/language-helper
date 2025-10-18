@@ -51,6 +51,12 @@ pub struct ReadingField {
     pub value: String,
 }
 
+impl Default for ReadingField {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ReadingField {
     pub fn new() -> Self {
         Self {
@@ -63,6 +69,12 @@ impl ReadingField {
 #[derive(Debug, Clone)]
 pub struct TranslationField {
     pub value: String,
+}
+
+impl Default for TranslationField {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TranslationField {
@@ -79,6 +91,12 @@ pub struct MeaningFields {
     pub definition: String,
     pub translated_definition: String,
     pub translations: Vec<TranslationField>,
+}
+
+impl Default for MeaningFields {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MeaningFields {
@@ -443,7 +461,7 @@ impl AddCardRouter {
 
             // Modal and event handling
             Message::ErrorModal(error_modal_msg) => {
-                use crate::components::error_modal::error_modal::ErrorModalMessage;
+                use crate::components::error_modal::ErrorModalMessage;
                 match error_modal_msg {
                     ErrorModalMessage::Close => {
                         self.error_message = None;
@@ -520,16 +538,12 @@ impl AddCardRouter {
         let meanings = meanings_section(i18n, &self.meanings);
 
         // Error message
-        let error_display = if let Some(ref error) = self.error_message {
-            Some(
-                iced::widget::text(error)
-                    .size(14)
-                    .color(iced::Color::from_rgb(0.8, 0.2, 0.2))
-                    .shaping(iced::widget::text::Shaping::Advanced),
-            )
-        } else {
-            None
-        };
+        let error_display = self.error_message.as_ref().map(|error| {
+            iced::widget::text(error)
+                .size(14)
+                .color(iced::Color::from_rgb(0.8, 0.2, 0.2))
+                .shaping(iced::widget::text::Shaping::Advanced)
+        });
 
         // Action buttons
         let actions = action_buttons(i18n);
