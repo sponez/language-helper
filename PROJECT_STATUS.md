@@ -123,9 +123,9 @@ cargo test -p lh_api
 - [x] Create CONTRIBUTING guide
 - [x] Create API documentation
 - [x] Run `cargo clippy -- -D warnings`
-- [ ] Resolve test compilation issues (optional)
-- [ ] Create release binaries
-- [ ] Tag v0.1.0 release
+- [x] Resolve test compilation issues
+- [x] Create release binaries
+- [x] Tag v0.1.0 release
 
 ## 📝 Recommendations
 
