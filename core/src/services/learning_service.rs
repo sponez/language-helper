@@ -192,12 +192,13 @@ fn check_answer_match(user_input: &str, expected_answers: &[String]) -> (bool, S
     let expected = expected_answers
         .first()
         .cloned()
-        .unwrap_or_else(|| String::new());
+        .unwrap_or_else(String::new);
     (false, expected)
 }
 
 /// Service for managing learning sessions
 pub struct LearningService<R: ProfileRepository> {
+    #[allow(dead_code)] // Repository field reserved for future database operations
     repository: R,
 }
 
@@ -209,117 +210,6 @@ impl<R: ProfileRepository> LearningService<R> {
     /// * `repository` - The profile repository for data access
     pub fn new(repository: R) -> Self {
         Self { repository }
-    }
-
-    /// Creates a new learning session from cards with cyclic shift
-    ///
-    /// Implements cyclic card iteration:
-    /// - If user inputs k (1-indexed) where k <= n, cards are arranged from k to n, then 1 to k-1
-    /// - If k > n, then k_actual = ((k-1) mod n) + 1 and the same logic applies
-    ///
-    /// # Arguments
-    ///
-    /// * `unlearned_cards` - All unlearned cards sorted by creation date
-    /// * `start_card_number` - Starting card number (1-indexed)
-    /// * `cards_per_set` - Number of cards per set
-    /// * `test_method` - Test method ("manual" or "self_review")
-    ///
-    /// # Returns
-    ///
-    /// A new LearningSession with cyclically shifted cards
-    ///
-    /// # Errors
-    ///
-    /// Returns error if there are no cards or invalid parameters
-    pub fn create_session_from_cards(
-        unlearned_cards: Vec<Card>,
-        start_card_number: usize,
-        cards_per_set: usize,
-        test_method: String,
-    ) -> Result<LearningSession, CoreError> {
-        // Validate we have cards
-        if unlearned_cards.is_empty() {
-            return Err(CoreError::validation_error("No unlearned cards available"));
-        }
-
-        // Validate start card number
-        if start_card_number == 0 {
-            return Err(CoreError::validation_error(
-                "Start card number must be at least 1",
-            ));
-        }
-
-        let n = unlearned_cards.len();
-
-        // Apply modulo if k > n: k_actual = ((k-1) mod n) + 1
-        let actual_start_number = if start_card_number > n {
-            ((start_card_number - 1) % n) + 1
-        } else {
-            start_card_number
-        };
-
-        // Convert to 0-indexed
-        let start_index = actual_start_number - 1;
-
-        // Perform cyclic shift: cards from start_index to end, then from 0 to start_index-1
-        let mut shifted_cards = Vec::with_capacity(n);
-        shifted_cards.extend_from_slice(&unlearned_cards[start_index..]);
-        shifted_cards.extend_from_slice(&unlearned_cards[..start_index]);
-
-        // Create session starting from index 0 (since we already shifted the cards)
-        Ok(LearningSession::new(
-            shifted_cards,
-            0,
-            cards_per_set,
-            test_method,
-        ))
-    }
-
-    /// Creates a test session from cards (shuffled, test-only mode)
-    ///
-    /// Unlike learn sessions, test sessions:
-    /// - Include ALL cards (not limited by cards_per_set)
-    /// - Start in Test phase (no study phase)
-    /// - Shuffle cards once at creation
-    ///
-    /// # Arguments
-    ///
-    /// * `cards` - All cards to test (unlearned or learned)
-    /// * `test_method` - "manual" or "self_review"
-    ///
-    /// # Returns
-    ///
-    /// A LearningSession in Test phase with shuffled cards
-    ///
-    /// # Errors
-    ///
-    /// Returns error if there are no cards
-    pub fn create_test_session(
-        mut cards: Vec<Card>,
-        test_method: String,
-    ) -> Result<LearningSession, CoreError> {
-        // Validate we have cards
-        if cards.is_empty() {
-            return Err(CoreError::validation_error("No cards available"));
-        }
-
-        // Shuffle cards using thread_rng
-        use rand::seq::SliceRandom;
-        let mut rng = rand::thread_rng();
-        cards.shuffle(&mut rng);
-
-        let total_cards = cards.len();
-
-        // Create session with all cards, starting in Test phase
-        let mut session = LearningSession::new(
-            cards,
-            0,
-            total_cards, // cards_per_set = total cards
-            test_method,
-        );
-        session.phase = crate::models::LearningPhase::Test;
-
-        Ok(session)
     }
 
     /// Checks a written answer against the session's current card state
@@ -386,6 +276,117 @@ impl<R: ProfileRepository> LearningService<R> {
     pub fn process_self_review(&self, card: &Card, is_correct: bool) -> TestResult {
         TestResult::new_self_review(card.word.name.clone(), is_correct)
     }
+}
+
+/// Creates a new learning session from cards with cyclic shift
+///
+/// Implements cyclic card iteration:
+/// - If user inputs k (1-indexed) where k <= n, cards are arranged from k to n, then 1 to k-1
+/// - If k > n, then k_actual = ((k-1) mod n) + 1 and the same logic applies
+///
+/// # Arguments
+///
+/// * `unlearned_cards` - All unlearned cards sorted by creation date
+/// * `start_card_number` - Starting card number (1-indexed)
+/// * `cards_per_set` - Number of cards per set
+/// * `test_method` - Test method ("manual" or "self_review")
+///
+/// # Returns
+///
+/// A new LearningSession with cyclically shifted cards
+///
+/// # Errors
+///
+/// Returns error if there are no cards or invalid parameters
+pub fn create_session_from_cards(
+    unlearned_cards: Vec<Card>,
+    start_card_number: usize,
+    cards_per_set: usize,
+    test_method: String,
+) -> Result<LearningSession, CoreError> {
+    // Validate we have cards
+    if unlearned_cards.is_empty() {
+        return Err(CoreError::validation_error("No unlearned cards available"));
+    }
+
+    // Validate start card number
+    if start_card_number == 0 {
+        return Err(CoreError::validation_error(
+            "Start card number must be at least 1",
+        ));
+    }
+
+    let n = unlearned_cards.len();
+
+    // Apply modulo if k > n: k_actual = ((k-1) mod n) + 1
+    let actual_start_number = if start_card_number > n {
+        ((start_card_number - 1) % n) + 1
+    } else {
+        start_card_number
+    };
+
+    // Convert to 0-indexed
+    let start_index = actual_start_number - 1;
+
+    // Perform cyclic shift: cards from start_index to end, then from 0 to start_index-1
+    let mut shifted_cards = Vec::with_capacity(n);
+    shifted_cards.extend_from_slice(&unlearned_cards[start_index..]);
+    shifted_cards.extend_from_slice(&unlearned_cards[..start_index]);
+
+    // Create session starting from index 0 (since we already shifted the cards)
+    Ok(LearningSession::new(
+        shifted_cards,
+        0,
+        cards_per_set,
+        test_method,
+    ))
+}
+
+/// Creates a test session from cards (shuffled, test-only mode)
+///
+/// Unlike learn sessions, test sessions:
+/// - Include ALL cards (not limited by cards_per_set)
+/// - Start in Test phase (no study phase)
+/// - Shuffle cards once at creation
+///
+/// # Arguments
+///
+/// * `cards` - All cards to test (unlearned or learned)
+/// * `test_method` - "manual" or "self_review"
+///
+/// # Returns
+///
+/// A LearningSession in Test phase with shuffled cards
+///
+/// # Errors
+///
+/// Returns error if there are no cards
+pub fn create_test_session(
+    mut cards: Vec<Card>,
+    test_method: String,
+) -> Result<LearningSession, CoreError> {
+    // Validate we have cards
+    if cards.is_empty() {
+        return Err(CoreError::validation_error("No cards available"));
+    }
+
+    // Shuffle cards using thread_rng
+    use rand::seq::SliceRandom;
+    let mut rng = rand::thread_rng();
+    cards.shuffle(&mut rng);
+
+    let total_cards = cards.len();
+
+    // Create session with all cards, starting in Test phase
+    let mut session = LearningSession::new(
+        cards,
+        0,
+        total_cards, // cards_per_set = total cards
+        test_method,
+    );
+    session.phase = crate::models::LearningPhase::Test;
+
+    Ok(session)
 }
 
 #[cfg(test)]
@@ -728,7 +729,7 @@ mod tests {
 
     #[test]
     fn test_create_test_session_empty_cards() {
-        let result = LearningService::<()>::create_test_session(vec![], "manual".to_string());
+        let result = create_test_session(vec![], "manual".to_string());
 
         assert!(result.is_err());
         if let Err(e) = result {
@@ -745,7 +746,7 @@ mod tests {
         ];
 
         let session =
-            LearningService::<()>::create_test_session(cards.clone(), "manual".to_string())
+            create_test_session(cards.clone(), "manual".to_string())
                 .expect("Session creation should succeed");
 
         // All cards should be included
@@ -771,7 +772,7 @@ mod tests {
         // Run multiple times to check for shuffling
         let mut different_orders = 0;
         let first_session =
-            LearningService::<()>::create_test_session(cards.clone(), "manual".to_string())
+            create_test_session(cards.clone(), "manual".to_string())
                 .expect("Session creation should succeed");
         let first_order: Vec<String> = first_session
             .all_cards
@@ -781,7 +782,7 @@ mod tests {
 
         for _ in 0..10 {
             let session =
-                LearningService::<()>::create_test_session(cards.clone(), "manual".to_string())
+                create_test_session(cards.clone(), "manual".to_string())
                     .expect("Session creation should succeed");
             let order: Vec<String> = session
                 .all_cards
@@ -810,7 +811,7 @@ mod tests {
             vec![("def1", "trans1", vec!["trans1"])],
         )];
 
-        let session = LearningService::<()>::create_test_session(cards, "self_review".to_string())
+        let session = create_test_session(cards, "self_review".to_string())
             .expect("Session creation should succeed");
 
         assert_eq!(session.test_method, "self_review");

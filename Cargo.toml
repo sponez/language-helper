@@ -3,7 +3,6 @@ members = ["api", "app", "core", "gui", "persistence"]
 resolver = "3"
 
 [workspace.package]
-name = "language-helper"
 version = "0.1.0"
 edition = "2021"
 authors = ["ganzuk1998@gmail.com"]

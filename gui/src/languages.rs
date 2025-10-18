@@ -223,8 +223,7 @@ impl fmt::Display for Language {
 /// # Examples
 ///
 /// ```
-/// use gui::routers::main_screen::elements::language_pick_list::language_name_to_enum;
-/// use gui::languages::Language;
+/// use gui::languages::{language_name_to_enum, Language};
 ///
 /// assert_eq!(language_name_to_enum("English"), Some(Language::English));
 /// assert_eq!(language_name_to_enum("Spanish"), Some(Language::Spanish));

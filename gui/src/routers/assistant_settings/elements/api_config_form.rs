@@ -18,7 +18,7 @@ pub enum ApiProvider {
 impl ApiProvider {
     const ALL: [ApiProvider; 2] = [ApiProvider::OpenAI, ApiProvider::Gemini];
 
-    fn from_str(s: &str) -> Self {
+    fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "gemini" => ApiProvider::Gemini,
             _ => ApiProvider::OpenAI, // Default to OpenAI
@@ -58,7 +58,7 @@ pub fn api_config_form<'a>(
     api_model_name: &str,
 ) -> Element<'a, ApiConfigFormMessage> {
     let i18n = app_state.i18n();
-    let selected_provider = ApiProvider::from_str(api_provider);
+    let selected_provider = ApiProvider::parse(api_provider);
 
     // API Provider picklist
     let provider_label = text(i18n.get("assistant-settings-provider-label", None))

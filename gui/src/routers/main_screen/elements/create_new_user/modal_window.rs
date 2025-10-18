@@ -15,9 +15,10 @@
 //!
 //! # Usage
 //!
-//! ```rust,no_run
+//! ```ignore
+//! // Used internally by the main screen router
 //! use std::sync::Arc;
-//! use create_new_user::modal_window::CreateNewUserModal;
+//! use gui::routers::main_screen::elements::create_new_user::modal_window::CreateNewUserModal;
 //!
 //! // Create modal with API dependency
 //! let modal = CreateNewUserModal::new(Arc::clone(&app_api));

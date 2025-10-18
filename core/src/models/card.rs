@@ -23,7 +23,7 @@ impl CardType {
     }
 
     /// Creates card type from string.
-    pub fn from_str(s: &str) -> Result<Self, CoreError> {
+    pub fn parse(s: &str) -> Result<Self, CoreError> {
         match s.to_lowercase().as_str() {
             "straight" => Ok(CardType::Straight),
             "reverse" => Ok(CardType::Reverse),
@@ -257,10 +257,10 @@ mod tests {
 
     #[test]
     fn test_card_type_from_str() {
-        assert_eq!(CardType::from_str("straight").unwrap(), CardType::Straight);
-        assert_eq!(CardType::from_str("reverse").unwrap(), CardType::Reverse);
-        assert_eq!(CardType::from_str("STRAIGHT").unwrap(), CardType::Straight);
-        assert!(CardType::from_str("invalid").is_err());
+        assert_eq!(CardType::parse("straight").unwrap(), CardType::Straight);
+        assert_eq!(CardType::parse("reverse").unwrap(), CardType::Reverse);
+        assert_eq!(CardType::parse("STRAIGHT").unwrap(), CardType::Straight);
+        assert!(CardType::parse("invalid").is_err());
     }
 
     #[test]

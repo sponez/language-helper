@@ -643,7 +643,7 @@ mod tests {
 
         // Simulate receiving usernames
         let usernames = vec!["alice".to_string(), "bob".to_string()];
-        let (_event, _task) = router.update(Message::UsernamesReceived(usernames.clone()));
+        let (_event, _task) = router.update(Message::UsernamesReceived(Ok(usernames.clone())));
 
         assert_eq!(router.username_list.len(), 2, "Should have 2 usernames");
         assert_eq!(router.username_list, usernames, "Usernames should match");

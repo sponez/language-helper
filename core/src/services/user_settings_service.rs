@@ -165,7 +165,7 @@ impl<SR: UserSettingsRepository, AR: AppSettingsRepository, UR: UserRepository>
         // Business logic: check if settings already exist
         if self
             .settings_repository
-            .find_by_username(&username)
+            .find_by_username(username)
             .await?
             .is_some()
         {

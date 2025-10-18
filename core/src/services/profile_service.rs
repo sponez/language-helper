@@ -454,7 +454,7 @@ impl<R: ProfileRepository> ProfileService<R> {
         for (translation, meaning) in translations_with_meanings {
             translation_map
                 .entry(translation)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(meaning);
         }
 

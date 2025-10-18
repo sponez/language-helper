@@ -54,7 +54,7 @@ impl AiAssistantApi for AiAssistantApiImpl {
         Box::pin(async move {
             ollama_client::stop_model(&model_name)
                 .await
-                .map_err(|e| ApiError::internal_error(e))
+                .map_err(ApiError::internal_error)
         })
     }
 
@@ -64,7 +64,7 @@ impl AiAssistantApi for AiAssistantApiImpl {
         Box::pin(async {
             ollama_client::check_server_status()
                 .await
-                .map_err(|e| ApiError::internal_error(e))
+                .map_err(ApiError::internal_error)
         })
     }
 
@@ -74,7 +74,7 @@ impl AiAssistantApi for AiAssistantApiImpl {
         Box::pin(async {
             ollama_client::start_server_and_wait()
                 .await
-                .map_err(|e| ApiError::internal_error(e))
+                .map_err(ApiError::internal_error)
         })
     }
 
@@ -95,7 +95,7 @@ impl AiAssistantApi for AiAssistantApiImpl {
         Box::pin(async move {
             ollama_client::pull_model(&model_name)
                 .await
-                .map_err(|e| ApiError::internal_error(e))
+                .map_err(ApiError::internal_error)
         })
     }
 
@@ -107,7 +107,7 @@ impl AiAssistantApi for AiAssistantApiImpl {
         Box::pin(async move {
             ollama_client::run_model(&model_name)
                 .await
-                .map_err(|e| ApiError::internal_error(e))
+                .map_err(ApiError::internal_error)
         })
     }
 
@@ -129,7 +129,7 @@ impl AiAssistantApi for AiAssistantApiImpl {
             provider
                 .get_response(&prompt)
                 .await
-                .map_err(|e| ApiError::internal_error(e))
+                .map_err(ApiError::internal_error)
         })
     }
 
@@ -157,7 +157,7 @@ impl AiAssistantApi for AiAssistantApiImpl {
             let response = provider
                 .get_response(&prompt)
                 .await
-                .map_err(|e| ApiError::internal_error(e))?;
+                .map_err(ApiError::internal_error)?;
 
             // Parse the JSON response from the AI
             Self::parse_card_from_json(&response)
@@ -188,7 +188,7 @@ impl AiAssistantApi for AiAssistantApiImpl {
             let response = provider
                 .get_response(&prompt)
                 .await
-                .map_err(|e| ApiError::internal_error(e))?;
+                .map_err(ApiError::internal_error)?;
 
             // Parse the JSON array response from the AI
             Self::parse_card_array_from_json(&response)

@@ -16,9 +16,8 @@ use iced::widget::{text, Text};
 ///
 /// # Examples
 ///
-/// ```no_run
-/// use gui::routers::main_screen::elements::create_new_user::elements::title_text::title_text;
-///
+/// ```ignore
+/// // Used internally by the Create New User modal
 /// let widget = title_text("Create a new user");
 /// ```
 pub fn title_text(title: &str) -> Text<'static> {

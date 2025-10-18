@@ -188,10 +188,11 @@ impl<PR: UserProfilesRepository, UR: UserRepository> UserProfilesService<PR, UR>
         }
 
         // Check if profile with this name already exists
-        if let Some(_) = self
+        if self
             .profile_repository
             .find_by_username_and_profile_name(username, profile_name)
             .await?
+            .is_some()
         {
             return Err(CoreError::validation_error(format!(
                 "Profile '{}' already exists",

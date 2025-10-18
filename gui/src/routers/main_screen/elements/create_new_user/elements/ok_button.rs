@@ -25,11 +25,8 @@ pub enum OkButtonMessage {
 ///
 /// # Examples
 ///
-/// ```no_run
-/// use gui::routers::main_screen::elements::create_new_user::elements::ok_button::{
-///     ok_button, OkButtonMessage
-/// };
-///
+/// ```ignore
+/// // Used internally by the Create New User modal
 /// let element = ok_button("OK", true);
 /// // Can be mapped to parent message:
 /// // element.map(Message::OkButton)

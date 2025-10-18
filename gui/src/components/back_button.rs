@@ -26,10 +26,16 @@ use crate::i18n::I18n;
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// // In a router:
-/// use crate::components::back_button::back_button;
+/// use std::rc::Rc;
+/// use gui::components::back_button::back_button;
+/// use gui::i18n::I18n;
 ///
+/// #[derive(Clone)]
+/// enum Message { BackButton }
+///
+/// let i18n = Rc::new(I18n::new("en"));
 /// let back_btn = back_button(&i18n, "user-back-button", Message::BackButton);
 /// ```
 pub fn back_button<'a, Message: 'a + Clone>(

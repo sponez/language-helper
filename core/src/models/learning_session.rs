@@ -205,7 +205,7 @@ impl LearningSession {
 
     /// Gets the total number of sets in this session
     pub fn total_sets(&self) -> usize {
-        (self.all_cards.len() + self.cards_per_set - 1) / self.cards_per_set
+        self.all_cards.len().div_ceil(self.cards_per_set)
     }
 
     /// Gets the current set number (1-indexed for display)

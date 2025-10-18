@@ -24,11 +24,8 @@ pub enum CancelButtonMessage {
 ///
 /// # Examples
 ///
-/// ```no_run
-/// use gui::routers::main_screen::elements::create_new_user::elements::cancel_button::{
-///     cancel_button, CancelButtonMessage
-/// };
-///
+/// ```ignore
+/// // Used internally by the Create New User modal
 /// let element = cancel_button("Cancel");
 /// // Can be mapped to parent message:
 /// // element.map(Message::CancelButton)

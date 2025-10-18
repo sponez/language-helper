@@ -55,13 +55,15 @@
 //!
 //! ```no_run
 //! use gui::router::{RouterStack, RouterNode};
-//! use gui::routers::user_list_router::UserListRouter;
+//! use gui::routers::main_screen::router::MainScreenRouter;
+//! use gui::app_state::AppState;
 //! use lh_api::app_api::AppApi;
 //! use std::sync::Arc;
 //!
 //! fn initialize_gui(api: Box<dyn AppApi>) -> RouterStack {
 //!     let api_arc = Arc::from(api);
-//!     let root_router: Box<dyn RouterNode> = Box::new(UserListRouter::new(api_arc));
+//!     let app_state = AppState::new("Dark".to_string(), "en".to_string());
+//!     let root_router: Box<dyn RouterNode> = Box::new(MainScreenRouter::new(api_arc, app_state));
 //!     RouterStack::new(root_router)
 //! }
 //! ```

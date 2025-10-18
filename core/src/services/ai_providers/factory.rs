@@ -78,7 +78,7 @@ pub fn create_provider(settings: &AssistantSettingsDto) -> Result<Box<dyn AiProv
 
         match api_provider.to_lowercase().as_str() {
             "gemini" => Ok(Box::new(GeminiProvider::new(api_key, model_name))),
-            "openai" | _ => Ok(Box::new(OpenAiProvider::new(api_key, model_name))),
+            _ => Ok(Box::new(OpenAiProvider::new(api_key, model_name))),
         }
     } else {
         // Local Ollama mode

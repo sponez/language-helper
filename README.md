@@ -1,64 +1,148 @@
 # Language Helper 2
 
-A modern language learning application built with Rust, featuring a clean architecture and an intuitive GUI built with Iced.
+A modern, desktop language learning application built with Rust, featuring a clean architecture, comprehensive AI integration, and an intuitive GUI built with Iced.
 
-## Overview
+## 🌟 Overview
 
-Language Helper 2 is a desktop application designed to help users learn new languages through various interactive features including flashcards, AI-powered explanations, and conversational AI chat.
+Language Helper 2 is a powerful desktop application designed to help users learn new languages through interactive flashcards, spaced repetition algorithms, and AI-powered features. The application supports multiple users, profiles, and target languages, making it perfect for polyglots and language enthusiasts.
 
-## Features
+## ✨ Features
 
-- **Multi-User Support**: Create and manage multiple user accounts
-- **Profile Management**: Each user can create multiple learning profiles for different target languages
-- **Customizable Themes**: Choose from various UI themes
-- **Multi-Language UI**: Interface available in multiple languages
-- **User Settings**: Personalize language preferences and theme
-- **Modern Navigation**: Hierarchical router-based navigation with automatic data refresh
+### Core Features
 
-### Planned Features
+- **📚 Flashcard System**
+  - Straight cards (target language → native language)
+  - Reverse cards (native language → target language)
+  - Multiple meanings per card
+  - Pronunciation readings
+  - Multiple translations per meaning
 
-- **Flashcards**: Spaced repetition learning with custom card decks
-- **AI Explanations**: Get detailed explanations of grammar and vocabulary
-- **AI Chat**: Practice conversations with an AI language tutor
+- **🎯 Learning Modes**
+  - **Learn Mode**: Progressive learning with study and test phases
+  - **Test Mode**: Test all unlearned cards with instant feedback
+  - **Repeat Mode**: Review learned cards to maintain knowledge
+  - Manual input or self-review test methods
+  - Spaced repetition with configurable streak requirements
 
-## Architecture
+- **🤖 AI Integration**
+  - **Local AI Support**: Ollama integration with 5 model sizes (Tiny to Strong)
+  - **Cloud AI Support**: OpenAI and Google Gemini API integration
+  - **AI Explanations**: Get detailed grammar and vocabulary explanations
+  - **AI Card Filling**: Automatically populate card fields
+  - **AI Inverse Cards**: Generate reverse cards with AI assistance
 
-The application follows a clean, layered architecture:
+- **👥 Multi-User Support**
+  - Create and manage multiple user accounts
+  - Individual settings per user
+  - User-specific themes and language preferences
+
+- **🗂️ Profile Management**
+  - Multiple learning profiles per user
+  - Each profile targets a different language
+  - Separate card databases per profile
+  - Configurable learning settings
+
+- **🎨 Customization**
+  - Dark and Light themes
+  - 19 language UI translations
+  - Customizable cards per set (1-100)
+  - Configurable streak requirements (1-50)
+
+- **⚡ Performance**
+  - SQLite database for fast local storage
+  - Async architecture for responsive UI
+  - Efficient memory management
+  - Optimized card shuffling and selection
+
+### User Interface
+
+- **Modern Navigation**: Hierarchical router-based navigation system
+- **Automatic Refresh**: Screens refresh data when navigating back
+- **Error Handling**: User-friendly error messages with modals
+- **Success Feedback**: Inline success messages for actions
+- **Keyboard Shortcuts**: Enter/Esc for modal navigation
+- **Scrollable Views**: Proper scrolling for large card collections
+- **Multilingual Support**: Full RTL language support
+
+## 🏗️ Architecture
+
+The application follows a clean, layered architecture pattern:
 
 ```
-┌─────────────────┐
-│      GUI        │  (Iced-based user interface)
-├─────────────────┤
-│      API        │  (DTOs and API traits)
-├─────────────────┤
-│     Core        │  (Business logic and services)
-├─────────────────┤
-│  Persistence    │  (SQLite data access)
-└─────────────────┘
+┌─────────────────────────────────────────────┐
+│              app/ (entry point)             │
+│  - Dependency injection setup               │
+│  - Iced application initialization          │
+│  - Font loading for multilingual support    │
+└─────────────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────┐
+│           gui/ (presentation)               │
+│  - Iced-based UI components                 │
+│  - Router stack navigation system           │
+│  - 19 locales with Fluent i18n              │
+│  - Reactive state management                │
+└─────────────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────┐
+│         api/ (contracts & DTOs)             │
+│  - Trait definitions for all APIs           │
+│  - Data Transfer Objects (DTOs)             │
+│  - API-specific error types                 │
+│  - Zero business logic                      │
+└─────────────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────┐
+│         core/ (business logic)              │
+│  - API implementations                      │
+│  - Domain services                          │
+│  - Repository trait definitions             │
+│  - AI provider abstractions                 │
+│  - Learning algorithms                      │
+└─────────────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────┐
+│     persistence/ (data access)              │
+│  - SQLite repository implementations        │
+│  - Entity models                            │
+│  - Mappers (Entity ↔ Domain Model)          │
+│  - Async-wrapped database operations        │
+└─────────────────────────────────────────────┘
 ```
 
-### Project Structure
+### Key Architectural Patterns
 
-- **`app/`** - Application entry point and initialization
-- **`gui/`** - User interface layer (Iced widgets, routers, views)
-- **`api/`** - API definitions (traits, DTOs, errors)
-- **`core/`** - Business logic layer (services, repositories)
-- **`persistence/`** - Data access layer (SQLite repositories, entities)
+- **Dependency Injection**: Complete DI chain from main.rs
+- **Repository Pattern**: Abstract data access behind traits
+- **Service Layer**: Business logic separate from persistence
+- **DTO Pattern**: Clean separation between layers
+- **Router Stack**: Type-safe navigation with automatic state refresh
+- **Async/Await**: Non-blocking operations throughout
+- **Error Propagation**: Layered error types with proper mapping
 
-## Technology Stack
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed documentation.
 
-- **Language**: Rust
-- **GUI Framework**: [Iced](https://github.com/iced-rs/iced) - A cross-platform GUI library
-- **Database**: SQLite via [rusqlite](https://github.com/rusqlite/rusqlite)
-- **Async Runtime**: [Tokio](https://tokio.rs/)
+## 🛠️ Technology Stack
+
+- **Language**: Rust (Edition 2021)
+- **GUI Framework**: [Iced](https://github.com/iced-rs/iced) - Cross-platform reactive GUI
+- **Database**: [SQLite](https://www.sqlite.org/) via [rusqlite](https://github.com/rusqlite/rusqlite)
+- **Async Runtime**: [Tokio](https://tokio.rs/) for async operations
 - **Internationalization**: [Fluent](https://projectfluent.org/) for localization
+- **AI Integration**:
+  - [Ollama](https://ollama.com/) for local models
+  - OpenAI API
+  - Google Gemini API
+- **HTTP Client**: [reqwest](https://github.com/seanmonstar/reqwest)
+- **String Matching**: [strsim](https://github.com/dguo/strsim-rs) (Damerau-Levenshtein)
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- Rust (latest stable version)
-- Cargo (comes with Rust)
+- **Rust**: Latest stable version (1.70+)
+- **Cargo**: Comes with Rust
+- **Ollama** (optional): For local AI features - [Install Ollama](https://ollama.com/)
 
 ### Installation
 
@@ -78,97 +162,186 @@ cargo build --release
 cargo run --release
 ```
 
-## Development
+### First Run
 
-### Running in Debug Mode
+1. **Create a User**: Enter username (5-50 characters) and select your language
+2. **Create a Profile**: Enter profile name and select target language
+3. **Configure Settings**:
+   - Card settings: cards per set, test method, streak length
+   - AI settings: choose local or API mode
+4. **Add Cards**: Start building your vocabulary deck
+5. **Start Learning**: Choose Learn, Test, or Repeat mode
 
-```bash
-cargo run
-```
+## 📖 Usage
 
-### Running Tests
+### Learning Workflow
 
-Run all tests:
-```bash
-cargo test
-```
+1. **Add Cards**: Navigate to Cards Menu → Manage Cards → Add New Card
+2. **Learn**: Cards Menu → Learn (progressive learning with tests)
+3. **Test**: Cards Menu → Test (test all unlearned cards)
+4. **Repeat**: Cards Menu → Repeat (review learned cards)
 
-Run tests for a specific crate:
-```bash
-cargo test -p lh_gui
-cargo test -p lh_core
-cargo test -p lh_persistence
-```
+### AI Features
 
-### Project Conventions
+#### Local AI (Ollama)
 
-- **Error Handling**: All errors are properly propagated using Result types
-- **Async/Await**: Repository layer uses `async-trait` and `tokio::task::spawn_blocking` for SQLite operations
-- **Documentation**: All public APIs are documented with rustdoc comments
-- **Testing**: Unit tests are included in the same files as the code they test
+1. Install Ollama from [ollama.com](https://ollama.com/)
+2. Navigate to Profile → Settings → AI Assistant Settings
+3. Select model size (Tiny, Light, Weak, Medium, Strong)
+4. Click "Start Assistant" to launch
+5. Use AI features in Explain AI or card creation
 
-## Navigation System
+#### API AI (OpenAI/Gemini)
 
-The application uses a router-based navigation system:
+1. Navigate to Profile → Settings → AI Assistant Settings
+2. Select "API" mode
+3. Choose provider (OpenAI or Gemini)
+4. Enter API key and model name
+5. Click "Save API Config"
 
-- **RouterStack**: Manages a stack of active screens
-- **RouterNode**: Trait that all screens implement
-- **RouterEvent**: Events for navigation (Push, Pop, PopTo, Exit)
-- **Automatic Refresh**: Screens automatically refresh data when navigating back
+### Supported Languages
 
-### Router Hierarchy
+**UI Languages** (19):
+Arabic, Chinese (Simplified), Chinese (Traditional), Czech, Dutch, English, French, German, Greek, Hebrew, Hindi, Italian, Japanese, Korean, Polish, Portuguese, Russian, Spanish, Turkish
 
-```
-UserListRouter (root)
-  └─> UserRouter
-       ├─> UserSettingsRouter
-       └─> ProfileListRouter
-            └─> ProfileRouter
-```
+**Target Languages**: Any language supported by your vocabulary
 
-## Configuration
+## 🗂️ Data Storage
 
-### User Data Location
+### Location
 
-User data is stored in the following location:
+User data is stored in platform-specific directories:
+
 - **Windows**: `%APPDATA%\Language Helper 2\`
 - **macOS**: `~/Library/Application Support/Language Helper 2/`
 - **Linux**: `~/.local/share/Language Helper 2/`
 
 ### Database Structure
 
-Each user has:
-- User metadata in the main database
-- User settings (theme, language)
-- Profile metadata for each learning profile
-- Separate SQLite database for each profile's learning data
+```
+data/
+├── main.db                          # Main database
+│   ├── users                        # User accounts
+│   ├── user_settings                # User preferences
+│   ├── profiles                     # Profile metadata
+│   └── app_settings                 # Global settings
+│
+└── profiles/
+    └── {username}_{profile}.db      # Per-profile database
+        ├── cards                    # Vocabulary cards
+        ├── meanings                 # Card meanings
+        ├── card_settings            # Learning settings
+        └── assistant_settings       # AI configuration
+```
 
-## Localization
+## 🧪 Development
 
-Adding a new language:
+### Running Tests
 
-1. Create a new FTL file in `gui/locales/{language-code}/main.ftl`
-2. Add the language code to `gui/src/iced_params.rs` in the `LANGUAGES` constant
-3. (Optional) Add a font file for languages requiring special characters to `gui/fonts/`
+```bash
+# Run all tests
+cargo test
 
-## Contributing
+# Run specific crate tests
+cargo test -p lh_core
+cargo test -p lh_gui
+cargo test -p lh_persistence
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+# Run with output
+cargo test -- --nocapture
+```
 
-### Development Guidelines
+### Code Quality
 
-1. Follow Rust naming conventions
-2. Add tests for new functionality
-3. Update documentation for API changes
-4. Ensure `cargo clippy` passes without warnings
-5. Format code with `cargo fmt`
+```bash
+# Format code
+cargo fmt
 
-## License
+# Run linter
+cargo clippy -- -D warnings
 
-[Add your license here]
+# Build documentation
+cargo doc --open
+```
 
-## Acknowledgments
+### Development Workflow
 
-- [Iced](https://github.com/iced-rs/iced) for the excellent GUI framework
-- [Fluent](https://projectfluent.org/) for internationalization support
-- The Rust community for amazing tools and libraries
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+**TDD Approach** (from CLAUDE.md):
+1. Write interfaces and methods with `todo!()`
+2. Write tests for expected behavior
+3. Implement the logic
+
+## 📚 Documentation
+
+- **[ARCHITECTURE.md](ARCHITECTURE.md)**: Detailed system architecture
+- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution guidelines
+- **[CLAUDE.md](CLAUDE.md)**: Development workflow
+- **API Docs**: Run `cargo doc --open`
+
+## 🎯 Roadmap
+
+### Planned Features
+
+- [ ] Statistics and progress tracking
+- [ ] Export/import functionality (CSV, JSON)
+- [ ] Cloud synchronization
+- [ ] Additional AI providers (Claude, etc.)
+- [ ] Audio pronunciation support
+- [ ] Image-based cards
+- [ ] Custom card templates
+- [ ] Study streaks and achievements
+- [ ] Mobile companion app
+
+### Current Limitations
+
+- No cloud sync (local storage only)
+- No audio/image support yet
+- Desktop only (no mobile version)
+- AI features require internet or local Ollama
+
+## 🤝 Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Quick Start for Contributors
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make changes following our TDD approach
+4. Run tests: `cargo test`
+5. Format code: `cargo fmt`
+6. Commit changes: `git commit -m 'feat: add amazing feature'`
+7. Push to branch: `git push origin feature/amazing-feature`
+8. Open a Pull Request
+
+## 🐛 Bug Reports
+
+Found a bug? Please open an issue with:
+
+- Description of the bug
+- Steps to reproduce
+- Expected behavior
+- Actual behavior
+- System info (OS, Rust version)
+
+## 📝 License
+
+This project is licensed under the MIT OR Apache-2.0 License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- [Iced](https://github.com/iced-rs/iced) - Excellent cross-platform GUI framework
+- [Fluent](https://projectfluent.org/) - Powerful internationalization system
+- [Ollama](https://ollama.com/) - Easy local AI model management
+- [The Rust Community](https://www.rust-lang.org/community) - Amazing tools and support
+
+## 📬 Contact
+
+- **Issues**: [GitHub Issues](https://github.com/yourusername/language-helper-2/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/yourusername/language-helper-2/discussions)
+
+---
+
+**Made with ❤️ and Rust**

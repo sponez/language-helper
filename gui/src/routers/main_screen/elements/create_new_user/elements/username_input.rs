@@ -25,11 +25,8 @@ pub enum UsernameInputMessage {
 ///
 /// # Examples
 ///
-/// ```no_run
-/// use gui::routers::main_screen::elements::create_new_user::elements::username_input::{
-///     username_input, UsernameInputMessage
-/// };
-///
+/// ```ignore
+/// // Used internally by the Create New User modal
 /// let element = username_input("Enter username", "");
 /// // Can be mapped to parent message:
 /// // element.map(Message::UsernameInput)

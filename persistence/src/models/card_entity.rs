@@ -104,7 +104,7 @@ pub struct CardWithRelations {
 impl CardWithRelations {
     /// Converts to domain Card.
     pub fn to_domain(&self) -> Result<Card, PersistenceError> {
-        let card_type = CardType::from_str(&self.card.card_type)
+        let card_type = CardType::parse(&self.card.card_type)
             .map_err(|e| PersistenceError::serialization_error(e.to_string()))?;
 
         let word_readings: Vec<String> =

@@ -14,7 +14,7 @@ pub enum ApiProvider {
 
 impl ApiProvider {
     /// Parses an API provider from a string.
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "openai" => Some(ApiProvider::OpenAI),
             "gemini" => Some(ApiProvider::Gemini),
