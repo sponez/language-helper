@@ -11,13 +11,15 @@ use crate::routers::add_card::message::Message;
 /// # Arguments
 ///
 /// * `i18n` - Internationalization context for localized text
+/// * `message_key` - Optional custom message key to display (defaults to "add-card-ai-filling")
 ///
 /// # Returns
 ///
 /// An Element containing the blocking modal overlay
-pub fn ai_filling_modal<'a>(i18n: &Rc<I18n>) -> Element<'a, Message> {
+pub fn ai_filling_modal<'a>(i18n: &Rc<I18n>, message_key: Option<&str>) -> Element<'a, Message> {
     // Loading message
-    let loading_text = text(i18n.get("add-card-ai-filling", None))
+    let key = message_key.unwrap_or("add-card-ai-filling");
+    let loading_text = text(i18n.get(key, None))
         .size(18)
         .shaping(iced::widget::text::Shaping::Advanced);
 

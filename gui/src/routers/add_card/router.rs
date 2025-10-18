@@ -141,6 +141,8 @@ pub struct AddCardRouter {
     is_inverse_card_edit: bool,
     /// Whether AI is currently filling the form
     ai_filling: bool,
+    /// Whether AI is currently merging inverse cards
+    ai_merging: bool,
 }
 
 impl AddCardRouter {
@@ -175,6 +177,7 @@ impl AddCardRouter {
             saved_card: None,
             is_inverse_card_edit: false,
             ai_filling: false,
+            ai_merging: false,
         }
     }
 
@@ -233,6 +236,7 @@ impl AddCardRouter {
             saved_card: None,
             is_inverse_card_edit,
             ai_filling: false,
+            ai_merging: false,
         }
     }
 
@@ -358,6 +362,7 @@ impl AddCardRouter {
             }
             Message::InverseWithAssistant => {
                 self.show_inverse_modal = false;
+                self.ai_merging = true;
                 let task = self.generate_inverse_with_ai_task();
                 (None, task)
             }
@@ -429,35 +434,38 @@ impl AddCardRouter {
                     (None, Task::none())
                 }
             },
-            Message::InverseCardsGenerated(result) => match result {
-                Ok(inverse_cards) => {
-                    if inverse_cards.is_empty() {
+            Message::InverseCardsGenerated(result) => {
+                self.ai_merging = false;
+                match result {
+                    Ok(inverse_cards) => {
+                        if inverse_cards.is_empty() {
+                            (
+                                Some(RouterEvent::PopTo(Some(router::RouterTarget::ManageCards))),
+                                Task::none(),
+                            )
+                        } else {
+                            // Navigate to inverse cards review router
+                            let review_router: Box<dyn RouterNode> = Box::new(
+                                crate::routers::inverse_cards_review::router::InverseCardsReviewRouter::new(
+                                    Rc::clone(&self.user_state),
+                                    Rc::clone(&self.profile_state),
+                                    Arc::clone(&self.app_api),
+                                    Rc::clone(&self.app_state),
+                                    inverse_cards,
+                                ),
+                            );
+                            (Some(RouterEvent::Push(review_router)), Task::none())
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to generate inverse cards: {:?}", e);
                         (
                             Some(RouterEvent::PopTo(Some(router::RouterTarget::ManageCards))),
                             Task::none(),
                         )
-                    } else {
-                        // Navigate to inverse cards review router
-                        let review_router: Box<dyn RouterNode> = Box::new(
-                            crate::routers::inverse_cards_review::router::InverseCardsReviewRouter::new(
-                                Rc::clone(&self.user_state),
-                                Rc::clone(&self.profile_state),
-                                Arc::clone(&self.app_api),
-                                Rc::clone(&self.app_state),
-                                inverse_cards,
-                            ),
-                        );
-                        (Some(RouterEvent::Push(review_router)), Task::none())
                     }
                 }
-                Err(e) => {
-                    eprintln!("Failed to generate inverse cards: {:?}", e);
-                    (
-                        Some(RouterEvent::PopTo(Some(router::RouterTarget::ManageCards))),
-                        Task::none(),
-                    )
-                }
-            },
+            }
 
             // Modal and event handling
             Message::ErrorModal(error_modal_msg) => {
@@ -583,10 +591,14 @@ impl AddCardRouter {
         // Stack center content and AI button overlay
         let main_content = stack![center_content, ai_button_overlay];
 
-        // Layer modals based on priority: AI filling > inverse modal
-        if self.ai_filling {
+        // Layer modals based on priority: AI merging > AI filling > inverse modal
+        if self.ai_merging {
+            // Show AI merging modal (blocking, no interaction)
+            let modal = ai_filling_modal(i18n, Some("add-card-ai-merging"));
+            stack![main_content, modal].into()
+        } else if self.ai_filling {
             // Show AI filling modal (blocking, no interaction)
-            let modal = ai_filling_modal(i18n);
+            let modal = ai_filling_modal(i18n, Some("add-card-ai-filling"));
             stack![main_content, modal].into()
         } else if self.show_inverse_modal {
             // Show inverse modal

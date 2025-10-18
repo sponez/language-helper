@@ -188,6 +188,7 @@ manage-cards-add-new = Add New Card
 add-card-title = Add Card
 add-card-fill-ai = Fill with AI
 add-card-ai-filling = AI is filling the card...
+add-card-ai-merging = AI is merging cards...
 add-card-type-label = Card Type:
 add-card-type-straight = Straight
 add-card-type-reverse = Reverse
