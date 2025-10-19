@@ -1,0 +1,74 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      # ---------- macOS ----------
+      - name: Add macOS targets
+        if: matrix.os == 'macos-latest'
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build (macOS, both archs)
+        if: matrix.os == 'macos-latest'
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+
+      - name: Create universal binary
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p dist
+          APPBIN="yourbin"   # <-- change to your binary name
+          lipo -create \
+            target/aarch64-apple-darwin/release/$APPBIN \
+            target/x86_64-apple-darwin/release/$APPBIN \
+            -output dist/$APPBIN-universal
+          file dist/$APPBIN-universal
+          lipo -info dist/$APPBIN-universal
+
+      - name: Upload macOS artifact
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal
+          path: dist/*
+
+      # ---------- Windows ----------
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        run: cargo build --release
+
+      - name: Package (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir dist
+          set BIN=yourbin.exe   # <-- change to your binary name
+          copy target\release\%BIN% dist\
+          powershell -Command "Compress-Archive -Path dist\* -DestinationPath dist\windows-release.zip"
+
+      - name: Upload Windows artifact
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
