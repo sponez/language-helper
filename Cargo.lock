@@ -2130,6 +2130,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "lh_mobile_bridge"
+version = "0.1.0"
+dependencies = [
+ "lh_api",
+ "lh_core",
+ "lh_persistence",
+ "log",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "lh_persistence"
 version = "0.1.0"
 dependencies = [
