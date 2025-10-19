@@ -62,7 +62,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           mkdir dist
-          set BIN=yourbin.exe   # <-- change to your binary name
+          set BIN=app.exe
           copy target\release\%BIN% dist\
           powershell -Command "Compress-Archive -Path dist\* -DestinationPath dist\windows-release.zip"
 

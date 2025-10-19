@@ -232,7 +232,19 @@ pub fn get_compatible_models() -> Vec<String> {
 /// An `OllamaStatus` containing installation status, version (if installed),
 /// and a message with installation instructions if not installed.
 pub fn check_ollama_status() -> OllamaStatus {
-    match Command::new("ollama").arg("--version").output() {
+    #[cfg(target_os = "windows")]
+    let output_result = {
+        use std::os::windows::process::CommandExt;
+        Command::new("ollama")
+            .arg("--version")
+            .creation_flags(0x08000000)
+            .output()
+    };
+
+    #[cfg(not(target_os = "windows"))]
+    let output_result = Command::new("ollama").arg("--version").output();
+
+    match output_result {
         Ok(output) => {
             if output.status.success() {
                 // Parse version from output

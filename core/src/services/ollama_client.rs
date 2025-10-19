@@ -37,7 +37,17 @@ use tokio::process::Command;
 /// ```
 pub async fn get_running_models() -> Vec<String> {
     // Execute "ollama ps" command
-    match Command::new("ollama").arg("ps").output().await {
+    #[cfg(target_os = "windows")]
+    let output_result = Command::new("ollama")
+        .arg("ps")
+        .creation_flags(0x08000000)
+        .output()
+        .await;
+
+    #[cfg(not(target_os = "windows"))]
+    let output_result = Command::new("ollama").arg("ps").output().await;
+
+    match output_result {
         Ok(output) => {
             if !output.status.success() {
                 eprintln!("Ollama ps command failed with status: {}", output.status);
@@ -97,12 +107,22 @@ pub async fn get_running_models() -> Vec<String> {
 /// ```
 pub async fn stop_model(model_name: &str) -> Result<(), String> {
     // Execute "ollama stop <model_name>" command
-    match Command::new("ollama")
+    #[cfg(target_os = "windows")]
+    let output_result = Command::new("ollama")
+        .arg("stop")
+        .arg(model_name)
+        .creation_flags(0x08000000)
+        .output()
+        .await;
+
+    #[cfg(not(target_os = "windows"))]
+    let output_result = Command::new("ollama")
         .arg("stop")
         .arg(model_name)
         .output()
-        .await
-    {
+        .await;
+
+    match output_result {
         Ok(output) => {
             if output.status.success() {
                 Ok(())
@@ -181,6 +201,17 @@ pub async fn check_server_status() -> Result<bool, String> {
 /// }
 /// ```
 pub async fn start_server_and_wait() -> Result<(), String> {
+    // Spawn ollama serve as a background process
+    #[cfg(target_os = "windows")]
+    let spawn_result = {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        Command::new("ollama")
+            .arg("serve")
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+    };
+
+    #[cfg(not(target_os = "windows"))]
     let spawn_result = Command::new("ollama").arg("serve").spawn();
 
     spawn_result.map_err(|e| format!("Failed to spawn ollama serve: {}", e))?;
@@ -239,7 +270,17 @@ pub async fn start_server_and_wait() -> Result<(), String> {
 /// ```
 pub async fn get_available_models() -> Vec<String> {
     // Execute "ollama ls" command
-    match Command::new("ollama").arg("ls").output().await {
+    #[cfg(target_os = "windows")]
+    let output_result = Command::new("ollama")
+        .arg("ls")
+        .creation_flags(0x08000000)
+        .output()
+        .await;
+
+    #[cfg(not(target_os = "windows"))]
+    let output_result = Command::new("ollama").arg("ls").output().await;
+
+    match output_result {
         Ok(output) => {
             if !output.status.success() {
                 eprintln!("Ollama ls command failed with status: {}", output.status);
@@ -307,12 +348,22 @@ pub async fn pull_model(model_name: &str) -> Result<(), String> {
     println!("Starting pull for model: {}", model_name);
 
     // Execute "ollama pull <model_name>" and wait for completion
-    match Command::new("ollama")
+    #[cfg(target_os = "windows")]
+    let output_result = Command::new("ollama")
+        .arg("pull")
+        .arg(model_name)
+        .creation_flags(0x08000000)
+        .output()
+        .await;
+
+    #[cfg(not(target_os = "windows"))]
+    let output_result = Command::new("ollama")
         .arg("pull")
         .arg(model_name)
         .output()
-        .await
-    {
+        .await;
+
+    match output_result {
         Ok(output) => {
             if output.status.success() {
                 println!("Model pull completed successfully");
