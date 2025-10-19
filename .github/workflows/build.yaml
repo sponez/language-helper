@@ -73,17 +73,16 @@ jobs:
       - name: Build (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          cargo build --%PROFILE% ^
-            --manifest-path Cargo.toml ^
-            -p %PKG_NAME% ^
-            --bin %BIN_NAME%
+          cargo build --release `
+            -p $env:PKG_NAME `
+            --bin $env:BIN_NAME
 
       - name: Package (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item "target\${env:PROFILE}\${env:BIN_NAME}.exe" "dist\"
+          Copy-Item "target\release\$env:BIN_NAME.exe" "dist\"
           Compress-Archive -Path dist\* -DestinationPath dist\windows-release.zip -Force
 
       - name: Upload Windows artifact
