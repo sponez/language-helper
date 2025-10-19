@@ -11,6 +11,10 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      PKG_NAME: app
+      BIN_NAME: app
+      PROFILE: release
 
     steps:
       - name: Checkout
@@ -28,23 +32,35 @@ jobs:
         run: |
           rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
-      - name: Build (macOS, both archs)
+      - name: Build (macOS aarch64)
         if: matrix.os == 'macos-latest'
         run: |
-          cargo build --release --target aarch64-apple-darwin
-          cargo build --release --target x86_64-apple-darwin
+          cargo build --${{ env.PROFILE }} \
+            --manifest-path Cargo.toml \
+            -p ${{ env.PKG_NAME }} \
+            --bin ${{ env.BIN_NAME }} \
+            --target aarch64-apple-darwin
+
+      - name: Build (macOS x86_64)
+        if: matrix.os == 'macos-latest'
+        run: |
+          cargo build --${{ env.PROFILE }} \
+            --manifest-path Cargo.toml \
+            -p ${{ env.PKG_NAME }} \
+            --bin ${{ env.BIN_NAME }} \
+            --target x86_64-apple-darwin
 
       - name: Create universal binary
         if: matrix.os == 'macos-latest'
         run: |
+          set -e
           mkdir -p dist
-          APPBIN="app"
-          lipo -create \
-            target/aarch64-apple-darwin/release/$APPBIN \
-            target/x86_64-apple-darwin/release/$APPBIN \
-            -output dist/$APPBIN-universal
-          file dist/$APPBIN-universal
-          lipo -info dist/$APPBIN-universal
+          A=target/aarch64-apple-darwin/${{ env.PROFILE }}/${{ env.BIN_NAME }}
+          B=target/x86_64-apple-darwin/${{ env.PROFILE }}/${{ env.BIN_NAME }}
+          test -f "$A" && test -f "$B"
+          lipo -create "$A" "$B" -output "dist/${{ env.BIN_NAME }}-universal"
+          file "dist/${{ env.BIN_NAME }}-universal"
+          lipo -info "dist/${{ env.BIN_NAME }}-universal"
 
       - name: Upload macOS artifact
         if: matrix.os == 'macos-latest'
@@ -56,15 +72,19 @@ jobs:
       # ---------- Windows ----------
       - name: Build (Windows)
         if: matrix.os == 'windows-latest'
-        run: cargo build --release
+        run: |
+          cargo build --%PROFILE% ^
+            --manifest-path Cargo.toml ^
+            -p %PKG_NAME% ^
+            --bin %BIN_NAME%
 
       - name: Package (Windows)
         if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
-          mkdir dist
-          set BIN=app.exe
-          copy target\release\%BIN% dist\
-          powershell -Command "Compress-Archive -Path dist\* -DestinationPath dist\windows-release.zip"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "target\${env:PROFILE}\${env:BIN_NAME}.exe" "dist\"
+          Compress-Archive -Path dist\* -DestinationPath dist\windows-release.zip -Force
 
       - name: Upload Windows artifact
         if: matrix.os == 'windows-latest'
