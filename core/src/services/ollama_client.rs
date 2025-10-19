@@ -181,17 +181,6 @@ pub async fn check_server_status() -> Result<bool, String> {
 /// }
 /// ```
 pub async fn start_server_and_wait() -> Result<(), String> {
-    // Spawn ollama serve as a background process
-    #[cfg(target_os = "windows")]
-    let spawn_result = {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        Command::new("ollama")
-            .arg("serve")
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-    };
-
-    #[cfg(not(target_os = "windows"))]
     let spawn_result = Command::new("ollama").arg("serve").spawn();
 
     spawn_result.map_err(|e| format!("Failed to spawn ollama serve: {}", e))?;

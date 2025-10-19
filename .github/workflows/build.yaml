@@ -38,7 +38,7 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           mkdir -p dist
-          APPBIN="yourbin"   # <-- change to your binary name
+          APPBIN="app"
           lipo -create \
             target/aarch64-apple-darwin/release/$APPBIN \
             target/x86_64-apple-darwin/release/$APPBIN \
