@@ -8,8 +8,8 @@ use std::os::raw::c_char;
 use std::sync::{Arc, Mutex};
 
 use lh_core::api_impl::{
-    AiAssistantApiImpl, AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl,
-    SystemRequirementsApiImpl, UsersApiImpl,
+    AiAssistantApiImpl, AppApiImpl, AppSettingsApiImpl, ProfilesApiImpl, SystemRequirementsApiImpl,
+    UsersApiImpl,
 };
 use lh_core::repositories::adapters::{
     AppSettingsRepositoryAdapter, ProfileDbRepositoryAdapter, ProfileRepositoryAdapter,
@@ -169,7 +169,11 @@ fn initialize_app_api(
     let learning_service = LearningService::new(profile_db_repository2);
 
     // 4. Create API implementations
-    let users_api = UsersApiImpl::new(user_service, user_settings_service, profile_metadata_service);
+    let users_api = UsersApiImpl::new(
+        user_service,
+        user_settings_service,
+        profile_metadata_service,
+    );
     let profiles_api = ProfilesApiImpl::new(profile_db_service, learning_service);
     let app_settings_api = AppSettingsApiImpl::new(app_settings_service);
     let system_requirements_api = SystemRequirementsApiImpl::new();

@@ -1,8 +1,13 @@
 use iced::Event;
+use lh_api::models::card_filter::CardFilter;
 
 /// Messages that can be sent within the test router
 #[derive(Debug, Clone)]
 pub enum Message {
+    /// Card filter selected on start screen
+    CardFilterSelected(CardFilter),
+    /// Start button pressed on start screen
+    Start,
     /// Session started (async result)
     SessionStarted(Result<lh_api::models::learning_session::LearningSessionDto, String>),
 
@@ -11,7 +16,7 @@ pub enum Message {
     /// User submitted answer
     SubmitAnswer,
     /// Answer checked (async result)
-    AnswerChecked(Result<(bool, String), String>),
+    AnswerChecked(Result<(bool, String, Option<usize>), String>),
 
     /// Show answer button pressed (self-review mode)
     ShowAnswer,

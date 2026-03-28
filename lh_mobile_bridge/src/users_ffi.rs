@@ -63,7 +63,10 @@ pub unsafe extern "C" fn get_user_by_username(username: *const c_char) -> *const
 ///
 /// This function dereferences raw pointers.
 #[no_mangle]
-pub unsafe extern "C" fn create_user(username: *const c_char, language: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn create_user(
+    username: *const c_char,
+    language: *const c_char,
+) -> *const c_char {
     let username_str = match c_str_to_rust(username, "username") {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,
@@ -96,7 +99,10 @@ pub unsafe extern "C" fn create_user(username: *const c_char, language: *const c
 ///
 /// This function dereferences raw pointers.
 #[no_mangle]
-pub unsafe extern "C" fn update_user_theme(username: *const c_char, theme: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn update_user_theme(
+    username: *const c_char,
+    theme: *const c_char,
+) -> *const c_char {
     let username_str = match c_str_to_rust(username, "username") {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,
@@ -129,7 +135,10 @@ pub unsafe extern "C" fn update_user_theme(username: *const c_char, theme: *cons
 ///
 /// This function dereferences raw pointers.
 #[no_mangle]
-pub unsafe extern "C" fn update_user_language(username: *const c_char, language: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn update_user_language(
+    username: *const c_char,
+    language: *const c_char,
+) -> *const c_char {
     let username_str = match c_str_to_rust(username, "username") {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,
@@ -167,7 +176,11 @@ pub unsafe extern "C" fn delete_user(username: *const c_char) -> *const c_char {
         Err(err_ptr) => return err_ptr,
     };
 
-    ffi_call!(APP_API.as_ref().unwrap().users_api().delete_user(&username_str))
+    ffi_call!(APP_API
+        .as_ref()
+        .unwrap()
+        .users_api()
+        .delete_user(&username_str))
 }
 
 /// Create a new learning profile for a user
@@ -206,11 +219,11 @@ pub unsafe extern "C" fn create_profile(
         Err(err_ptr) => return err_ptr,
     };
 
-    ffi_call!(APP_API
-        .as_ref()
-        .unwrap()
-        .users_api()
-        .create_profile(&username_str, &profile_name_str, &target_language_str))
+    ffi_call!(APP_API.as_ref().unwrap().users_api().create_profile(
+        &username_str,
+        &profile_name_str,
+        &target_language_str
+    ))
 }
 
 /// Delete a profile and its associated database file
@@ -228,7 +241,10 @@ pub unsafe extern "C" fn create_profile(
 ///
 /// This function dereferences raw pointers.
 #[no_mangle]
-pub unsafe extern "C" fn delete_profile(username: *const c_char, profile_name: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn delete_profile(
+    username: *const c_char,
+    profile_name: *const c_char,
+) -> *const c_char {
     let username_str = match c_str_to_rust(username, "username") {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,

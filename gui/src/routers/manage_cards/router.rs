@@ -40,6 +40,29 @@ use super::elements::action_buttons::action_buttons;
 use super::elements::card_list::card_list;
 use super::elements::tab_buttons::tab_buttons;
 
+fn card_matches_query(card: &CardDto, query: &str) -> bool {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return true;
+    }
+
+    let mut haystacks = std::iter::once(card.word.name.as_str())
+        .chain(card.word.readings.iter().map(String::as_str))
+        .chain(card.meanings.iter().map(|meaning| meaning.definition.as_str()))
+        .chain(
+            card.meanings
+                .iter()
+                .map(|meaning| meaning.translated_definition.as_str()),
+        )
+        .chain(
+            card.meanings
+                .iter()
+                .flat_map(|meaning| meaning.word_translations.iter().map(String::as_str)),
+        );
+
+    haystacks.any(|value| value.to_lowercase().contains(&query))
+}
+
 /// State for the manage cards router
 pub struct ManageCardsRouter {
     /// User context (read-only reference)
@@ -59,6 +82,10 @@ pub struct ManageCardsRouter {
     learned_cards: Option<Vec<CardDto>>,
     /// Error message to display
     error_message: Option<String>,
+    /// Search query for client-side filtering
+    search_query: String,
+    /// Currently displayed read-only card
+    show_card: Option<CardDto>,
 }
 
 impl ManageCardsRouter {
@@ -85,6 +112,8 @@ impl ManageCardsRouter {
             unlearned_cards: None,
             learned_cards: None,
             error_message: None,
+            search_query: String::new(),
+            show_card: None,
         }
     }
 
@@ -107,6 +136,10 @@ impl ManageCardsRouter {
                 self.selected_tab = SelectedTab::Learned;
                 (None, Task::none())
             }
+            Message::SearchChanged(value) => {
+                self.search_query = value;
+                (None, Task::none())
+            }
             Message::AddNew => {
                 // Navigate to add card router for creating a new card
                 let add_card_router: Box<dyn RouterNode> =
@@ -119,38 +152,24 @@ impl ManageCardsRouter {
                     ));
                 (Some(RouterEvent::Push(add_card_router)), Task::none())
             }
-            Message::EditCard(word_name) => {
+            Message::EditCard(card) => {
                 // Find the card to edit
-                let cards = if self.selected_tab == SelectedTab::Unlearned {
-                    &self.unlearned_cards
-                } else {
-                    &self.learned_cards
-                };
-
-                if let Some(cards_list) = cards {
-                    if let Some(card) = cards_list.iter().find(|c| c.word.name == word_name) {
-                        // Navigate to add card router for editing
-                        let add_card_router: Box<dyn RouterNode> =
-                            Box::new(crate::routers::add_card::router::AddCardRouter::new_edit(
-                                Rc::clone(&self.user_state),
-                                Rc::clone(&self.profile_state),
-                                Arc::clone(&self.app_api),
-                                Rc::clone(&self.app_state),
-                                card.clone(),
-                                false, // Not editing an inverse card
-                            ));
-                        return (Some(RouterEvent::Push(add_card_router)), Task::none());
-                    }
-                }
-
-                // Card not found - show error modal
-                self.error_message = Some(format!("Card not found for editing: {}", word_name));
-                (None, Task::none())
+                let add_card_router: Box<dyn RouterNode> =
+                    Box::new(crate::routers::add_card::router::AddCardRouter::new_edit(
+                        Rc::clone(&self.user_state),
+                        Rc::clone(&self.profile_state),
+                        Arc::clone(&self.app_api),
+                        Rc::clone(&self.app_state),
+                        card,
+                        false, // Not editing an inverse card
+                    ));
+                (Some(RouterEvent::Push(add_card_router)), Task::none())
             }
-            Message::DeleteCard(word_name) => {
+            Message::DeleteCard(card) => {
                 let username = self.user_state.username.clone();
                 let profile_name = self.profile_state.profile_name.clone();
                 let api = Arc::clone(&self.app_api);
+                let word_name = card.word.name.clone();
 
                 let task = Task::perform(
                     async move {
@@ -174,6 +193,14 @@ impl ManageCardsRouter {
 
                 (None, task)
             }
+            Message::ShowCard(card) => {
+                self.show_card = Some(card);
+                (None, Task::none())
+            }
+            Message::CloseShowCard => {
+                self.show_card = None;
+                (None, Task::none())
+            }
             Message::Back => (Some(RouterEvent::Pop), Task::none()),
 
             // Async operation results
@@ -182,6 +209,7 @@ impl ManageCardsRouter {
                     self.unlearned_cards = Some(unlearned);
                     self.learned_cards = Some(learned);
                     self.error_message = None;
+                    self.show_card = None;
                     (None, Task::none())
                 }
                 Err(e) => {
@@ -249,6 +277,14 @@ impl ManageCardsRouter {
             &self.learned_cards
         };
 
+        let search_input = iced::widget::text_input(
+            &i18n.get("manage-cards-search-placeholder", None),
+            &self.search_query,
+        )
+        .on_input(Message::SearchChanged)
+        .padding(10)
+        .width(Length::Fill);
+
         let cards_content = match cards {
             None => {
                 // Loading state
@@ -284,8 +320,73 @@ impl ManageCardsRouter {
                 .center_y(Length::Fill)
             }
             Some(cards) => {
-                // Card list
-                container(scrollable(card_list(i18n, cards)))
+                let filtered_cards: Vec<CardDto> = cards
+                    .iter()
+                    .filter(|card| card_matches_query(card, &self.search_query))
+                    .cloned()
+                    .collect();
+
+                if filtered_cards.is_empty() {
+                    container(
+                        iced::widget::text(i18n.get("manage-cards-no-results", None))
+                            .size(14)
+                            .shaping(iced::widget::text::Shaping::Advanced),
+                    )
+                    .padding(20)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill)
+                } else {
+                    let straight_cards: Vec<CardDto> = filtered_cards
+                        .iter()
+                        .filter(|card| {
+                            matches!(card.card_type, lh_api::models::card::CardType::Straight)
+                        })
+                        .cloned()
+                        .collect();
+                    let reverse_cards: Vec<CardDto> = filtered_cards
+                        .iter()
+                        .filter(|card| {
+                            matches!(card.card_type, lh_api::models::card::CardType::Reverse)
+                        })
+                        .cloned()
+                        .collect();
+
+                    let mut sections = column![].spacing(16);
+                    if !straight_cards.is_empty() {
+                        sections = sections.push(
+                            column![
+                                iced::widget::text(format!(
+                                    "{} ({})",
+                                    i18n.get("add-card-type-straight", None),
+                                    straight_cards.len()
+                                ))
+                                .size(18)
+                                .shaping(iced::widget::text::Shaping::Advanced),
+                                card_list(i18n, straight_cards)
+                            ]
+                            .spacing(8),
+                        );
+                    }
+                    if !reverse_cards.is_empty() {
+                        sections = sections.push(
+                            column![
+                                iced::widget::text(format!(
+                                    "{} ({})",
+                                    i18n.get("add-card-type-reverse", None),
+                                    reverse_cards.len()
+                                ))
+                                .size(18)
+                                .shaping(iced::widget::text::Shaping::Advanced),
+                                card_list(i18n, reverse_cards)
+                            ]
+                            .spacing(8),
+                        );
+                    }
+
+                    container(scrollable(sections))
+                }
                     .width(Length::Fill)
                     .height(Length::Fill)
             }
@@ -296,7 +397,7 @@ impl ManageCardsRouter {
 
         // Center content: Title, tabs, cards, and add button
         let center_content = Container::new(
-            column![title, tabs, cards_content, add_new_button]
+            column![title, tabs, search_input, cards_content, add_new_button]
                 .spacing(20)
                 .padding(20)
                 .align_x(Alignment::Center),
@@ -324,10 +425,40 @@ impl ManageCardsRouter {
             .height(Length::Fill);
 
         // Error modal overlay
+        let mut layered = stack![base].into();
+
+        if let Some(ref card) = self.show_card {
+            let modal_content = iced::widget::column![
+                crate::routers::learn::elements::card_display::card_display::<Message>(
+                    i18n, card, 1, 1
+                ),
+                iced::widget::button(
+                    iced::widget::text(i18n.get("close", None))
+                        .shaping(iced::widget::text::Shaping::Advanced)
+                )
+                .on_press(Message::CloseShowCard)
+                .padding(8)
+            ]
+            .spacing(16)
+            .align_x(Alignment::Center);
+
+            let overlay = container(
+                container(modal_content)
+                    .padding(20)
+                    .style(container::rounded_box),
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill);
+
+            layered = stack![layered, overlay].into();
+        }
+
         if let Some(ref error_msg) = self.error_message {
-            stack![base, error_modal(i18n, error_msg).map(Message::ErrorModal)].into()
+            stack![layered, error_modal(i18n, error_msg).map(Message::ErrorModal)].into()
         } else {
-            base.into()
+            layered
         }
     }
 

@@ -5,6 +5,7 @@
 
 use std::future::Future;
 use std::pin::Pin;
+use std::collections::HashSet;
 
 use lh_api::apis::ai_assistant_api::AiAssistantApi;
 use lh_api::errors::api_error::ApiError;
@@ -268,7 +269,14 @@ Output JSON schema (must match exactly):
   ]
 }}
 
-For the word or expression "{card_name}" you must fill all possible readings and meanings. Do not repeat similar meanings.
+For the word or expression "{card_name}" you must fill a compact but complete set of meanings.
+"readings" must be deduplicated.
+"meanings" must be deduplicated and non-overlapping.
+Prefer the most common and general meanings first.
+Add a separate meaning only if it expresses a genuinely different shade that does NOT naturally follow from a more general meaning.
+Do not split near-synonymous senses into multiple meanings.
+Do not repeat the same translation across multiple meanings unless that overlap is truly unavoidable.
+Rare or niche senses should be omitted unless they are clearly important and not implied by the common meanings.
 "readings" is transcriptions, kana, romaji, and more (leave blank for expressions)
 Each "meaning" must have a "definition". "definition" is the definition of the word or expression, as in a dictionary in the {card_language} language.
 "translated_definition" is a translation of the definition into {target_language} language.
@@ -280,6 +288,152 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
             target_language = target_language,
             card_name = card_name
         )
+    }
+
+    fn normalize_text(value: &str) -> String {
+        value
+            .trim()
+            .to_lowercase()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    fn dedupe_preserve_order(values: Vec<String>) -> Vec<String> {
+        let mut seen = HashSet::new();
+        let mut deduped = Vec::new();
+
+        for value in values {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            let normalized = Self::normalize_text(trimmed);
+            if seen.insert(normalized) {
+                deduped.push(trimmed.to_string());
+            }
+        }
+
+        deduped
+    }
+
+    fn definition_key(definition: &str, translated_definition: &str) -> String {
+        format!(
+            "{}|{}",
+            Self::normalize_text(definition),
+            Self::normalize_text(translated_definition)
+        )
+    }
+
+    fn definitions_are_near_duplicates(a: &lh_api::models::card::MeaningDto, b: &lh_api::models::card::MeaningDto) -> bool {
+        let a_def = Self::normalize_text(&a.definition);
+        let b_def = Self::normalize_text(&b.definition);
+        let a_translated = Self::normalize_text(&a.translated_definition);
+        let b_translated = Self::normalize_text(&b.translated_definition);
+
+        a_def == b_def
+            || a_translated == b_translated
+            || a_def.contains(&b_def)
+            || b_def.contains(&a_def)
+            || a_translated.contains(&b_translated)
+            || b_translated.contains(&a_translated)
+    }
+
+    fn meanings_should_merge(a: &lh_api::models::card::MeaningDto, b: &lh_api::models::card::MeaningDto) -> bool {
+        if Self::definitions_are_near_duplicates(a, b) {
+            return true;
+        }
+
+        let a_translations: HashSet<String> = a
+            .word_translations
+            .iter()
+            .map(|value| Self::normalize_text(value))
+            .collect();
+        let b_translations: HashSet<String> = b
+            .word_translations
+            .iter()
+            .map(|value| Self::normalize_text(value))
+            .collect();
+
+        if a_translations.is_empty() || b_translations.is_empty() {
+            return false;
+        }
+
+        let overlap = a_translations.intersection(&b_translations).count();
+        overlap > 0
+            && (a_translations.is_subset(&b_translations)
+                || b_translations.is_subset(&a_translations))
+            && (Self::normalize_text(&a.definition).contains(&Self::normalize_text(&b.definition))
+                || Self::normalize_text(&b.definition).contains(&Self::normalize_text(&a.definition))
+                || Self::normalize_text(&a.translated_definition)
+                    .contains(&Self::normalize_text(&b.translated_definition))
+                || Self::normalize_text(&b.translated_definition)
+                    .contains(&Self::normalize_text(&a.translated_definition)))
+    }
+
+    fn normalize_meaning(mut meaning: lh_api::models::card::MeaningDto) -> Option<lh_api::models::card::MeaningDto> {
+        meaning.definition = meaning.definition.trim().to_string();
+        meaning.translated_definition = meaning.translated_definition.trim().to_string();
+        meaning.word_translations = Self::dedupe_preserve_order(meaning.word_translations);
+
+        if meaning.definition.is_empty()
+            || meaning.translated_definition.is_empty()
+            || meaning.word_translations.is_empty()
+        {
+            return None;
+        }
+
+        Some(meaning)
+    }
+
+    fn normalize_card(mut card: CardDto) -> CardDto {
+        card.word.name = card.word.name.trim().to_string();
+        card.word.readings = Self::dedupe_preserve_order(card.word.readings);
+
+        let mut merged: Vec<lh_api::models::card::MeaningDto> = Vec::new();
+        let mut exact_keys = HashSet::new();
+
+        for meaning in card.meanings.drain(..) {
+            let Some(mut meaning) = Self::normalize_meaning(meaning) else {
+                continue;
+            };
+
+            let key = Self::definition_key(&meaning.definition, &meaning.translated_definition);
+            if !exact_keys.insert(key) {
+                if let Some(existing) = merged
+                    .iter_mut()
+                    .find(|existing| Self::definitions_are_near_duplicates(existing, &meaning))
+                {
+                    existing.word_translations.extend(meaning.word_translations);
+                    existing.word_translations =
+                        Self::dedupe_preserve_order(existing.word_translations.clone());
+                }
+                continue;
+            }
+
+            if let Some(existing) = merged
+                .iter_mut()
+                .find(|existing| Self::meanings_should_merge(existing, &meaning))
+            {
+                existing.word_translations.extend(meaning.word_translations);
+                existing.word_translations =
+                    Self::dedupe_preserve_order(existing.word_translations.clone());
+
+                if existing.definition.len() > meaning.definition.len() {
+                    existing.definition = meaning.definition;
+                }
+                if existing.translated_definition.len() > meaning.translated_definition.len() {
+                    existing.translated_definition = meaning.translated_definition;
+                }
+            } else {
+                meaning.word_translations = Self::dedupe_preserve_order(meaning.word_translations);
+                merged.push(meaning);
+            }
+        }
+
+        card.meanings = merged;
+        card
     }
 
     /// Parses a CardDto from JSON text returned by AI.
@@ -361,13 +515,13 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
             })
             .collect();
 
-        Ok(CardDto {
+        Ok(Self::normalize_card(CardDto {
             card_type,
             word: word_dto,
             meanings: meanings_dto,
             streak: simple.streak,
             created_at: simple.created_at,
-        })
+        }))
     }
 
     /// Builds the merge inverse cards prompt for AI batch merging.
@@ -484,13 +638,13 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
                     })
                     .collect();
 
-                CardDto {
+                Self::normalize_card(CardDto {
                     card_type,
                     word: word_dto,
                     meanings: meanings_dto,
                     streak: simple.streak,
                     created_at: simple.created_at,
-                }
+                })
             })
             .collect();
 

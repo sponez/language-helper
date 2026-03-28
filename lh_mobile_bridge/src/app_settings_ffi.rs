@@ -18,7 +18,11 @@ use crate::ffi_call;
 /// This function accesses global mutable statics.
 #[no_mangle]
 pub extern "C" fn get_app_settings() -> *const c_char {
-    ffi_call!(APP_API.as_ref().unwrap().app_settings_api().get_app_settings())
+    ffi_call!(APP_API
+        .as_ref()
+        .unwrap()
+        .app_settings_api()
+        .get_app_settings())
 }
 
 /// Update global theme setting

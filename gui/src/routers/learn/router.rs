@@ -21,6 +21,8 @@ use iced::widget::{column, container, row, stack, text, text_input, Column, Cont
 use iced::{event, Alignment, Element, Event, Length, Subscription, Task};
 
 use lh_api::app_api::AppApi;
+use lh_api::models::card::CardDto;
+use lh_api::models::card_filter::CardFilter;
 use lh_api::models::learning_session::LearningSessionDto;
 
 use crate::app_state::AppState;
@@ -33,12 +35,59 @@ use super::elements::action_button::action_button;
 use super::elements::answer_input::AnswerInputMessage;
 use super::elements::card_display::card_display;
 
+fn unique_translation_count(card: &CardDto) -> usize {
+    let mut normalized = Vec::new();
+
+    for translation in card
+        .meanings
+        .iter()
+        .flat_map(|meaning| meaning.word_translations.iter())
+    {
+        let candidate = translation.trim().to_lowercase();
+        if !normalized.iter().any(|existing| existing == &candidate) {
+            normalized.push(candidate);
+        }
+    }
+
+    normalized.len()
+}
+
+fn required_answers(card: &CardDto) -> usize {
+    match card.card_type {
+        lh_api::models::card::CardType::Straight => card.meanings.len(),
+        lh_api::models::card::CardType::Reverse => unique_translation_count(card),
+    }
+}
+
+fn is_card_complete(session: &LearningSessionDto, card: &CardDto) -> bool {
+    session.current_card_failed
+        || match card.card_type {
+            lh_api::models::card::CardType::Straight => {
+                session.current_card_completed_meaning_indices.len() >= required_answers(card)
+            }
+            lh_api::models::card::CardType::Reverse => {
+                session.current_card_provided_answers.len() >= required_answers(card)
+            }
+        }
+}
+
+fn remaining_answers(session: &LearningSessionDto, card: &CardDto) -> usize {
+    match card.card_type {
+        lh_api::models::card::CardType::Straight => required_answers(card)
+            .saturating_sub(session.current_card_completed_meaning_indices.len()),
+        lh_api::models::card::CardType::Reverse => {
+            required_answers(card).saturating_sub(session.current_card_provided_answers.len())
+        }
+    }
+}
+
 /// State for different screens in the learn flow
 #[derive(Debug, Clone)]
 pub enum ScreenState {
     /// Initial screen to input start card number
     Start {
         start_card_input: String,
+        selected_filter: CardFilter,
         error_message: Option<String>,
     },
     /// Loading session
@@ -105,6 +154,7 @@ impl LearnRouter {
             app_state,
             screen_state: ScreenState::Start {
                 start_card_input: String::from("1"),
+                selected_filter: CardFilter::All,
                 error_message: None,
             },
         }
@@ -123,11 +173,25 @@ impl LearnRouter {
                 (None, Task::none())
             }
 
+            Message::CardFilterSelected(filter) => {
+                if let ScreenState::Start {
+                    selected_filter, ..
+                } = &mut self.screen_state
+                {
+                    *selected_filter = filter;
+                }
+                (None, Task::none())
+            }
+
             Message::Start => {
                 if let ScreenState::Start {
-                    start_card_input, ..
+                    start_card_input,
+                    selected_filter,
+                    ..
                 } = &self.screen_state
                 {
+                    let start_card_input = start_card_input.clone();
+                    let selected_filter = *selected_filter;
                     // Parse start card number
                     match start_card_input.parse::<usize>() {
                         Ok(start_number) if start_number > 0 => {
@@ -146,6 +210,7 @@ impl LearnRouter {
                                             &username,
                                             &profile_name,
                                             start_number,
+                                            selected_filter,
                                         )
                                         .await
                                         .map_err(|e| format!("Failed to create session: {}", e))
@@ -160,7 +225,8 @@ impl LearnRouter {
                         }
                         _ => {
                             self.screen_state = ScreenState::Start {
-                                start_card_input: start_card_input.clone(),
+                                start_card_input,
+                                selected_filter,
                                 error_message: Some("Please enter a valid card number".to_string()),
                             };
                             (None, Task::none())
@@ -180,6 +246,7 @@ impl LearnRouter {
                 Err(err) => {
                     self.screen_state = ScreenState::Start {
                         start_card_input: String::from("1"),
+                        selected_filter: CardFilter::All,
                         error_message: Some(err),
                     };
                     (None, Task::none())
@@ -210,6 +277,14 @@ impl LearnRouter {
                             feedback: None,
                             answer_shown: false,
                         };
+
+                        // Auto-focus answer input
+                        let focus_task = iced::advanced::widget::operate(
+                            iced::advanced::widget::operation::focusable::focus(
+                                iced::widget::Id::new("answer_input"),
+                            ),
+                        );
+                        return (None, focus_task);
                     } else {
                         // Stay in study phase with next card
                         self.screen_state = ScreenState::Study {
@@ -233,6 +308,14 @@ impl LearnRouter {
                         feedback: None,
                         answer_shown: false,
                     };
+
+                    // Auto-focus answer input
+                    let focus_task = iced::advanced::widget::operate(
+                        iced::advanced::widget::operation::focusable::focus(iced::widget::Id::new(
+                            "answer_input",
+                        )),
+                    );
+                    return (None, focus_task);
                 }
                 (None, Task::none())
             }
@@ -280,45 +363,27 @@ impl LearnRouter {
                 } = &mut self.screen_state
                 {
                     match result {
-                        Ok((is_correct, matched_answer)) => {
+                        Ok((is_correct, matched_answer, completed_meaning_index)) => {
                             if is_correct {
                                 // Update session with the provided answer
                                 let mut updated_session = session.clone();
                                 updated_session
                                     .current_card_provided_answers
                                     .push(answer_input.trim().to_string());
-
-                                // Check if card is complete
-                                let current_index = updated_session.current_set_start_index
-                                    + updated_session.current_card_in_set;
-                                let Some(card) = updated_session.all_cards.get(current_index)
-                                else {
-                                    eprintln!("Invalid card index: {}", current_index);
-                                    *feedback = Some(AnswerFeedback::Incorrect {
-                                        expected_answer: "Error: Invalid card index".to_string(),
-                                    });
-                                    return (None, Task::none());
-                                };
-
-                                let required_answers = match card.card_type {
-                                    lh_api::models::card::CardType::Straight => card.meanings.len(),
-                                    lh_api::models::card::CardType::Reverse => card
-                                        .meanings
-                                        .iter()
-                                        .map(|m| m.word_translations.len())
-                                        .sum(),
-                                };
+                                if let Some(index) = completed_meaning_index {
+                                    if !updated_session
+                                        .current_card_completed_meaning_indices
+                                        .contains(&index)
+                                    {
+                                        updated_session
+                                            .current_card_completed_meaning_indices
+                                            .push(index);
+                                    }
+                                }
 
                                 *session = updated_session;
                                 *answer_input = String::new();
                                 *feedback = Some(AnswerFeedback::Correct { matched_answer });
-
-                                // If card is complete, Continue button will advance
-                                if session.current_card_provided_answers.len() >= required_answers {
-                                    // Card complete - Continue will move to next card
-                                } else {
-                                    // More answers needed - Continue will clear feedback
-                                }
                             } else {
                                 // Incorrect answer - mark card as failed
                                 let mut updated_session = session.clone();
@@ -352,18 +417,7 @@ impl LearnRouter {
                         return (Some(RouterEvent::Pop), Task::none());
                     };
 
-                    let required_answers = match card.card_type {
-                        lh_api::models::card::CardType::Straight => card.meanings.len(),
-                        lh_api::models::card::CardType::Reverse => card
-                            .meanings
-                            .iter()
-                            .map(|m| m.word_translations.len())
-                            .sum(),
-                    };
-
-                    let is_card_complete = updated_session.current_card_provided_answers.len()
-                        >= required_answers
-                        || updated_session.current_card_failed;
+                    let is_card_complete = is_card_complete(&updated_session, card);
 
                     if is_card_complete {
                         // Record test result before clearing
@@ -378,6 +432,7 @@ impl LearnRouter {
                         // Move to next card
                         updated_session.current_card_in_set += 1;
                         updated_session.current_card_provided_answers.clear();
+                        updated_session.current_card_completed_meaning_indices.clear();
                         updated_session.current_card_failed = false;
 
                         // Calculate actual set size
@@ -402,6 +457,14 @@ impl LearnRouter {
                                 feedback: None,
                                 answer_shown: false,
                             };
+
+                            // Auto-focus answer input
+                            let focus_task = iced::advanced::widget::operate(
+                                iced::advanced::widget::operation::focusable::focus(
+                                    iced::widget::Id::new("answer_input"),
+                                ),
+                            );
+                            return (None, focus_task);
                         }
                     } else {
                         // More answers needed - just clear feedback
@@ -411,6 +474,14 @@ impl LearnRouter {
                             feedback: None,
                             answer_shown: false,
                         };
+
+                        // Auto-focus answer input
+                        let focus_task = iced::advanced::widget::operate(
+                            iced::advanced::widget::operation::focusable::focus(
+                                iced::widget::Id::new("answer_input"),
+                            ),
+                        );
+                        return (None, focus_task);
                     }
                 }
                 (None, Task::none())
@@ -424,6 +495,7 @@ impl LearnRouter {
                     updated_session.phase = lh_api::models::learning_session::LearningPhase::Study;
                     updated_session.test_results.clear();
                     updated_session.current_card_provided_answers.clear();
+                    updated_session.current_card_completed_meaning_indices.clear();
                     updated_session.current_card_failed = false;
 
                     self.screen_state = ScreenState::Study {
@@ -442,6 +514,7 @@ impl LearnRouter {
                     updated_session.phase = lh_api::models::learning_session::LearningPhase::Study;
                     updated_session.test_results.clear();
                     updated_session.current_card_provided_answers.clear();
+                    updated_session.current_card_completed_meaning_indices.clear();
                     updated_session.current_card_failed = false;
 
                     // Check if there are more cards available
@@ -449,6 +522,7 @@ impl LearnRouter {
                         // No more cards - go back to start screen
                         self.screen_state = ScreenState::Start {
                             start_card_input: String::from("1"),
+                            selected_filter: updated_session.card_filter,
                             error_message: Some("All cards completed!".to_string()),
                         };
                     } else {
@@ -507,7 +581,7 @@ impl LearnRouter {
                             passed,
                         };
                     } else {
-                        // Continue testing next card
+                        // Continue testing next card (no auto-focus needed in self-review mode)
                         self.screen_state = ScreenState::Test {
                             session: updated_session,
                             answer_input: String::new(),
@@ -558,7 +632,7 @@ impl LearnRouter {
                             passed,
                         };
                     } else {
-                        // Continue testing next card
+                        // Continue testing next card (no auto-focus needed in self-review mode)
                         self.screen_state = ScreenState::Test {
                             session: updated_session,
                             answer_input: String::new(),
@@ -623,6 +697,7 @@ impl LearnRouter {
         match &self.screen_state {
             ScreenState::Start {
                 start_card_input,
+                selected_filter,
                 error_message,
             } => {
                 // Start screen UI
@@ -642,9 +717,23 @@ impl LearnRouter {
                 .padding(10)
                 .width(Length::Fixed(200.0));
 
+                let filter_label = text(i18n.get("session-card-filter-label", None))
+                    .size(14)
+                    .shaping(iced::widget::text::Shaping::Advanced);
+
+                let filter_picker = iced::widget::pick_list(
+                    [
+                        CardFilter::All,
+                        CardFilter::Straight,
+                        CardFilter::Reverse,
+                    ],
+                    Some(*selected_filter),
+                    Message::CardFilterSelected,
+                );
+
                 let start_btn = action_button(i18n, "learn-start-button", Some(Message::Start));
 
-                let mut content = column![title, instruction, input, start_btn]
+                let mut content = column![title, instruction, input, filter_label, filter_picker, start_btn]
                     .spacing(20)
                     .align_x(Alignment::Center);
 
@@ -768,17 +857,7 @@ impl LearnRouter {
                     let mut content_elements = Vec::new();
 
                     // Check if card is complete (all answers given OR failed)
-                    let required_answers = match card.card_type {
-                        lh_api::models::card::CardType::Straight => card.meanings.len(),
-                        lh_api::models::card::CardType::Reverse => card
-                            .meanings
-                            .iter()
-                            .map(|m| m.word_translations.len())
-                            .sum(),
-                    };
-                    let is_card_complete = session.current_card_provided_answers.len()
-                        >= required_answers
-                        || session.current_card_failed;
+                    let is_card_complete = is_card_complete(session, card);
 
                     // Check test method
                     let is_self_review = session.test_method == "self_review";
@@ -824,16 +903,7 @@ impl LearnRouter {
                     }
 
                     // Calculate remaining answers needed
-                    let required_answers = match card.card_type {
-                        lh_api::models::card::CardType::Straight => card.meanings.len(),
-                        lh_api::models::card::CardType::Reverse => card
-                            .meanings
-                            .iter()
-                            .map(|m| m.word_translations.len())
-                            .sum(),
-                    };
-                    let remaining_count = required_answers
-                        .saturating_sub(session.current_card_provided_answers.len());
+                    let remaining_count = remaining_answers(session, card);
 
                     // Check test method to determine UI
                     let is_self_review = session.test_method == "self_review";

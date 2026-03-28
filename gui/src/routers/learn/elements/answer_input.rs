@@ -45,7 +45,8 @@ pub fn answer_input<'a>(
     let input = text_input(&i18n.get("learn-answer-placeholder", None), value)
         .on_input(AnswerInputMessage::Changed)
         .padding(10)
-        .width(Length::Fixed(400.0));
+        .width(Length::Fixed(400.0))
+        .id(iced::widget::Id::new("answer_input"));
 
     column![
         row![label, remaining_text]

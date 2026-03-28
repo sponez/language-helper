@@ -26,7 +26,8 @@ pub unsafe extern "C" fn ai_explain(
     profile_language: *const c_char,
     message: *const c_char,
 ) -> *const c_char {
-    let settings_json_str = match c_str_to_rust(assistant_settings_json, "assistant_settings_json") {
+    let settings_json_str = match c_str_to_rust(assistant_settings_json, "assistant_settings_json")
+    {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,
     };
@@ -98,7 +99,8 @@ pub unsafe extern "C" fn ai_fill_card(
     user_language: *const c_char,
     profile_language: *const c_char,
 ) -> *const c_char {
-    let settings_json_str = match c_str_to_rust(assistant_settings_json, "assistant_settings_json") {
+    let settings_json_str = match c_str_to_rust(assistant_settings_json, "assistant_settings_json")
+    {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,
     };
@@ -172,7 +174,8 @@ pub unsafe extern "C" fn ai_merge_inverse_cards(
     user_language: *const c_char,
     profile_language: *const c_char,
 ) -> *const c_char {
-    let settings_json_str = match c_str_to_rust(assistant_settings_json, "assistant_settings_json") {
+    let settings_json_str = match c_str_to_rust(assistant_settings_json, "assistant_settings_json")
+    {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,
     };
@@ -208,10 +211,11 @@ pub unsafe extern "C" fn ai_merge_inverse_cards(
         Err(e) => return error_response(&format!("Invalid new_card JSON: {}", e)),
     };
 
-    let existing_cards: Vec<lh_api::models::card::CardDto> = match serde_json::from_str(&existing_cards_json_str) {
-        Ok(c) => c,
-        Err(e) => return error_response(&format!("Invalid existing_cards JSON: {}", e)),
-    };
+    let existing_cards: Vec<lh_api::models::card::CardDto> =
+        match serde_json::from_str(&existing_cards_json_str) {
+            Ok(c) => c,
+            Err(e) => return error_response(&format!("Invalid existing_cards JSON: {}", e)),
+        };
 
     let api = match APP_API.as_ref() {
         Some(api) => api,

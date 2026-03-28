@@ -11,6 +11,22 @@ use std::os::raw::c_char;
 use crate::common::{c_str_to_rust, error_response, success_response, APP_API, RUNTIME};
 use crate::ffi_call;
 
+unsafe fn parse_card_filter(
+    filter: *const c_char,
+) -> Result<lh_api::models::card_filter::CardFilter, *const c_char> {
+    let filter_str = match c_str_to_rust(filter, "card_filter") {
+        Ok(s) => s,
+        Err(err_ptr) => return Err(err_ptr),
+    };
+
+    match filter_str.to_lowercase().as_str() {
+        "all" => Ok(lh_api::models::card_filter::CardFilter::All),
+        "straight" => Ok(lh_api::models::card_filter::CardFilter::Straight),
+        "reverse" => Ok(lh_api::models::card_filter::CardFilter::Reverse),
+        _ => Err(error_response("Invalid card_filter, expected all|straight|reverse")),
+    }
+}
+
 //
 // Profile Database Management
 //
@@ -270,16 +286,19 @@ pub unsafe extern "C" fn save_card(
         Err(e) => return error_response(&format!("Invalid card JSON: {}", e)),
     };
 
-    ffi_call!(APP_API
-        .as_ref()
-        .unwrap()
-        .profile_api()
-        .save_card(&username_str, &profile_name_str, card))
+    ffi_call!(APP_API.as_ref().unwrap().profile_api().save_card(
+        &username_str,
+        &profile_name_str,
+        card
+    ))
 }
 
 /// Get all cards from the profile database
 #[no_mangle]
-pub unsafe extern "C" fn get_all_cards(username: *const c_char, profile_name: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn get_all_cards(
+    username: *const c_char,
+    profile_name: *const c_char,
+) -> *const c_char {
     let username_str = match c_str_to_rust(username, "username") {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,
@@ -299,7 +318,10 @@ pub unsafe extern "C" fn get_all_cards(username: *const c_char, profile_name: *c
 
 /// Get unlearned cards (streak below threshold)
 #[no_mangle]
-pub unsafe extern "C" fn get_unlearned_cards(username: *const c_char, profile_name: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn get_unlearned_cards(
+    username: *const c_char,
+    profile_name: *const c_char,
+) -> *const c_char {
     let username_str = match c_str_to_rust(username, "username") {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,
@@ -319,7 +341,10 @@ pub unsafe extern "C" fn get_unlearned_cards(username: *const c_char, profile_na
 
 /// Get learned cards (streak at or above threshold)
 #[no_mangle]
-pub unsafe extern "C" fn get_learned_cards(username: *const c_char, profile_name: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn get_learned_cards(
+    username: *const c_char,
+    profile_name: *const c_char,
+) -> *const c_char {
     let username_str = match c_str_to_rust(username, "username") {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,
@@ -388,11 +413,11 @@ pub unsafe extern "C" fn delete_card(
         Err(err_ptr) => return err_ptr,
     };
 
-    ffi_call!(APP_API
-        .as_ref()
-        .unwrap()
-        .profile_api()
-        .delete_card(&username_str, &profile_name_str, &word_name_str))
+    ffi_call!(APP_API.as_ref().unwrap().profile_api().delete_card(
+        &username_str,
+        &profile_name_str,
+        &word_name_str
+    ))
 }
 
 //
@@ -409,6 +434,7 @@ pub unsafe extern "C" fn create_learning_session(
     username: *const c_char,
     profile_name: *const c_char,
     start_card_number: usize,
+    card_filter: *const c_char,
 ) -> *const c_char {
     let username_str = match c_str_to_rust(username, "username") {
         Ok(s) => s,
@@ -420,16 +446,30 @@ pub unsafe extern "C" fn create_learning_session(
         Err(err_ptr) => return err_ptr,
     };
 
+    let card_filter = match parse_card_filter(card_filter) {
+        Ok(filter) => filter,
+        Err(err_ptr) => return err_ptr,
+    };
+
     ffi_call!(APP_API
         .as_ref()
         .unwrap()
         .profile_api()
-        .create_learning_session(&username_str, &profile_name_str, start_card_number))
+        .create_learning_session(
+            &username_str,
+            &profile_name_str,
+            start_card_number,
+            card_filter
+        ))
 }
 
 /// Create a test session from unlearned cards (shuffled, all cards)
 #[no_mangle]
-pub unsafe extern "C" fn create_test_session(username: *const c_char, profile_name: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn create_test_session(
+    username: *const c_char,
+    profile_name: *const c_char,
+    card_filter: *const c_char,
+) -> *const c_char {
     let username_str = match c_str_to_rust(username, "username") {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,
@@ -440,16 +480,25 @@ pub unsafe extern "C" fn create_test_session(username: *const c_char, profile_na
         Err(err_ptr) => return err_ptr,
     };
 
+    let card_filter = match parse_card_filter(card_filter) {
+        Ok(filter) => filter,
+        Err(err_ptr) => return err_ptr,
+    };
+
     ffi_call!(APP_API
         .as_ref()
         .unwrap()
         .profile_api()
-        .create_test_session(&username_str, &profile_name_str))
+        .create_test_session(&username_str, &profile_name_str, card_filter))
 }
 
 /// Create a repeat session from learned cards (shuffled, all cards)
 #[no_mangle]
-pub unsafe extern "C" fn create_repeat_session(username: *const c_char, profile_name: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn create_repeat_session(
+    username: *const c_char,
+    profile_name: *const c_char,
+    card_filter: *const c_char,
+) -> *const c_char {
     let username_str = match c_str_to_rust(username, "username") {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,
@@ -460,11 +509,16 @@ pub unsafe extern "C" fn create_repeat_session(username: *const c_char, profile_
         Err(err_ptr) => return err_ptr,
     };
 
+    let card_filter = match parse_card_filter(card_filter) {
+        Ok(filter) => filter,
+        Err(err_ptr) => return err_ptr,
+    };
+
     ffi_call!(APP_API
         .as_ref()
         .unwrap()
         .profile_api()
-        .create_repeat_session(&username_str, &profile_name_str))
+        .create_repeat_session(&username_str, &profile_name_str, card_filter))
 }
 
 /// Check a written answer against the session's current card
@@ -476,9 +530,12 @@ pub unsafe extern "C" fn create_repeat_session(username: *const c_char, profile_
 ///
 /// # Returns
 ///
-/// JSON string: `{"is_correct": true, "matched_answer": "..."}` or `{"error": "message"}`
+/// JSON string: `{"is_correct": true, "matched_answer": "...", "completed_meaning_index": 0}` or `{"error": "message"}`
 #[no_mangle]
-pub unsafe extern "C" fn check_answer(session_json: *const c_char, user_input: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn check_answer(
+    session_json: *const c_char,
+    user_input: *const c_char,
+) -> *const c_char {
     let session_json_str = match c_str_to_rust(session_json, "session_json") {
         Ok(s) => s,
         Err(err_ptr) => return err_ptr,
@@ -506,10 +563,11 @@ pub unsafe extern "C" fn check_answer(session_json: *const c_char, user_input: *
     };
 
     match runtime.block_on(api.profile_api().check_answer(&session, &user_input_str)) {
-        Ok((is_correct, matched)) => {
+        Ok((is_correct, matched, completed_meaning_index)) => {
             let result = serde_json::json!({
                 "is_correct": is_correct,
-                "matched_answer": matched
+                "matched_answer": matched,
+                "completed_meaning_index": completed_meaning_index
             });
             success_response(&result)
         }
@@ -574,16 +632,17 @@ pub unsafe extern "C" fn update_test_streaks(
         Err(err_ptr) => return err_ptr,
     };
 
-    let results: Vec<lh_api::models::test_result::TestResultDto> = match serde_json::from_str(&results_json_str) {
-        Ok(r) => r,
-        Err(e) => return error_response(&format!("Invalid results JSON: {}", e)),
-    };
+    let results: Vec<lh_api::models::test_result::TestResultDto> =
+        match serde_json::from_str(&results_json_str) {
+            Ok(r) => r,
+            Err(e) => return error_response(&format!("Invalid results JSON: {}", e)),
+        };
 
-    ffi_call!(APP_API
-        .as_ref()
-        .unwrap()
-        .profile_api()
-        .update_test_streaks(&username_str, &profile_name_str, results))
+    ffi_call!(APP_API.as_ref().unwrap().profile_api().update_test_streaks(
+        &username_str,
+        &profile_name_str,
+        results
+    ))
 }
 
 /// Update card streaks based on repeat session results
@@ -608,10 +667,11 @@ pub unsafe extern "C" fn update_repeat_streaks(
         Err(err_ptr) => return err_ptr,
     };
 
-    let results: Vec<lh_api::models::test_result::TestResultDto> = match serde_json::from_str(&results_json_str) {
-        Ok(r) => r,
-        Err(e) => return error_response(&format!("Invalid results JSON: {}", e)),
-    };
+    let results: Vec<lh_api::models::test_result::TestResultDto> =
+        match serde_json::from_str(&results_json_str) {
+            Ok(r) => r,
+            Err(e) => return error_response(&format!("Invalid results JSON: {}", e)),
+        };
 
     ffi_call!(APP_API
         .as_ref()

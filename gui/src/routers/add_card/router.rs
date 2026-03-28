@@ -491,6 +491,26 @@ impl AddCardRouter {
                     {
                         self.error_message = None;
                     }
+                } else if !self.show_inverse_modal && !self.ai_filling && !self.ai_merging {
+                    // Handle keyboard shortcuts for card creation (when no modals are shown)
+                    match event {
+                        iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                            key: iced::keyboard::Key::Named(iced::keyboard::key::Named::Enter),
+                            ..
+                        }) => {
+                            // Enter key: Save the card
+                            let task = self.save_card_task();
+                            return (None, task);
+                        }
+                        iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                            key: iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape),
+                            ..
+                        }) => {
+                            // Esc key: Cancel and go back
+                            return (Some(RouterEvent::Pop), Task::none());
+                        }
+                        _ => {}
+                    }
                 }
                 (None, Task::none())
             }

@@ -15,12 +15,18 @@ pub enum Message {
     SelectUnlearned,
     /// Learned tab selected
     SelectLearned,
+    /// Search query changed
+    SearchChanged(String),
     /// Add new card button pressed
     AddNew,
     /// Edit card button pressed
-    EditCard(String),
+    EditCard(CardDto),
     /// Delete card button pressed
-    DeleteCard(String),
+    DeleteCard(CardDto),
+    /// Show card details in read-only modal
+    ShowCard(CardDto),
+    /// Close show card modal
+    CloseShowCard,
     /// Back button pressed
     Back,
 

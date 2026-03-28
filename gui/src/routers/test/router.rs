@@ -13,6 +13,8 @@ use iced::widget::{column, container, row, stack, text, Column, Container};
 use iced::{event, Alignment, Element, Event, Length, Subscription, Task};
 
 use lh_api::app_api::AppApi;
+use lh_api::models::card::CardDto;
+use lh_api::models::card_filter::CardFilter;
 use lh_api::models::learning_session::LearningSessionDto;
 
 use crate::app_state::AppState;
@@ -25,9 +27,57 @@ use crate::routers::learn::elements::action_button::action_button;
 use crate::routers::learn::elements::answer_input::AnswerInputMessage;
 use crate::routers::learn::elements::card_display::card_display;
 
+fn unique_translation_count(card: &CardDto) -> usize {
+    let mut normalized = Vec::new();
+
+    for translation in card
+        .meanings
+        .iter()
+        .flat_map(|meaning| meaning.word_translations.iter())
+    {
+        let candidate = translation.trim().to_lowercase();
+        if !normalized.iter().any(|existing| existing == &candidate) {
+            normalized.push(candidate);
+        }
+    }
+
+    normalized.len()
+}
+
+fn required_answers(card: &CardDto) -> usize {
+    match card.card_type {
+        lh_api::models::card::CardType::Straight => card.meanings.len(),
+        lh_api::models::card::CardType::Reverse => unique_translation_count(card),
+    }
+}
+
+fn is_card_complete(session: &LearningSessionDto, card: &CardDto) -> bool {
+    session.current_card_failed
+        || match card.card_type {
+            lh_api::models::card::CardType::Straight => {
+                session.current_card_completed_meaning_indices.len() >= required_answers(card)
+            }
+            lh_api::models::card::CardType::Reverse => {
+                session.current_card_provided_answers.len() >= required_answers(card)
+            }
+        }
+}
+
+fn remaining_answers(session: &LearningSessionDto, card: &CardDto) -> usize {
+    match card.card_type {
+        lh_api::models::card::CardType::Straight => required_answers(card)
+            .saturating_sub(session.current_card_completed_meaning_indices.len()),
+        lh_api::models::card::CardType::Reverse => {
+            required_answers(card).saturating_sub(session.current_card_provided_answers.len())
+        }
+    }
+}
+
 /// State for different screens in the test flow
 #[derive(Debug, Clone)]
 pub enum ScreenState {
+    /// Start screen for selecting filter
+    Start { selected_filter: CardFilter },
     /// Loading session
     Loading,
     /// Testing phase - testing knowledge
@@ -78,13 +128,46 @@ impl TestRouter {
             profile_state,
             app_api,
             app_state,
-            screen_state: ScreenState::Loading,
+            screen_state: ScreenState::Start {
+                selected_filter: CardFilter::All,
+            },
         }
     }
 
     /// Update the router state based on messages.
     pub fn update(&mut self, message: Message) -> (Option<RouterEvent>, Task<Message>) {
         match message {
+            Message::CardFilterSelected(filter) => {
+                if let ScreenState::Start { selected_filter } = &mut self.screen_state {
+                    *selected_filter = filter;
+                }
+                (None, Task::none())
+            }
+            Message::Start => {
+                let filter = if let ScreenState::Start { selected_filter } = &self.screen_state {
+                    *selected_filter
+                } else {
+                    return (None, Task::none());
+                };
+
+                self.screen_state = ScreenState::Loading;
+                let app_api = Arc::clone(&self.app_api);
+                let username = self.user_state.username.clone();
+                let profile_name = self.profile_state.profile_name.clone();
+
+                let task = Task::perform(
+                    async move {
+                        app_api
+                            .profile_api()
+                            .create_test_session(&username, &profile_name, filter)
+                            .await
+                            .map_err(|e| format!("Failed to create test session: {}", e))
+                    },
+                    Message::SessionStarted,
+                );
+
+                (None, task)
+            }
             Message::SessionStarted(result) => match result {
                 Ok(session) => {
                     // Transition to testing phase
@@ -94,7 +177,14 @@ impl TestRouter {
                         feedback: None,
                         answer_shown: false,
                     };
-                    (None, Task::none())
+
+                    // Auto-focus answer input
+                    let focus_task = iced::advanced::widget::operate(
+                        iced::advanced::widget::operation::focusable::focus(iced::widget::Id::new(
+                            "answer_input",
+                        )),
+                    );
+                    (None, focus_task)
                 }
                 Err(err) => {
                     eprintln!("Failed to start test session: {}", err);
@@ -146,12 +236,22 @@ impl TestRouter {
                 } = &mut self.screen_state
                 {
                     match result {
-                        Ok((is_correct, matched_answer)) => {
+                        Ok((is_correct, matched_answer, completed_meaning_index)) => {
                             if is_correct {
                                 let mut updated_session = session.clone();
                                 updated_session
                                     .current_card_provided_answers
                                     .push(answer_input.trim().to_string());
+                                if let Some(index) = completed_meaning_index {
+                                    if !updated_session
+                                        .current_card_completed_meaning_indices
+                                        .contains(&index)
+                                    {
+                                        updated_session
+                                            .current_card_completed_meaning_indices
+                                            .push(index);
+                                    }
+                                }
 
                                 *session = updated_session;
                                 *answer_input = String::new();
@@ -217,6 +317,7 @@ impl TestRouter {
                             answer_shown: false,
                         };
                     }
+                    // No auto-focus needed in self-review mode
                     return (None, task);
                 }
                 (None, Task::none())
@@ -256,6 +357,7 @@ impl TestRouter {
                             answer_shown: false,
                         };
                     }
+                    // No auto-focus needed in self-review mode
                     return (None, task);
                 }
                 (None, Task::none())
@@ -271,18 +373,7 @@ impl TestRouter {
                         return (Some(RouterEvent::Pop), Task::none());
                     };
 
-                    let required_answers = match card.card_type {
-                        lh_api::models::card::CardType::Straight => card.meanings.len(),
-                        lh_api::models::card::CardType::Reverse => card
-                            .meanings
-                            .iter()
-                            .map(|m| m.word_translations.len())
-                            .sum(),
-                    };
-
-                    let is_card_complete = updated_session.current_card_provided_answers.len()
-                        >= required_answers
-                        || updated_session.current_card_failed;
+                    let is_card_complete = is_card_complete(&updated_session, card);
 
                     if is_card_complete {
                         let is_correct = !session.current_card_failed;
@@ -296,10 +387,12 @@ impl TestRouter {
 
                         updated_session.current_card_in_set += 1;
                         updated_session.current_card_provided_answers.clear();
+                        updated_session.current_card_completed_meaning_indices.clear();
                         updated_session.current_card_failed = false;
 
                         // Update streak immediately
-                        let task = self.update_card_streak(card.word.name.clone(), is_correct);
+                        let streak_task =
+                            self.update_card_streak(card.word.name.clone(), is_correct);
 
                         if updated_session.current_card_in_set >= updated_session.all_cards.len() {
                             // Complete session
@@ -312,7 +405,14 @@ impl TestRouter {
                                 answer_shown: false,
                             };
                         }
-                        return (None, task);
+
+                        // Chain focus task with streak update task
+                        let focus_task = iced::advanced::widget::operate(
+                            iced::advanced::widget::operation::focusable::focus(
+                                iced::widget::Id::new("answer_input"),
+                            ),
+                        );
+                        return (None, Task::batch(vec![focus_task, streak_task]));
                     } else {
                         self.screen_state = ScreenState::Testing {
                             session: updated_session,
@@ -320,6 +420,14 @@ impl TestRouter {
                             feedback: None,
                             answer_shown: false,
                         };
+
+                        // Auto-focus answer input for more answers
+                        let focus_task = iced::advanced::widget::operate(
+                            iced::advanced::widget::operation::focusable::focus(
+                                iced::widget::Id::new("answer_input"),
+                            ),
+                        );
+                        return (None, focus_task);
                     }
                 }
                 (None, Task::none())
@@ -334,6 +442,11 @@ impl TestRouter {
             }
 
             Message::RetryTest => {
+                let filter = if let ScreenState::Testing { session, .. } = &self.screen_state {
+                    session.card_filter
+                } else {
+                    CardFilter::All
+                };
                 // Restart by creating new session
                 self.screen_state = ScreenState::Loading;
                 let app_api = Arc::clone(&self.app_api);
@@ -342,9 +455,11 @@ impl TestRouter {
 
                 let task = Task::perform(
                     async move {
-                        app_api
-                            .profile_api()
-                            .create_test_session(&username, &profile_name)
+                        app_api.profile_api().create_test_session(
+                            &username,
+                            &profile_name,
+                            filter,
+                        )
                             .await
                             .map_err(|e| format!("Failed to create test session: {}", e))
                     },
@@ -423,6 +538,42 @@ impl TestRouter {
         let i18n = &self.app_state.i18n();
 
         match &self.screen_state {
+            ScreenState::Start { selected_filter } => {
+                let title = text(i18n.get("test-start-title", None))
+                    .size(24)
+                    .shaping(iced::widget::text::Shaping::Advanced);
+                let label = text(i18n.get("session-card-filter-label", None))
+                    .size(14)
+                    .shaping(iced::widget::text::Shaping::Advanced);
+                let picker = iced::widget::pick_list(
+                    [
+                        CardFilter::All,
+                        CardFilter::Straight,
+                        CardFilter::Reverse,
+                    ],
+                    Some(*selected_filter),
+                    Message::CardFilterSelected,
+                );
+                let start_btn = action_button(i18n, "test-start-button", Some(Message::Start));
+                let content = column![title, label, picker, start_btn]
+                    .spacing(20)
+                    .align_x(Alignment::Center);
+                let center_content = Container::new(content)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_x(Alignment::Center)
+                    .align_y(Alignment::Center);
+                let back_btn = back_button(i18n, "test-back", Message::Back);
+                let top_bar = Container::new(row![back_btn].spacing(10).padding(10))
+                    .width(Length::Fill)
+                    .align_x(Alignment::Start)
+                    .align_y(Alignment::Start);
+
+                container(stack![center_content, top_bar])
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into()
+            }
             ScreenState::Loading => {
                 let title = text(i18n.get("test-loading", None))
                     .size(24)
@@ -446,17 +597,7 @@ impl TestRouter {
                 if let Some(card) = session.all_cards.get(current_index) {
                     let mut content_elements = Vec::new();
 
-                    let required_answers = match card.card_type {
-                        lh_api::models::card::CardType::Straight => card.meanings.len(),
-                        lh_api::models::card::CardType::Reverse => card
-                            .meanings
-                            .iter()
-                            .map(|m| m.word_translations.len())
-                            .sum(),
-                    };
-                    let is_card_complete = session.current_card_provided_answers.len()
-                        >= required_answers
-                        || session.current_card_failed;
+                    let is_card_complete = is_card_complete(session, card);
 
                     let is_self_review = session.test_method == "self_review";
 
@@ -486,8 +627,7 @@ impl TestRouter {
                         content_elements.push(word_section.into());
                     }
 
-                    let remaining_count = required_answers
-                        .saturating_sub(session.current_card_provided_answers.len());
+                    let remaining_count = remaining_answers(session, card);
 
                     if is_self_review {
                         if !answer_shown {
@@ -689,23 +829,7 @@ impl RouterNode for TestRouter {
     }
 
     fn init(&mut self, incoming_task: Task<router::Message>) -> Task<router::Message> {
-        // Start loading session immediately
-        let app_api = Arc::clone(&self.app_api);
-        let username = self.user_state.username.clone();
-        let profile_name = self.profile_state.profile_name.clone();
-
-        let load_task = Task::perform(
-            async move {
-                app_api
-                    .profile_api()
-                    .create_test_session(&username, &profile_name)
-                    .await
-                    .map_err(|e| format!("Failed to create test session: {}", e))
-            },
-            |result| router::Message::Test(Message::SessionStarted(result)),
-        );
-
-        Task::batch([incoming_task, load_task])
+        incoming_task
     }
 
     fn subscription(&self) -> Subscription<router::Message> {

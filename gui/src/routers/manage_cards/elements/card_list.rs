@@ -18,34 +18,54 @@ use crate::routers::manage_cards::message::Message;
 /// # Returns
 ///
 /// An Element containing the card list
-pub fn card_list<'a>(i18n: &Rc<I18n>, cards: &'a [CardDto]) -> Element<'a, Message> {
+pub fn card_list(i18n: &Rc<I18n>, cards: Vec<CardDto>) -> Element<'static, Message> {
     let mut cards_column = column![].spacing(10).padding(10);
 
     for card in cards {
         // Card container with word name and buttons
-        let word_name_text = text(&card.word.name)
+        let word_name_text = text(card.word.name.clone())
             .size(16)
             .shaping(iced::widget::text::Shaping::Advanced);
-        let word_name_clone = card.word.name.clone();
-        let word_name_clone2 = card.word.name.clone();
+        let card_for_show = card.clone();
+        let card_for_edit = card.clone();
+        let card_for_delete = card.clone();
+
+        let card_type_text = text(match card.card_type {
+            lh_api::models::card::CardType::Straight => i18n.get("add-card-type-straight", None),
+            lh_api::models::card::CardType::Reverse => i18n.get("add-card-type-reverse", None),
+        })
+        .size(12)
+        .shaping(iced::widget::text::Shaping::Advanced);
+
+        let show_text = text(i18n.get("manage-cards-show", None))
+            .size(12)
+            .shaping(iced::widget::text::Shaping::Advanced);
+        let show_button = button(show_text)
+            .on_press(Message::ShowCard(card_for_show))
+            .padding(6);
 
         let edit_text = text(i18n.get("manage-cards-edit", None))
             .size(12)
             .shaping(iced::widget::text::Shaping::Advanced);
         let edit_button = button(edit_text)
-            .on_press(Message::EditCard(word_name_clone))
+            .on_press(Message::EditCard(card_for_edit))
             .padding(6);
 
         let delete_text = text(i18n.get("manage-cards-delete", None))
             .size(12)
             .shaping(iced::widget::text::Shaping::Advanced);
         let delete_button = button(delete_text)
-            .on_press(Message::DeleteCard(word_name_clone2))
+            .on_press(Message::DeleteCard(card_for_delete))
             .padding(6);
 
+        let title_column = column![word_name_text, card_type_text]
+            .spacing(4)
+            .align_x(Alignment::Start);
+
         let card_row = row![
-            word_name_text,
+            title_column,
             iced::widget::Space::new().width(Length::Fill),
+            show_button,
             edit_button,
             delete_button,
         ]

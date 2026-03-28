@@ -7,14 +7,15 @@ use lh_api::apis::profiles_api::ProfilesApi;
 use lh_api::errors::api_error::ApiError;
 use lh_api::models::assistant_settings::AssistantSettingsDto;
 use lh_api::models::card::{CardDto, CardType as ApiCardType, MeaningDto, WordDto};
+use lh_api::models::card_filter::CardFilter as ApiCardFilter;
 use lh_api::models::card_settings::CardSettingsDto;
 use lh_api::models::learning_session::{LearningPhase as ApiLearningPhase, LearningSessionDto};
 use lh_api::models::test_result::TestResultDto;
 
 use crate::errors::CoreError;
 use crate::models::{
-    AssistantSettings, Card, CardSettings, CardType, LearningPhase, LearningSession, Meaning,
-    TestResult, Word,
+    AssistantSettings, Card, CardFilter, CardSettings, CardType, LearningPhase, LearningSession,
+    Meaning, TestResult, Word,
 };
 use crate::repositories::profile_repository::ProfileRepository;
 use crate::services::learning_service::{
@@ -108,12 +109,18 @@ fn learning_session_to_dto(session: LearningSession) -> LearningSessionDto {
         },
         current_card_in_set: session.current_card_in_set,
         test_method: session.test_method,
+        card_filter: match session.card_filter {
+            CardFilter::All => ApiCardFilter::All,
+            CardFilter::Straight => ApiCardFilter::Straight,
+            CardFilter::Reverse => ApiCardFilter::Reverse,
+        },
         test_results: session
             .test_results
             .into_iter()
             .map(test_result_to_dto)
             .collect(),
         current_card_provided_answers: session.current_card_provided_answers,
+        current_card_completed_meaning_indices: session.current_card_completed_meaning_indices,
         current_card_failed: session.current_card_failed,
     }
 }
@@ -133,12 +140,18 @@ fn dto_to_learning_session(dto: LearningSessionDto) -> Result<LearningSession, A
         },
         current_card_in_set: dto.current_card_in_set,
         test_method: dto.test_method,
+        card_filter: match dto.card_filter {
+            ApiCardFilter::All => CardFilter::All,
+            ApiCardFilter::Straight => CardFilter::Straight,
+            ApiCardFilter::Reverse => CardFilter::Reverse,
+        },
         test_results: dto
             .test_results
             .into_iter()
             .map(dto_to_test_result)
             .collect(),
         current_card_provided_answers: dto.current_card_provided_answers,
+        current_card_completed_meaning_indices: dto.current_card_completed_meaning_indices,
         current_card_failed: dto.current_card_failed,
     })
 }
@@ -431,6 +444,7 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         username: &str,
         profile_name: &str,
         start_card_number: usize,
+        card_filter: ApiCardFilter,
     ) -> Result<LearningSessionDto, ApiError> {
         // Get card settings to determine cards_per_set and test_method
         let card_settings = self
@@ -442,7 +456,15 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         // Get all unlearned cards
         let unlearned_cards = self
             .profile_service
-            .get_unlearned_cards(username, profile_name)
+            .get_unlearned_cards_filtered(
+                username,
+                profile_name,
+                match card_filter {
+                    ApiCardFilter::All => CardFilter::All,
+                    ApiCardFilter::Straight => CardFilter::Straight,
+                    ApiCardFilter::Reverse => CardFilter::Reverse,
+                },
+            )
             .await
             .map_err(map_core_error_to_api_error)?;
 
@@ -452,6 +474,11 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
             start_card_number,
             card_settings.cards_per_set as usize,
             card_settings.test_answer_method,
+            match card_filter {
+                ApiCardFilter::All => CardFilter::All,
+                ApiCardFilter::Straight => CardFilter::Straight,
+                ApiCardFilter::Reverse => CardFilter::Reverse,
+            },
         )
         .map_err(map_core_error_to_api_error)?;
 
@@ -462,7 +489,7 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         &self,
         session: &LearningSessionDto,
         user_input: &str,
-    ) -> Result<(bool, String), ApiError> {
+    ) -> Result<(bool, String, Option<usize>), ApiError> {
         // Convert DTO to domain session
         let domain_session = dto_to_learning_session(session.clone())?;
 
@@ -498,6 +525,7 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         &self,
         username: &str,
         profile_name: &str,
+        card_filter: ApiCardFilter,
     ) -> Result<LearningSessionDto, ApiError> {
         // Get card settings for test_method
         let card_settings = self
@@ -509,13 +537,29 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         // Get all unlearned cards
         let unlearned_cards = self
             .profile_service
-            .get_unlearned_cards(username, profile_name)
+            .get_unlearned_cards_filtered(
+                username,
+                profile_name,
+                match card_filter {
+                    ApiCardFilter::All => CardFilter::All,
+                    ApiCardFilter::Straight => CardFilter::Straight,
+                    ApiCardFilter::Reverse => CardFilter::Reverse,
+                },
+            )
             .await
             .map_err(map_core_error_to_api_error)?;
 
         // Create test session (shuffled, all cards)
-        let session = create_test_session(unlearned_cards, card_settings.test_answer_method)
-            .map_err(map_core_error_to_api_error)?;
+        let session = create_test_session(
+            unlearned_cards,
+            card_settings.test_answer_method,
+            match card_filter {
+                ApiCardFilter::All => CardFilter::All,
+                ApiCardFilter::Straight => CardFilter::Straight,
+                ApiCardFilter::Reverse => CardFilter::Reverse,
+            },
+        )
+        .map_err(map_core_error_to_api_error)?;
 
         Ok(learning_session_to_dto(session))
     }
@@ -524,6 +568,7 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         &self,
         username: &str,
         profile_name: &str,
+        card_filter: ApiCardFilter,
     ) -> Result<LearningSessionDto, ApiError> {
         // Get card settings for test_method
         let card_settings = self
@@ -535,13 +580,29 @@ impl<R: ProfileRepository> ProfilesApi for ProfilesApiImpl<R> {
         // Get all learned cards
         let learned_cards = self
             .profile_service
-            .get_learned_cards(username, profile_name)
+            .get_learned_cards_filtered(
+                username,
+                profile_name,
+                match card_filter {
+                    ApiCardFilter::All => CardFilter::All,
+                    ApiCardFilter::Straight => CardFilter::Straight,
+                    ApiCardFilter::Reverse => CardFilter::Reverse,
+                },
+            )
             .await
             .map_err(map_core_error_to_api_error)?;
 
         // Create test session (shuffled, all cards)
-        let session = create_test_session(learned_cards, card_settings.test_answer_method)
-            .map_err(map_core_error_to_api_error)?;
+        let session = create_test_session(
+            learned_cards,
+            card_settings.test_answer_method,
+            match card_filter {
+                ApiCardFilter::All => CardFilter::All,
+                ApiCardFilter::Straight => CardFilter::Straight,
+                ApiCardFilter::Reverse => CardFilter::Reverse,
+            },
+        )
+        .map_err(map_core_error_to_api_error)?;
 
         Ok(learning_session_to_dto(session))
     }

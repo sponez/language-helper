@@ -9,7 +9,7 @@
 //! Note: This is LEARN mode - no streak updates occur here.
 
 use crate::errors::CoreError;
-use crate::models::{Card, LearningSession, TestResult};
+use crate::models::{Card, CardFilter, LearningSession, TestResult};
 use crate::repositories::ProfileRepository;
 
 /// Calculates similarity between two strings using Damerau-Levenshtein distance
@@ -62,47 +62,69 @@ fn get_all_expected_answers(card: &Card) -> Vec<String> {
         .collect()
 }
 
-/// Gets the expected answers for the NEXT answer for a card
-///
-/// For Straight cards: returns all translations (user can hit any meaning)
-/// For Reverse cards: returns only translations that haven't been provided yet
-///
-/// # Arguments
-///
-/// * `card` - The card being tested
-/// * `provided_answers` - Answers already provided (normalized)
-///
-/// # Returns
-///
-/// Vector of acceptable answers for the next input
-fn get_next_expected_answers(card: &Card, provided_answers: &[String]) -> Vec<String> {
-    use crate::models::CardType;
+fn normalize_for_compare(value: &str) -> String {
+    value.trim().to_lowercase()
+}
 
-    let all_translations: Vec<String> = card
-        .meanings
-        .iter()
-        .flat_map(|m| m.word_translations.clone())
-        .collect();
+fn dedupe_strings(values: Vec<String>) -> Vec<String> {
+    let mut normalized_values = Vec::new();
+    let mut deduped = Vec::new();
 
-    match card.card_type {
-        CardType::Straight => {
-            // For Straight cards, all translations are always acceptable
-            // (multiple hits on same meaning are fine)
-            all_translations
-        }
-        CardType::Reverse => {
-            // For Reverse cards, return only translations not yet provided
-            all_translations
-                .into_iter()
-                .filter(|trans| {
-                    // Check if this translation hasn't been provided yet (case-insensitive)
-                    !provided_answers
-                        .iter()
-                        .any(|provided| provided.to_lowercase() == trans.to_lowercase())
-                })
-                .collect()
+    for value in values {
+        let normalized = normalize_for_compare(&value);
+        if !normalized_values.iter().any(|existing| existing == &normalized) {
+            normalized_values.push(normalized);
+            deduped.push(value);
         }
     }
+
+    deduped
+}
+
+fn get_remaining_meaning_indices(card: &Card, completed_meaning_indices: &[usize]) -> Vec<usize> {
+    (0..card.meanings.len())
+        .filter(|index| !completed_meaning_indices.contains(index))
+        .collect()
+}
+
+fn get_reverse_remaining_answers(card: &Card, provided_answers: &[String]) -> Vec<String> {
+    dedupe_strings(
+        card.meanings
+            .iter()
+            .flat_map(|meaning| meaning.word_translations.clone())
+            .filter(|translation| {
+                !provided_answers.iter().any(|provided| {
+                    normalize_for_compare(provided) == normalize_for_compare(translation)
+                })
+            })
+            .collect(),
+    )
+}
+
+fn check_straight_answer_match(
+    card: &Card,
+    completed_meaning_indices: &[usize],
+    user_input: &str,
+) -> (bool, String, Option<usize>) {
+    for meaning_index in get_remaining_meaning_indices(card, completed_meaning_indices) {
+        for expected in &card.meanings[meaning_index].word_translations {
+            if calculate_similarity(expected, user_input, 0.8) {
+                return (true, expected.clone(), Some(meaning_index));
+            }
+        }
+    }
+
+    let fallback = get_remaining_meaning_indices(card, completed_meaning_indices)
+        .into_iter()
+        .find_map(|meaning_index| {
+            card.meanings[meaning_index]
+                .word_translations
+                .first()
+                .cloned()
+        })
+        .unwrap_or_default();
+
+    (false, fallback, None)
 }
 
 /// Validates if all provided answers are correct for a card
@@ -224,18 +246,58 @@ impl<R: ProfileRepository> LearningService<R> {
     ///
     /// # Returns
     ///
-    /// (is_correct, matched_answer) tuple
+    /// (is_correct, matched_answer, completed_meaning_index) tuple
     pub fn check_answer_for_session(
         &self,
         session: &LearningSession,
         user_input: &str,
-    ) -> (bool, String) {
+    ) -> (bool, String, Option<usize>) {
         if let Some(card) = session.current_card() {
-            let expected_answers =
-                get_next_expected_answers(card, &session.current_card_provided_answers);
-            check_answer_match(user_input, &expected_answers)
+            match card.card_type {
+                crate::models::CardType::Straight => check_straight_answer_match(
+                    card,
+                    &session.current_card_completed_meaning_indices,
+                    user_input,
+                ),
+                crate::models::CardType::Reverse => {
+                    let expected_answers =
+                        get_reverse_remaining_answers(card, &session.current_card_provided_answers);
+                    let (is_correct, matched_answer) =
+                        check_answer_match(user_input, &expected_answers);
+                    (is_correct, matched_answer, None)
+                }
+            }
         } else {
-            (false, String::new())
+            (false, String::new(), None)
+        }
+    }
+
+    pub fn required_answers_for_card(&self, card: &Card) -> usize {
+        match card.card_type {
+            crate::models::CardType::Straight => card.meanings.len(),
+            crate::models::CardType::Reverse => dedupe_strings(
+                card.meanings
+                    .iter()
+                    .flat_map(|meaning| meaning.word_translations.clone())
+                    .collect(),
+            )
+            .len(),
+        }
+    }
+
+    pub fn remaining_answers_for_session(&self, session: &LearningSession) -> usize {
+        let Some(card) = session.current_card() else {
+            return 0;
+        };
+
+        match card.card_type {
+            crate::models::CardType::Straight => card
+                .meanings
+                .len()
+                .saturating_sub(session.current_card_completed_meaning_indices.len()),
+            crate::models::CardType::Reverse => {
+                get_reverse_remaining_answers(card, &session.current_card_provided_answers).len()
+            }
         }
     }
 
@@ -303,6 +365,7 @@ pub fn create_session_from_cards(
     start_card_number: usize,
     cards_per_set: usize,
     test_method: String,
+    card_filter: CardFilter,
 ) -> Result<LearningSession, CoreError> {
     // Validate we have cards
     if unlearned_cards.is_empty() {
@@ -339,6 +402,7 @@ pub fn create_session_from_cards(
         0,
         cards_per_set,
         test_method,
+        card_filter,
     ))
 }
 
@@ -364,6 +428,7 @@ pub fn create_session_from_cards(
 pub fn create_test_session(
     mut cards: Vec<Card>,
     test_method: String,
+    card_filter: CardFilter,
 ) -> Result<LearningSession, CoreError> {
     // Validate we have cards
     if cards.is_empty() {
@@ -383,6 +448,7 @@ pub fn create_test_session(
         0,
         total_cards, // cards_per_set = total cards
         test_method,
+        card_filter,
     );
     session.phase = crate::models::LearningPhase::Test;
 
@@ -393,6 +459,91 @@ pub fn create_test_session(
 mod tests {
     use super::*;
     use crate::models::{CardType, Meaning, Word};
+    use crate::repositories::profile_repository::ProfileRepository;
+    use async_trait::async_trait;
+    use std::path::PathBuf;
+
+    struct MockProfileRepository;
+
+    #[async_trait]
+    impl ProfileRepository for MockProfileRepository {
+        async fn create_database(&self, _db_path: PathBuf) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        async fn delete_database(&self, _db_path: PathBuf) -> Result<bool, CoreError> {
+            unimplemented!()
+        }
+
+        async fn get_card_settings(&self, _db_path: PathBuf) -> Result<crate::models::CardSettings, CoreError> {
+            unimplemented!()
+        }
+
+        async fn update_card_settings(
+            &self,
+            _db_path: PathBuf,
+            _settings: crate::models::CardSettings,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        async fn get_assistant_settings(
+            &self,
+            _db_path: PathBuf,
+        ) -> Result<crate::models::AssistantSettings, CoreError> {
+            unimplemented!()
+        }
+
+        async fn update_assistant_settings(
+            &self,
+            _db_path: PathBuf,
+            _settings: crate::models::AssistantSettings,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        async fn clear_assistant_settings(&self, _db_path: PathBuf) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        async fn save_card(&self, _db_path: PathBuf, _card: Card) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        async fn get_all_cards(&self, _db_path: PathBuf) -> Result<Vec<Card>, CoreError> {
+            unimplemented!()
+        }
+
+        async fn get_cards_by_learned_status(
+            &self,
+            _db_path: PathBuf,
+            _streak_threshold: i32,
+            _learned: bool,
+        ) -> Result<Vec<Card>, CoreError> {
+            unimplemented!()
+        }
+
+        async fn get_card_by_word_name(
+            &self,
+            _db_path: PathBuf,
+            _word_name: String,
+        ) -> Result<Card, CoreError> {
+            unimplemented!()
+        }
+
+        async fn update_card_streak(
+            &self,
+            _db_path: PathBuf,
+            _word_name: String,
+            _streak: i32,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        async fn delete_card(&self, _db_path: PathBuf, _word_name: String) -> Result<bool, CoreError> {
+            unimplemented!()
+        }
+    }
 
     /// Helper to create a test straight card
     fn create_straight_card(
@@ -502,7 +653,7 @@ mod tests {
     }
 
     #[test]
-    fn test_straight_card_always_accepts_all_translations() {
+    fn test_straight_card_counts_remaining_meanings() {
         let card = create_straight_card(
             "食べる",
             vec!["たべる"],
@@ -512,19 +663,13 @@ mod tests {
             ],
         );
 
-        // For Straight cards, all translations are always acceptable
-        let next = get_next_expected_answers(&card, &[]);
-        assert_eq!(next.len(), 3);
-        assert!(next.contains(&"eat".to_string()));
-        assert!(next.contains(&"consume".to_string()));
-        assert!(next.contains(&"dine".to_string()));
+        assert_eq!(card.meanings.len(), 2);
 
-        // Even after providing "dine", all translations are still acceptable
-        let next = get_next_expected_answers(&card, &["dine".to_string()]);
-        assert_eq!(next.len(), 3);
-        assert!(next.contains(&"eat".to_string()));
-        assert!(next.contains(&"consume".to_string()));
-        assert!(next.contains(&"dine".to_string()));
+        let remaining = get_remaining_meaning_indices(&card, &[]);
+        assert_eq!(remaining, vec![0, 1]);
+
+        let remaining = get_remaining_meaning_indices(&card, &[1]);
+        assert_eq!(remaining, vec![0]);
     }
 
     #[test]
@@ -575,11 +720,13 @@ mod tests {
         );
 
         // First call should return all unique translations
-        let next = get_next_expected_answers(&card, &[]);
-        assert!(next.len() >= 2); // "hola" and "buenos días"
+        let next = get_reverse_remaining_answers(&card, &[]);
+        assert_eq!(next.len(), 2);
+        assert!(next.iter().any(|answer| answer.eq_ignore_ascii_case("hola")));
+        assert!(next.contains(&"buenos días".to_string()));
 
         // After providing "hola", should not include it
-        let next = get_next_expected_answers(&card, &["hola".to_string()]);
+        let next = get_reverse_remaining_answers(&card, &["hola".to_string()]);
         assert!(!next.iter().any(|a| a.to_lowercase() == "hola"));
         assert!(next.contains(&"buenos días".to_string()));
     }
@@ -729,7 +876,7 @@ mod tests {
 
     #[test]
     fn test_create_test_session_empty_cards() {
-        let result = create_test_session(vec![], "manual".to_string());
+        let result = create_test_session(vec![], "manual".to_string(), CardFilter::All);
 
         assert!(result.is_err());
         if let Err(e) = result {
@@ -745,7 +892,7 @@ mod tests {
             create_straight_card("word3", vec![], vec![("def3", "trans3", vec!["trans3"])]),
         ];
 
-        let session = create_test_session(cards.clone(), "manual".to_string())
+        let session = create_test_session(cards.clone(), "manual".to_string(), CardFilter::All)
             .expect("Session creation should succeed");
 
         // All cards should be included
@@ -770,7 +917,7 @@ mod tests {
 
         // Run multiple times to check for shuffling
         let mut different_orders = 0;
-        let first_session = create_test_session(cards.clone(), "manual".to_string())
+        let first_session = create_test_session(cards.clone(), "manual".to_string(), CardFilter::All)
             .expect("Session creation should succeed");
         let first_order: Vec<String> = first_session
             .all_cards
@@ -779,7 +926,8 @@ mod tests {
             .collect();
 
         for _ in 0..10 {
-            let session = create_test_session(cards.clone(), "manual".to_string())
+            let session =
+                create_test_session(cards.clone(), "manual".to_string(), CardFilter::All)
                 .expect("Session creation should succeed");
             let order: Vec<String> = session
                 .all_cards
@@ -808,9 +956,68 @@ mod tests {
             vec![("def1", "trans1", vec!["trans1"])],
         )];
 
-        let session = create_test_session(cards, "self_review".to_string())
+        let session = create_test_session(cards, "self_review".to_string(), CardFilter::All)
             .expect("Session creation should succeed");
 
         assert_eq!(session.test_method, "self_review");
+    }
+
+    #[test]
+    fn test_check_answer_for_session_straight_tracks_meanings() {
+        let service = LearningService::new(MockProfileRepository);
+        let cards = vec![create_straight_card(
+            "ключ",
+            vec![],
+            vec![
+                ("spring (water source)", "fuente", vec!["spring", "source"]),
+                ("key (for lock)", "llave", vec!["key"]),
+            ],
+        )];
+        let mut session = LearningSession::new(
+            cards,
+            0,
+            1,
+            "manual".to_string(),
+            CardFilter::All,
+        );
+
+        let (is_correct, _, completed_index) = service.check_answer_for_session(&session, "spring");
+        assert!(is_correct);
+        assert_eq!(completed_index, Some(0));
+
+        session.current_card_provided_answers.push("spring".to_string());
+        session.current_card_completed_meaning_indices.push(0);
+
+        let (is_correct, _, completed_index) = service.check_answer_for_session(&session, "source");
+        assert!(!is_correct);
+        assert_eq!(completed_index, None);
+
+        let (is_correct, _, completed_index) = service.check_answer_for_session(&session, "key");
+        assert!(is_correct);
+        assert_eq!(completed_index, Some(1));
+    }
+
+    #[test]
+    fn test_remaining_answers_for_session_uses_unique_reverse_answers() {
+        let service = LearningService::new(MockProfileRepository);
+        let card = create_reverse_card(
+            "hello",
+            vec![
+                ("greeting", "saludo", vec!["hola", "buenos días"]),
+                ("informal greeting", "saludo informal", vec!["hola"]),
+            ],
+        );
+        let mut session = LearningSession::new(
+            vec![card],
+            0,
+            1,
+            "manual".to_string(),
+            CardFilter::All,
+        );
+
+        assert_eq!(service.remaining_answers_for_session(&session), 2);
+
+        session.current_card_provided_answers.push("hola".to_string());
+        assert_eq!(service.remaining_answers_for_session(&session), 1);
     }
 }

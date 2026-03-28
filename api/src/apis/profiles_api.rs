@@ -5,6 +5,7 @@
 use crate::errors::api_error::ApiError;
 use crate::models::assistant_settings::AssistantSettingsDto;
 use crate::models::card::CardDto;
+use crate::models::card_filter::CardFilter;
 use crate::models::card_settings::CardSettingsDto;
 use crate::models::learning_session::LearningSessionDto;
 use crate::models::test_result::TestResultDto;
@@ -160,6 +161,7 @@ pub trait ProfilesApi: Send + Sync {
         username: &str,
         profile_name: &str,
         start_card_number: usize,
+        card_filter: CardFilter,
     ) -> Result<LearningSessionDto, ApiError>;
 
     /// Checks a written answer against the session's current card state.
@@ -174,12 +176,12 @@ pub trait ProfilesApi: Send + Sync {
     ///
     /// # Returns
     ///
-    /// (is_correct, matched_answer) tuple
+    /// (is_correct, matched_answer, completed_meaning_index) tuple
     async fn check_answer(
         &self,
         session: &LearningSessionDto,
         user_input: &str,
-    ) -> Result<(bool, String), ApiError>;
+    ) -> Result<(bool, String, Option<usize>), ApiError>;
 
     /// Processes a self-review result for a card.
     ///
@@ -215,6 +217,7 @@ pub trait ProfilesApi: Send + Sync {
         &self,
         username: &str,
         profile_name: &str,
+        card_filter: CardFilter,
     ) -> Result<LearningSessionDto, ApiError>;
 
     /// Creates a repeat session from learned cards (shuffled, all cards).
@@ -231,6 +234,7 @@ pub trait ProfilesApi: Send + Sync {
         &self,
         username: &str,
         profile_name: &str,
+        card_filter: CardFilter,
     ) -> Result<LearningSessionDto, ApiError>;
 
     /// Updates card streaks based on test results.

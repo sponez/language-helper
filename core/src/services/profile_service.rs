@@ -5,7 +5,7 @@
 //! Each profile gets its own database file at `data/{username}/{profile_name}_profile.db`.
 
 use crate::errors::CoreError;
-use crate::models::{AssistantSettings, Card, CardSettings, CardType};
+use crate::models::{AssistantSettings, Card, CardFilter, CardSettings, CardType};
 use crate::repositories::profile_repository::ProfileRepository;
 use std::path::PathBuf;
 
@@ -347,6 +347,19 @@ impl<R: ProfileRepository> ProfileService<R> {
             .await
     }
 
+    pub async fn get_unlearned_cards_filtered(
+        &self,
+        username: &str,
+        profile_name: &str,
+        card_filter: CardFilter,
+    ) -> Result<Vec<Card>, CoreError> {
+        let cards = self.get_unlearned_cards(username, profile_name).await?;
+        Ok(cards
+            .into_iter()
+            .filter(|card| card_filter.matches(&card.card_type))
+            .collect())
+    }
+
     /// Gets learned cards (streak at or above threshold).
     pub async fn get_learned_cards(
         &self,
@@ -368,6 +381,19 @@ impl<R: ProfileRepository> ProfileService<R> {
         self.repository
             .get_cards_by_learned_status(db_path, settings.streak_length as i32, true)
             .await
+    }
+
+    pub async fn get_learned_cards_filtered(
+        &self,
+        username: &str,
+        profile_name: &str,
+        card_filter: CardFilter,
+    ) -> Result<Vec<Card>, CoreError> {
+        let cards = self.get_learned_cards(username, profile_name).await?;
+        Ok(cards
+            .into_iter()
+            .filter(|card| card_filter.matches(&card.card_type))
+            .collect())
     }
 
     /// Gets a single card by word name.

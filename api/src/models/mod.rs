@@ -23,6 +23,7 @@ pub mod ai_explain;
 pub mod app_settings;
 pub mod assistant_settings;
 pub mod card;
+pub mod card_filter;
 pub mod card_settings;
 pub mod learning_session;
 pub mod profile;

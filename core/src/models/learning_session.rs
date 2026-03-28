@@ -4,6 +4,7 @@
 //! set of cards being studied, the phase (study or test), and test results.
 
 use super::card::{Card, CardType};
+use super::card_filter::CardFilter;
 use super::test_result::TestResult;
 
 /// Phase of the learning session
@@ -30,10 +31,14 @@ pub struct LearningSession {
     pub current_card_in_set: usize,
     /// Test method ("manual" for written, "self_review" for self-evaluation)
     pub test_method: String,
+    /// Card type filter used to create this session
+    pub card_filter: CardFilter,
     /// Test results for the current set
     pub test_results: Vec<TestResult>,
     /// Answers already provided for current card (for multi-answer testing)
     pub current_card_provided_answers: Vec<String>,
+    /// Meaning indexes already completed for the current straight card
+    pub current_card_completed_meaning_indices: Vec<usize>,
     /// Whether the current card has been answered incorrectly
     pub current_card_failed: bool,
 }
@@ -52,6 +57,7 @@ impl LearningSession {
         start_index: usize,
         cards_per_set: usize,
         test_method: String,
+        card_filter: CardFilter,
     ) -> Self {
         Self {
             all_cards,
@@ -60,8 +66,10 @@ impl LearningSession {
             phase: LearningPhase::Study,
             current_card_in_set: 0,
             test_method,
+            card_filter,
             test_results: Vec::new(),
             current_card_provided_answers: Vec::new(),
+            current_card_completed_meaning_indices: Vec::new(),
             current_card_failed: false,
         }
     }
@@ -97,6 +105,7 @@ impl LearningSession {
         self.current_card_in_set = 0;
         self.test_results.clear();
         self.current_card_provided_answers.clear();
+        self.current_card_completed_meaning_indices.clear();
         self.current_card_failed = false;
     }
 
@@ -131,6 +140,7 @@ impl LearningSession {
             self.phase = LearningPhase::Study;
             self.current_card_in_set = 0;
             self.test_results.clear();
+            self.current_card_completed_meaning_indices.clear();
             true
         } else {
             false
@@ -143,12 +153,14 @@ impl LearningSession {
         self.current_card_in_set = 0;
         self.test_results.clear();
         self.current_card_provided_answers.clear();
+        self.current_card_completed_meaning_indices.clear();
         self.current_card_failed = false;
     }
 
     /// Moves to the next card in test phase, resetting answer tracking
     pub fn move_to_next_test_card(&mut self) {
         self.current_card_provided_answers.clear();
+        self.current_card_completed_meaning_indices.clear();
         self.current_card_failed = false;
     }
 
@@ -181,7 +193,7 @@ impl LearningSession {
                     // This check needs to be done by comparing provided answers against card meanings
                     // For now, we'll use a simple count check, but the actual validation
                     // happens in the learning service
-                    self.current_card_provided_answers.len() >= card.meanings.len()
+                    self.current_card_completed_meaning_indices.len() >= card.meanings.len()
                 }
                 CardType::Reverse => {
                     // For Reverse cards: all translations from all meanings are required

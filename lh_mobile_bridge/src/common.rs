@@ -40,9 +40,8 @@ pub fn error_response(message: &str) -> *const c_char {
         "error": message
     });
 
-    let json = serde_json::to_string(&error).unwrap_or_else(|_| {
-        r#"{"error": "Failed to serialize error message"}"#.to_string()
-    });
+    let json = serde_json::to_string(&error)
+        .unwrap_or_else(|_| r#"{"error": "Failed to serialize error message"}"#.to_string());
 
     CString::new(json)
         .unwrap_or_else(|_| CString::new(r#"{"error": "Fatal error"}"#).unwrap())
@@ -53,7 +52,10 @@ pub fn error_response(message: &str) -> *const c_char {
 pub unsafe fn c_str_to_rust(ptr: *const c_char, field_name: &str) -> Result<String, *const c_char> {
     match CStr::from_ptr(ptr).to_str() {
         Ok(s) => Ok(s.to_string()),
-        Err(e) => Err(error_response(&format!("Invalid {} string: {}", field_name, e))),
+        Err(e) => Err(error_response(&format!(
+            "Invalid {} string: {}",
+            field_name, e
+        ))),
     }
 }
 
@@ -64,7 +66,11 @@ macro_rules! ffi_call {
         unsafe {
             let _api = match $crate::common::APP_API.as_ref() {
                 Some(api) => api,
-                None => return $crate::common::error_response("App not initialized. Call init_app() first."),
+                None => {
+                    return $crate::common::error_response(
+                        "App not initialized. Call init_app() first.",
+                    )
+                }
             };
 
             let runtime = match $crate::common::RUNTIME.as_ref() {

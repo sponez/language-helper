@@ -3,6 +3,7 @@
 //! This module defines DTOs for managing learning sessions.
 
 use crate::models::card::CardDto;
+use crate::models::card_filter::CardFilter;
 use crate::models::test_result::TestResultDto;
 use serde::{Deserialize, Serialize};
 
@@ -35,10 +36,14 @@ pub struct LearningSessionDto {
     pub current_card_in_set: usize,
     /// Test method ("manual" for written, "self_review" for self-evaluation).
     pub test_method: String,
+    /// Card type filter used to create this session.
+    pub card_filter: CardFilter,
     /// Test results for the current set.
     pub test_results: Vec<TestResultDto>,
     /// Answers already provided for current card (for multi-answer testing).
     pub current_card_provided_answers: Vec<String>,
+    /// Meaning indexes already completed for current straight card.
+    pub current_card_completed_meaning_indices: Vec<usize>,
     /// Whether the current card has been answered incorrectly.
     pub current_card_failed: bool,
 }
@@ -58,8 +63,10 @@ impl LearningSessionDto {
             phase: LearningPhase::Study,
             current_card_in_set: 0,
             test_method,
+            card_filter: CardFilter::All,
             test_results: Vec::new(),
             current_card_provided_answers: Vec::new(),
+            current_card_completed_meaning_indices: Vec::new(),
             current_card_failed: false,
         }
     }

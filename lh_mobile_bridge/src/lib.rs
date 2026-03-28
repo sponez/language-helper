@@ -44,17 +44,17 @@
 mod common;
 
 // Module declarations
+mod ai_assistant_ffi;
+mod app_settings_ffi;
 mod init;
 mod memory;
-mod users_ffi;
-mod app_settings_ffi;
 mod profiles_ffi;
-mod ai_assistant_ffi;
+mod users_ffi;
 
 // Re-export all FFI functions
+pub use ai_assistant_ffi::*;
+pub use app_settings_ffi::*;
 pub use init::*;
 pub use memory::*;
-pub use users_ffi::*;
-pub use app_settings_ffi::*;
 pub use profiles_ffi::*;
-pub use ai_assistant_ffi::*;
+pub use users_ffi::*;

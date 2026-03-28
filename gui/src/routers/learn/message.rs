@@ -1,10 +1,13 @@
 use iced::Event;
+use lh_api::models::card_filter::CardFilter;
 
 /// Messages that can be sent within the learn router
 #[derive(Debug, Clone)]
 pub enum Message {
     /// User provided start card number
     StartCardNumberChanged(String),
+    /// User selected a card filter
+    CardFilterSelected(CardFilter),
     /// Start button pressed
     Start,
     /// Started learning session (async result)
@@ -20,7 +23,7 @@ pub enum Message {
     /// User submitted answer
     SubmitAnswer,
     /// Answer checked (async result)
-    AnswerChecked(Result<(bool, String), String>),
+    AnswerChecked(Result<(bool, String, Option<usize>), String>),
 
     /// Show answer button pressed (self-review mode)
     ShowAnswer,

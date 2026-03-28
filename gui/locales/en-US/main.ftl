@@ -45,6 +45,7 @@ error-modal-close-button = Close
 
 # Loading State
 loading = Loading...
+close = Close
 
 # Profile List Screen
 profile-list-title = Select Profile
@@ -182,7 +183,10 @@ manage-cards-no-unlearned = No unlearned cards yet
 manage-cards-no-learned = No learned cards yet
 manage-cards-edit = Edit
 manage-cards-delete = Delete
+manage-cards-show = Show
 manage-cards-add-new = Add New Card
+manage-cards-search-placeholder = Search cards
+manage-cards-no-results = No cards match your search
 
 # Add Card Screen
 add-card-title = Add Card
@@ -229,6 +233,7 @@ learn-title = Learn Mode
 learn-start-instruction = Enter the starting card number:
 learn-card-number-placeholder = Card number
 learn-start-button = Start
+session-card-filter-label = Card type to practice:
 learn-back = Back
 
 # Learn Router - Loading
@@ -266,6 +271,8 @@ learn-retry-set = Retry Set
 
 # Test Router - Loading
 test-loading = Loading test...
+test-start-title = Test Mode
+test-start-button = Start Test
 test-back = Back
 test-no-cards = No cards available for testing
 
@@ -278,6 +285,8 @@ test-retry-test = Retry Test
 
 # Repeat Router - Loading
 repeat-loading = Loading repeat session...
+repeat-start-title = Review Mode
+repeat-start-button = Start Review
 repeat-back = Back
 repeat-no-cards = No learned cards available to review
 
