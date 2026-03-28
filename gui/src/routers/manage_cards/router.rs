@@ -40,6 +40,12 @@ use super::elements::action_buttons::action_buttons;
 use super::elements::card_list::card_list;
 use super::elements::tab_buttons::tab_buttons;
 
+#[derive(Debug, Clone)]
+enum ScreenState {
+    List,
+    ShowCard(CardDto),
+}
+
 fn card_matches_query(card: &CardDto, query: &str) -> bool {
     let query = query.trim().to_lowercase();
     if query.is_empty() {
@@ -84,8 +90,8 @@ pub struct ManageCardsRouter {
     error_message: Option<String>,
     /// Search query for client-side filtering
     search_query: String,
-    /// Currently displayed read-only card
-    show_card: Option<CardDto>,
+    /// Current screen state
+    screen_state: ScreenState,
 }
 
 impl ManageCardsRouter {
@@ -113,7 +119,7 @@ impl ManageCardsRouter {
             learned_cards: None,
             error_message: None,
             search_query: String::new(),
-            show_card: None,
+            screen_state: ScreenState::List,
         }
     }
 
@@ -194,14 +200,16 @@ impl ManageCardsRouter {
                 (None, task)
             }
             Message::ShowCard(card) => {
-                self.show_card = Some(card);
+                self.screen_state = ScreenState::ShowCard(card);
                 (None, Task::none())
             }
-            Message::CloseShowCard => {
-                self.show_card = None;
-                (None, Task::none())
-            }
-            Message::Back => (Some(RouterEvent::Pop), Task::none()),
+            Message::Back => match self.screen_state {
+                ScreenState::ShowCard(_) => {
+                    self.screen_state = ScreenState::List;
+                    (None, Task::none())
+                }
+                ScreenState::List => (Some(RouterEvent::Pop), Task::none()),
+            },
 
             // Async operation results
             Message::CardsLoaded(result) => match result {
@@ -209,7 +217,7 @@ impl ManageCardsRouter {
                     self.unlearned_cards = Some(unlearned);
                     self.learned_cards = Some(learned);
                     self.error_message = None;
-                    self.show_card = None;
+                    self.screen_state = ScreenState::List;
                     (None, Task::none())
                 }
                 Err(e) => {
@@ -261,6 +269,51 @@ impl ManageCardsRouter {
     /// An Element containing the UI for this router
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = &self.app_state.i18n();
+
+        if let ScreenState::ShowCard(card) = &self.screen_state {
+            let title = iced::widget::text(&card.word.name)
+                .size(24)
+                .shaping(iced::widget::text::Shaping::Advanced);
+
+            let card_view = crate::routers::learn::elements::card_display::card_display::<Message>(
+                i18n, card, 1, 1,
+            );
+
+            let content = column![title, card_view]
+                .spacing(20)
+                .align_x(Alignment::Center);
+
+            let scrollable_content = scrollable(
+                Container::new(content)
+                    .width(Length::Fill)
+                    .padding(20)
+                    .align_x(Alignment::Center),
+            )
+            .width(Length::Fill)
+            .height(Length::Fill);
+
+            let center_content = Container::new(scrollable_content)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Alignment::Center)
+                .align_y(Alignment::Center);
+
+            let back_btn = back_button(i18n, "manage-cards-back", Message::Back);
+            let top_bar = Container::new(row![back_btn].spacing(10).padding(10))
+                .width(Length::Fill)
+                .align_x(Alignment::Start)
+                .align_y(Alignment::Start);
+
+            let base: Container<'_, Message> = container(stack![center_content, top_bar])
+                .width(Length::Fill)
+                .height(Length::Fill);
+
+            return if let Some(ref error_msg) = self.error_message {
+                stack![base, error_modal(i18n, error_msg).map(Message::ErrorModal)].into()
+            } else {
+                base.into()
+            };
+        }
 
         // Title
         let title = iced::widget::text(i18n.get("manage-cards-title", None))
@@ -424,41 +477,10 @@ impl ManageCardsRouter {
             .width(Length::Fill)
             .height(Length::Fill);
 
-        // Error modal overlay
-        let mut layered = stack![base].into();
-
-        if let Some(ref card) = self.show_card {
-            let modal_content = iced::widget::column![
-                crate::routers::learn::elements::card_display::card_display::<Message>(
-                    i18n, card, 1, 1
-                ),
-                iced::widget::button(
-                    iced::widget::text(i18n.get("close", None))
-                        .shaping(iced::widget::text::Shaping::Advanced)
-                )
-                .on_press(Message::CloseShowCard)
-                .padding(8)
-            ]
-            .spacing(16)
-            .align_x(Alignment::Center);
-
-            let overlay = container(
-                container(modal_content)
-                    .padding(20)
-                    .style(container::rounded_box),
-            )
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill);
-
-            layered = stack![layered, overlay].into();
-        }
-
         if let Some(ref error_msg) = self.error_message {
-            stack![layered, error_modal(i18n, error_msg).map(Message::ErrorModal)].into()
+            stack![base, error_modal(i18n, error_msg).map(Message::ErrorModal)].into()
         } else {
-            layered
+            base.into()
         }
     }
 

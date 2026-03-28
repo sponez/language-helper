@@ -37,7 +37,7 @@ pub fn card_list(i18n: &Rc<I18n>, cards: Vec<CardDto>) -> Element<'static, Messa
         .size(12)
         .shaping(iced::widget::text::Shaping::Advanced);
 
-        let show_text = text(i18n.get("manage-cards-show", None))
+        let show_text = text(i18n.get("manage-card-show", None))
             .size(12)
             .shaping(iced::widget::text::Shaping::Advanced);
         let show_button = button(show_text)

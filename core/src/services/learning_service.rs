@@ -62,46 +62,13 @@ fn get_all_expected_answers(card: &Card) -> Vec<String> {
         .collect()
 }
 
-fn normalize_for_compare(value: &str) -> String {
-    value.trim().to_lowercase()
-}
-
-fn dedupe_strings(values: Vec<String>) -> Vec<String> {
-    let mut normalized_values = Vec::new();
-    let mut deduped = Vec::new();
-
-    for value in values {
-        let normalized = normalize_for_compare(&value);
-        if !normalized_values.iter().any(|existing| existing == &normalized) {
-            normalized_values.push(normalized);
-            deduped.push(value);
-        }
-    }
-
-    deduped
-}
-
 fn get_remaining_meaning_indices(card: &Card, completed_meaning_indices: &[usize]) -> Vec<usize> {
     (0..card.meanings.len())
         .filter(|index| !completed_meaning_indices.contains(index))
         .collect()
 }
 
-fn get_reverse_remaining_answers(card: &Card, provided_answers: &[String]) -> Vec<String> {
-    dedupe_strings(
-        card.meanings
-            .iter()
-            .flat_map(|meaning| meaning.word_translations.clone())
-            .filter(|translation| {
-                !provided_answers.iter().any(|provided| {
-                    normalize_for_compare(provided) == normalize_for_compare(translation)
-                })
-            })
-            .collect(),
-    )
-}
-
-fn check_straight_answer_match(
+fn check_meaning_answer_match(
     card: &Card,
     completed_meaning_indices: &[usize],
     user_input: &str,
@@ -129,14 +96,10 @@ fn check_straight_answer_match(
 
 /// Validates if all provided answers are correct for a card
 ///
-/// For Straight cards:
+/// For both card types:
 /// - Checks if all meanings are covered (at least one correct translation per meaning)
 /// - Returns false if any answer doesn't match any translation
 /// - Multiple hits on the same meaning are allowed
-///
-/// For Reverse cards:
-/// - Checks if all translations have been provided
-/// - Returns false if any answer doesn't match or if any translation is missing
 ///
 /// # Arguments
 ///
@@ -148,8 +111,6 @@ fn check_straight_answer_match(
 /// true if all requirements are met, false otherwise
 #[allow(dead_code)] // Used in tests and will be used by GUI layer
 fn validate_all_answers(card: &Card, provided_answers: &[String]) -> bool {
-    use crate::models::CardType;
-
     let all_translations: Vec<String> = card
         .meanings
         .iter()
@@ -166,27 +127,15 @@ fn validate_all_answers(card: &Card, provided_answers: &[String]) -> bool {
         }
     }
 
-    match card.card_type {
-        CardType::Straight => {
-            // For Straight cards: check if all meanings are covered
-            // For each meaning, check if at least one provided answer matches any of its translations
-            card.meanings.iter().all(|meaning| {
-                meaning.word_translations.iter().any(|trans| {
-                    provided_answers
-                        .iter()
-                        .any(|provided| calculate_similarity(trans, provided, 0.8))
-                })
-            })
-        }
-        CardType::Reverse => {
-            // For Reverse cards: check if all translations are provided
-            all_translations.iter().all(|trans| {
-                provided_answers
-                    .iter()
-                    .any(|provided| calculate_similarity(trans, provided, 0.8))
-            })
-        }
-    }
+    // For both card types: check if all meanings are covered
+    // For each meaning, check if at least one provided answer matches any of its translations
+    card.meanings.iter().all(|meaning| {
+        meaning.word_translations.iter().any(|trans| {
+            provided_answers
+                .iter()
+                .any(|provided| calculate_similarity(trans, provided, 0.8))
+        })
+    })
 }
 
 /// Checks if answer matches any of the expected answers
@@ -253,36 +202,18 @@ impl<R: ProfileRepository> LearningService<R> {
         user_input: &str,
     ) -> (bool, String, Option<usize>) {
         if let Some(card) = session.current_card() {
-            match card.card_type {
-                crate::models::CardType::Straight => check_straight_answer_match(
-                    card,
-                    &session.current_card_completed_meaning_indices,
-                    user_input,
-                ),
-                crate::models::CardType::Reverse => {
-                    let expected_answers =
-                        get_reverse_remaining_answers(card, &session.current_card_provided_answers);
-                    let (is_correct, matched_answer) =
-                        check_answer_match(user_input, &expected_answers);
-                    (is_correct, matched_answer, None)
-                }
-            }
+            check_meaning_answer_match(
+                card,
+                &session.current_card_completed_meaning_indices,
+                user_input,
+            )
         } else {
             (false, String::new(), None)
         }
     }
 
     pub fn required_answers_for_card(&self, card: &Card) -> usize {
-        match card.card_type {
-            crate::models::CardType::Straight => card.meanings.len(),
-            crate::models::CardType::Reverse => dedupe_strings(
-                card.meanings
-                    .iter()
-                    .flat_map(|meaning| meaning.word_translations.clone())
-                    .collect(),
-            )
-            .len(),
-        }
+        card.meanings.len()
     }
 
     pub fn remaining_answers_for_session(&self, session: &LearningSession) -> usize {
@@ -290,15 +221,9 @@ impl<R: ProfileRepository> LearningService<R> {
             return 0;
         };
 
-        match card.card_type {
-            crate::models::CardType::Straight => card
-                .meanings
-                .len()
-                .saturating_sub(session.current_card_completed_meaning_indices.len()),
-            crate::models::CardType::Reverse => {
-                get_reverse_remaining_answers(card, &session.current_card_provided_answers).len()
-            }
-        }
+        card.meanings
+            .len()
+            .saturating_sub(session.current_card_completed_meaning_indices.len())
     }
 
     /// Checks a written answer for a card (legacy method for tests)
@@ -710,7 +635,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reverse_card_next_answer_removes_provided() {
+    fn test_reverse_card_tracks_remaining_meanings() {
         let card = create_reverse_card(
             "hello",
             vec![
@@ -719,16 +644,11 @@ mod tests {
             ],
         );
 
-        // First call should return all unique translations
-        let next = get_reverse_remaining_answers(&card, &[]);
-        assert_eq!(next.len(), 2);
-        assert!(next.iter().any(|answer| answer.eq_ignore_ascii_case("hola")));
-        assert!(next.contains(&"buenos días".to_string()));
+        let remaining = get_remaining_meaning_indices(&card, &[]);
+        assert_eq!(remaining, vec![0, 1]);
 
-        // After providing "hola", should not include it
-        let next = get_reverse_remaining_answers(&card, &["hola".to_string()]);
-        assert!(!next.iter().any(|a| a.to_lowercase() == "hola"));
-        assert!(next.contains(&"buenos días".to_string()));
+        let remaining = get_remaining_meaning_indices(&card, &[0]);
+        assert_eq!(remaining, vec![1]);
     }
 
     #[test]
@@ -741,21 +661,11 @@ mod tests {
             ],
         );
 
-        // Valid: all translations provided
-        assert!(validate_all_answers(
-            &card,
-            &[
-                "ключ".to_string(),
-                "источник".to_string(),
-                "весна".to_string()
-            ]
-        ));
+        // Valid: one correct answer per meaning is enough
+        assert!(validate_all_answers(&card, &["ключ".to_string(), "весна".to_string()]));
 
-        // Invalid: missing "весна"
-        assert!(!validate_all_answers(
-            &card,
-            &["ключ".to_string(), "источник".to_string()]
-        ));
+        // Invalid: missing second meaning
+        assert!(!validate_all_answers(&card, &["ключ".to_string()]));
 
         // Invalid: non-existent translation
         assert!(!validate_all_answers(
@@ -998,7 +908,7 @@ mod tests {
     }
 
     #[test]
-    fn test_remaining_answers_for_session_uses_unique_reverse_answers() {
+    fn test_remaining_answers_for_session_tracks_reverse_meanings() {
         let service = LearningService::new(MockProfileRepository);
         let card = create_reverse_card(
             "hello",
@@ -1017,7 +927,7 @@ mod tests {
 
         assert_eq!(service.remaining_answers_for_session(&session), 2);
 
-        session.current_card_provided_answers.push("hola".to_string());
+        session.current_card_completed_meaning_indices.push(0);
         assert_eq!(service.remaining_answers_for_session(&session), 1);
     }
 }

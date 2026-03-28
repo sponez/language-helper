@@ -17,7 +17,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use iced::keyboard::{key::Named, Key};
-use iced::widget::{column, container, row, stack, text, text_input, Column, Container};
+use iced::widget::{column, container, pick_list, row, stack, text, text_input, Column, Container};
 use iced::{event, Alignment, Element, Event, Length, Subscription, Task};
 
 use lh_api::app_api::AppApi;
@@ -35,50 +35,47 @@ use super::elements::action_button::action_button;
 use super::elements::answer_input::AnswerInputMessage;
 use super::elements::card_display::card_display;
 
-fn unique_translation_count(card: &CardDto) -> usize {
-    let mut normalized = Vec::new();
-
-    for translation in card
-        .meanings
-        .iter()
-        .flat_map(|meaning| meaning.word_translations.iter())
-    {
-        let candidate = translation.trim().to_lowercase();
-        if !normalized.iter().any(|existing| existing == &candidate) {
-            normalized.push(candidate);
-        }
-    }
-
-    normalized.len()
-}
-
 fn required_answers(card: &CardDto) -> usize {
-    match card.card_type {
-        lh_api::models::card::CardType::Straight => card.meanings.len(),
-        lh_api::models::card::CardType::Reverse => unique_translation_count(card),
-    }
+    card.meanings.len()
 }
 
 fn is_card_complete(session: &LearningSessionDto, card: &CardDto) -> bool {
     session.current_card_failed
-        || match card.card_type {
-            lh_api::models::card::CardType::Straight => {
-                session.current_card_completed_meaning_indices.len() >= required_answers(card)
-            }
-            lh_api::models::card::CardType::Reverse => {
-                session.current_card_provided_answers.len() >= required_answers(card)
-            }
-        }
+        || session.current_card_completed_meaning_indices.len() >= required_answers(card)
 }
 
 fn remaining_answers(session: &LearningSessionDto, card: &CardDto) -> usize {
-    match card.card_type {
-        lh_api::models::card::CardType::Straight => required_answers(card)
-            .saturating_sub(session.current_card_completed_meaning_indices.len()),
-        lh_api::models::card::CardType::Reverse => {
-            required_answers(card).saturating_sub(session.current_card_provided_answers.len())
-        }
+    required_answers(card).saturating_sub(session.current_card_completed_meaning_indices.len())
+}
+
+fn card_filter_label_key(filter: CardFilter) -> &'static str {
+    match filter {
+        CardFilter::All => "selection-card-filter-all",
+        CardFilter::Straight => "selection-card-filter-straight",
+        CardFilter::Reverse => "selection-card-filter-reverse",
     }
+}
+
+fn filter_selector(
+    labels: [(CardFilter, String); 3],
+    selected_filter: CardFilter,
+) -> Element<'static, Message> {
+    let options: Vec<String> = labels.iter().map(|(_, label)| label.clone()).collect();
+    let selected = labels
+        .iter()
+        .find(|(filter, _)| *filter == selected_filter)
+        .map(|(_, label)| label.clone());
+
+    let mappings = labels;
+    pick_list(options, selected, move |selected_label| {
+        let filter = mappings
+            .iter()
+            .find(|(_, label)| *label == selected_label)
+            .map(|(filter, _)| *filter)
+            .unwrap_or(CardFilter::All);
+        Message::CardFilterSelected(filter)
+    })
+    .into()
 }
 
 /// State for different screens in the learn flow
@@ -676,6 +673,12 @@ impl LearnRouter {
                                 if !start_card_input.trim().is_empty() {
                                     return self.update(Message::Start);
                                 }
+                            } else if let ScreenState::Results { passed, .. } = &self.screen_state {
+                                return if *passed {
+                                    self.update(Message::NextSet)
+                                } else {
+                                    self.update(Message::RetrySet)
+                                };
                             }
                         }
                         // Escape key: Go back
@@ -692,7 +695,7 @@ impl LearnRouter {
 
     /// Render the router's view.
     pub fn view(&self) -> Element<'_, Message> {
-        let i18n = &self.app_state.i18n();
+        let i18n = self.app_state.i18n();
 
         match &self.screen_state {
             ScreenState::Start {
@@ -717,21 +720,29 @@ impl LearnRouter {
                 .padding(10)
                 .width(Length::Fixed(200.0));
 
-                let filter_label = text(i18n.get("session-card-filter-label", None))
+                let filter_label = text(i18n.get("selection-card-filter-label", None))
                     .size(14)
                     .shaping(iced::widget::text::Shaping::Advanced);
 
-                let filter_picker = iced::widget::pick_list(
+                let filter_picker = filter_selector(
                     [
-                        CardFilter::All,
-                        CardFilter::Straight,
-                        CardFilter::Reverse,
+                        (
+                            CardFilter::All,
+                            i18n.get(card_filter_label_key(CardFilter::All), None),
+                        ),
+                        (
+                            CardFilter::Straight,
+                            i18n.get(card_filter_label_key(CardFilter::Straight), None),
+                        ),
+                        (
+                            CardFilter::Reverse,
+                            i18n.get(card_filter_label_key(CardFilter::Reverse), None),
+                        ),
                     ],
-                    Some(*selected_filter),
-                    Message::CardFilterSelected,
+                    *selected_filter,
                 );
 
-                let start_btn = action_button(i18n, "learn-start-button", Some(Message::Start));
+                let start_btn = action_button(&i18n, "learn-start-button", Some(Message::Start));
 
                 let mut content = column![title, instruction, input, filter_label, filter_picker, start_btn]
                     .spacing(20)
@@ -753,7 +764,7 @@ impl LearnRouter {
                     .align_y(Alignment::Center);
 
                 // Top-left: Back button
-                let back_btn = back_button(i18n, "learn-back", Message::Back);
+                let back_btn = back_button(&i18n, "learn-back", Message::Back);
                 let top_bar = Container::new(row![back_btn].spacing(10).padding(10))
                     .width(Length::Fill)
                     .align_x(Alignment::Start)
@@ -788,13 +799,13 @@ impl LearnRouter {
 
                 if let Some(card) = session.all_cards.get(current_index) {
                     let card_view =
-                        card_display(i18n, card, session.current_card_in_set + 1, actual_set_size);
+                        card_display(&i18n, card, session.current_card_in_set + 1, actual_set_size);
 
                     let next_btn =
-                        action_button(i18n, "learn-next-card", Some(Message::NextCardInStudy));
+                        action_button(&i18n, "learn-next-card", Some(Message::NextCardInStudy));
 
                     let start_test_btn =
-                        action_button(i18n, "learn-start-test", Some(Message::StartTest));
+                        action_button(&i18n, "learn-start-test", Some(Message::StartTest));
 
                     let button_row = row![next_btn, start_test_btn]
                         .spacing(20)
@@ -820,7 +831,7 @@ impl LearnRouter {
                         .align_y(Alignment::Center);
 
                     // Top-left: Back button
-                    let back_btn = back_button(i18n, "learn-back", Message::Back);
+                    let back_btn = back_button(&i18n, "learn-back", Message::Back);
                     let top_bar = Container::new(row![back_btn].spacing(10).padding(10))
                         .width(Length::Fill)
                         .align_x(Alignment::Start)
@@ -879,7 +890,7 @@ impl LearnRouter {
                         let actual_set_size = session.cards_per_set.min(remaining_cards);
 
                         let card_view = card_display(
-                            i18n,
+                            &i18n,
                             card,
                             session.current_card_in_set + 1,
                             actual_set_size,
@@ -913,17 +924,17 @@ impl LearnRouter {
                         if !answer_shown {
                             // Show "Show Answer" button
                             let show_answer_btn =
-                                action_button(i18n, "learn-show-answer", Some(Message::ShowAnswer));
+                                action_button(&i18n, "learn-show-answer", Some(Message::ShowAnswer));
                             content_elements.push(show_answer_btn);
                         } else {
                             // Answer is shown - display Correct/False buttons
                             let correct_btn = action_button(
-                                i18n,
+                                &i18n,
                                 "learn-answer-correct",
                                 Some(Message::AnswerCorrect),
                             );
                             let incorrect_btn = action_button(
-                                i18n,
+                                &i18n,
                                 "learn-answer-incorrect",
                                 Some(Message::AnswerIncorrect),
                             );
@@ -938,7 +949,7 @@ impl LearnRouter {
                         // Manual mode: Answer input and Submit button (only show if no feedback yet)
                         if feedback.is_none() {
                             let input_element = super::elements::answer_input::answer_input(
-                                i18n,
+                                &i18n,
                                 answer_input,
                                 remaining_count,
                             )
@@ -950,7 +961,7 @@ impl LearnRouter {
 
                             // Submit button
                             let submit_btn = action_button(
-                                i18n,
+                                &i18n,
                                 "learn-submit-answer",
                                 if !answer_input.trim().is_empty() {
                                     Some(Message::SubmitAnswer)
@@ -984,7 +995,7 @@ impl LearnRouter {
                             };
 
                             let continue_btn =
-                                action_button(i18n, "learn-continue", Some(Message::Continue));
+                                action_button(&i18n, "learn-continue", Some(Message::Continue));
 
                             content_elements.push(feedback_text.into());
                             content_elements.push(continue_btn);
@@ -1013,7 +1024,7 @@ impl LearnRouter {
                         .align_y(Alignment::Center);
 
                     // Top-left: Back button
-                    let back_btn = back_button(i18n, "learn-back", Message::Back);
+                    let back_btn = back_button(&i18n, "learn-back", Message::Back);
                     let top_bar = Container::new(row![back_btn].spacing(10).padding(10))
                         .width(Length::Fill)
                         .align_x(Alignment::Start)
@@ -1058,7 +1069,7 @@ impl LearnRouter {
 
                 let buttons = if *passed {
                     row![action_button(
-                        i18n,
+                        &i18n,
                         "learn-next-set",
                         Some(Message::NextSet)
                     )]
@@ -1066,7 +1077,7 @@ impl LearnRouter {
                     .align_y(Alignment::Center)
                 } else {
                     row![action_button(
-                        i18n,
+                        &i18n,
                         "learn-retry-set",
                         Some(Message::RetrySet)
                     )]
@@ -1086,7 +1097,7 @@ impl LearnRouter {
                     .align_y(Alignment::Center);
 
                 // Top-left: Back button
-                let back_btn = back_button(i18n, "learn-back", Message::Back);
+                let back_btn = back_button(&i18n, "learn-back", Message::Back);
                 let top_bar = Container::new(row![back_btn].spacing(10).padding(10))
                     .width(Length::Fill)
                     .align_x(Alignment::Start)

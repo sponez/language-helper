@@ -183,7 +183,7 @@ manage-cards-no-unlearned = No unlearned cards yet
 manage-cards-no-learned = No learned cards yet
 manage-cards-edit = Edit
 manage-cards-delete = Delete
-manage-cards-show = Show
+manage-card-show = Show
 manage-cards-add-new = Add New Card
 manage-cards-search-placeholder = Search cards
 manage-cards-no-results = No cards match your search
@@ -233,7 +233,10 @@ learn-title = Learn Mode
 learn-start-instruction = Enter the starting card number:
 learn-card-number-placeholder = Card number
 learn-start-button = Start
-session-card-filter-label = Card type to practice:
+selection-card-filter-label = Card type to practice:
+selection-card-filter-all = All
+selection-card-filter-straight = Straight
+selection-card-filter-reverse = Reverse
 learn-back = Back
 
 # Learn Router - Loading

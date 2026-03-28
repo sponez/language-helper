@@ -9,7 +9,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use iced::keyboard::{key::Named, Key};
-use iced::widget::{column, container, row, stack, text, Column, Container};
+use iced::widget::{column, container, pick_list, row, stack, text, Column, Container};
 use iced::{event, Alignment, Element, Event, Length, Subscription, Task};
 
 use lh_api::app_api::AppApi;
@@ -27,50 +27,47 @@ use crate::routers::learn::elements::action_button::action_button;
 use crate::routers::learn::elements::answer_input::AnswerInputMessage;
 use crate::routers::learn::elements::card_display::card_display;
 
-fn unique_translation_count(card: &CardDto) -> usize {
-    let mut normalized = Vec::new();
-
-    for translation in card
-        .meanings
-        .iter()
-        .flat_map(|meaning| meaning.word_translations.iter())
-    {
-        let candidate = translation.trim().to_lowercase();
-        if !normalized.iter().any(|existing| existing == &candidate) {
-            normalized.push(candidate);
-        }
-    }
-
-    normalized.len()
-}
-
 fn required_answers(card: &CardDto) -> usize {
-    match card.card_type {
-        lh_api::models::card::CardType::Straight => card.meanings.len(),
-        lh_api::models::card::CardType::Reverse => unique_translation_count(card),
-    }
+    card.meanings.len()
 }
 
 fn is_card_complete(session: &LearningSessionDto, card: &CardDto) -> bool {
     session.current_card_failed
-        || match card.card_type {
-            lh_api::models::card::CardType::Straight => {
-                session.current_card_completed_meaning_indices.len() >= required_answers(card)
-            }
-            lh_api::models::card::CardType::Reverse => {
-                session.current_card_provided_answers.len() >= required_answers(card)
-            }
-        }
+        || session.current_card_completed_meaning_indices.len() >= required_answers(card)
 }
 
 fn remaining_answers(session: &LearningSessionDto, card: &CardDto) -> usize {
-    match card.card_type {
-        lh_api::models::card::CardType::Straight => required_answers(card)
-            .saturating_sub(session.current_card_completed_meaning_indices.len()),
-        lh_api::models::card::CardType::Reverse => {
-            required_answers(card).saturating_sub(session.current_card_provided_answers.len())
-        }
+    required_answers(card).saturating_sub(session.current_card_completed_meaning_indices.len())
+}
+
+fn card_filter_label_key(filter: CardFilter) -> &'static str {
+    match filter {
+        CardFilter::All => "selection-card-filter-all",
+        CardFilter::Straight => "selection-card-filter-straight",
+        CardFilter::Reverse => "selection-card-filter-reverse",
     }
+}
+
+fn filter_selector(
+    labels: [(CardFilter, String); 3],
+    selected_filter: CardFilter,
+) -> Element<'static, Message> {
+    let options: Vec<String> = labels.iter().map(|(_, label)| label.clone()).collect();
+    let selected = labels
+        .iter()
+        .find(|(filter, _)| *filter == selected_filter)
+        .map(|(_, label)| label.clone());
+
+    let mappings = labels;
+    pick_list(options, selected, move |selected_label| {
+        let filter = mappings
+            .iter()
+            .find(|(_, label)| *label == selected_label)
+            .map(|(filter, _)| *filter)
+            .unwrap_or(CardFilter::All);
+        Message::CardFilterSelected(filter)
+    })
+    .into()
 }
 
 /// State for different screens in the test flow
@@ -535,26 +532,34 @@ impl TestRouter {
 
     /// Render the router's view.
     pub fn view(&self) -> Element<'_, Message> {
-        let i18n = &self.app_state.i18n();
+        let i18n = self.app_state.i18n();
 
         match &self.screen_state {
             ScreenState::Start { selected_filter } => {
                 let title = text(i18n.get("test-start-title", None))
                     .size(24)
                     .shaping(iced::widget::text::Shaping::Advanced);
-                let label = text(i18n.get("session-card-filter-label", None))
+                let label = text(i18n.get("selection-card-filter-label", None))
                     .size(14)
                     .shaping(iced::widget::text::Shaping::Advanced);
-                let picker = iced::widget::pick_list(
+                let picker = filter_selector(
                     [
-                        CardFilter::All,
-                        CardFilter::Straight,
-                        CardFilter::Reverse,
+                        (
+                            CardFilter::All,
+                            i18n.get(card_filter_label_key(CardFilter::All), None),
+                        ),
+                        (
+                            CardFilter::Straight,
+                            i18n.get(card_filter_label_key(CardFilter::Straight), None),
+                        ),
+                        (
+                            CardFilter::Reverse,
+                            i18n.get(card_filter_label_key(CardFilter::Reverse), None),
+                        ),
                     ],
-                    Some(*selected_filter),
-                    Message::CardFilterSelected,
+                    *selected_filter,
                 );
-                let start_btn = action_button(i18n, "test-start-button", Some(Message::Start));
+                let start_btn = action_button(&i18n, "test-start-button", Some(Message::Start));
                 let content = column![title, label, picker, start_btn]
                     .spacing(20)
                     .align_x(Alignment::Center);
@@ -563,7 +568,7 @@ impl TestRouter {
                     .height(Length::Fill)
                     .align_x(Alignment::Center)
                     .align_y(Alignment::Center);
-                let back_btn = back_button(i18n, "test-back", Message::Back);
+                let back_btn = back_button(&i18n, "test-back", Message::Back);
                 let top_bar = Container::new(row![back_btn].spacing(10).padding(10))
                     .width(Length::Fill)
                     .align_x(Alignment::Start)
@@ -609,7 +614,7 @@ impl TestRouter {
 
                     if show_full_card {
                         let card_view =
-                            card_display(i18n, card, current_index + 1, session.all_cards.len());
+                            card_display(&i18n, card, current_index + 1, session.all_cards.len());
                         content_elements.push(card_view);
                     } else {
                         let word_label = text(i18n.get("learn-foreign-word-label", None))
@@ -632,16 +637,16 @@ impl TestRouter {
                     if is_self_review {
                         if !answer_shown {
                             let show_answer_btn =
-                                action_button(i18n, "learn-show-answer", Some(Message::ShowAnswer));
+                                action_button(&i18n, "learn-show-answer", Some(Message::ShowAnswer));
                             content_elements.push(show_answer_btn);
                         } else {
                             let correct_btn = action_button(
-                                i18n,
+                                &i18n,
                                 "learn-answer-correct",
                                 Some(Message::AnswerCorrect),
                             );
                             let incorrect_btn = action_button(
-                                i18n,
+                                &i18n,
                                 "learn-answer-incorrect",
                                 Some(Message::AnswerIncorrect),
                             );
@@ -656,7 +661,7 @@ impl TestRouter {
                         if feedback.is_none() {
                             let input_element =
                                 crate::routers::learn::elements::answer_input::answer_input(
-                                    i18n,
+                                    &i18n,
                                     answer_input,
                                     remaining_count,
                                 )
@@ -669,7 +674,7 @@ impl TestRouter {
                             content_elements.push(input_element);
 
                             let submit_btn = action_button(
-                                i18n,
+                                &i18n,
                                 "learn-submit-answer",
                                 if !answer_input.trim().is_empty() {
                                     Some(Message::SubmitAnswer)
@@ -702,7 +707,7 @@ impl TestRouter {
                             };
 
                             let continue_btn =
-                                action_button(i18n, "learn-continue", Some(Message::Continue));
+                                action_button(&i18n, "learn-continue", Some(Message::Continue));
 
                             content_elements.push(feedback_text.into());
                             content_elements.push(continue_btn);
@@ -729,7 +734,7 @@ impl TestRouter {
                         .align_x(Alignment::Center)
                         .align_y(Alignment::Center);
 
-                    let back_btn = back_button(i18n, "test-back", Message::Back);
+                    let back_btn = back_button(&i18n, "test-back", Message::Back);
                     let top_bar = Container::new(row![back_btn].spacing(10).padding(10))
                         .width(Length::Fill)
                         .align_x(Alignment::Start)
@@ -770,7 +775,7 @@ impl TestRouter {
                 .size(16)
                 .shaping(iced::widget::text::Shaping::Advanced);
 
-                let retry_btn = action_button(i18n, "test-retry-test", Some(Message::RetryTest));
+                let retry_btn = action_button(&i18n, "test-retry-test", Some(Message::RetryTest));
 
                 let content = column![title, message, retry_btn]
                     .spacing(30)
@@ -782,7 +787,7 @@ impl TestRouter {
                     .align_x(Alignment::Center)
                     .align_y(Alignment::Center);
 
-                let back_btn = back_button(i18n, "test-back", Message::Back);
+                let back_btn = back_button(&i18n, "test-back", Message::Back);
                 let top_bar = Container::new(row![back_btn].spacing(10).padding(10))
                     .width(Length::Fill)
                     .align_x(Alignment::Start)

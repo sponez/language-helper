@@ -25,8 +25,6 @@ pub enum Message {
     DeleteCard(CardDto),
     /// Show card details in read-only modal
     ShowCard(CardDto),
-    /// Close show card modal
-    CloseShowCard,
     /// Back button pressed
     Back,
 
