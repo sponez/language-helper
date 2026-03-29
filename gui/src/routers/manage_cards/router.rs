@@ -23,7 +23,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-use iced::widget::{column, container, row, scrollable, stack, Container};
+use iced::widget::{column, container, operation::snap_to, row, scrollable, stack, Container, Id};
 use iced::{Alignment, Element, Length, Task};
 
 use lh_api::app_api::AppApi;
@@ -92,6 +92,10 @@ pub struct ManageCardsRouter {
     search_query: String,
     /// Current screen state
     screen_state: ScreenState,
+    /// Scrollable widget id for the cards list
+    cards_scroll_id: Id,
+    /// Last known cards list scroll position
+    cards_scroll_offset: scrollable::RelativeOffset,
 }
 
 impl ManageCardsRouter {
@@ -120,6 +124,8 @@ impl ManageCardsRouter {
             error_message: None,
             search_query: String::new(),
             screen_state: ScreenState::List,
+            cards_scroll_id: Id::new("manage_cards_list"),
+            cards_scroll_offset: scrollable::RelativeOffset { x: 0.0, y: 0.0 },
         }
     }
 
@@ -206,7 +212,10 @@ impl ManageCardsRouter {
             Message::Back => match self.screen_state {
                 ScreenState::ShowCard(_) => {
                     self.screen_state = ScreenState::List;
-                    (None, Task::none())
+                    (
+                        None,
+                        snap_to(self.cards_scroll_id.clone(), self.cards_scroll_offset),
+                    )
                 }
                 ScreenState::List => (Some(RouterEvent::Pop), Task::none()),
             },
@@ -218,13 +227,20 @@ impl ManageCardsRouter {
                     self.learned_cards = Some(learned);
                     self.error_message = None;
                     self.screen_state = ScreenState::List;
-                    (None, Task::none())
+                    (
+                        None,
+                        snap_to(self.cards_scroll_id.clone(), self.cards_scroll_offset),
+                    )
                 }
                 Err(e) => {
                     self.error_message = Some(e);
                     (None, Task::none())
                 }
             },
+            Message::CardsScrolled(relative_offset) => {
+                self.cards_scroll_offset = relative_offset;
+                (None, Task::none())
+            }
             Message::CardDeleted(result) => match result {
                 Ok(_word_name) => {
                     // Reload cards after successful deletion
@@ -438,7 +454,13 @@ impl ManageCardsRouter {
                         );
                     }
 
-                    container(scrollable(sections))
+                    container(
+                        scrollable(sections)
+                            .id(self.cards_scroll_id.clone())
+                            .on_scroll(|viewport| {
+                                Message::CardsScrolled(viewport.relative_offset())
+                            }),
+                    )
                 }
                     .width(Length::Fill)
                     .height(Length::Fill)

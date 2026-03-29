@@ -1,4 +1,5 @@
 use crate::components::error_modal::ErrorModalMessage;
+use iced::widget::scrollable::RelativeOffset;
 use lh_api::models::card::CardDto;
 
 /// Which tab is currently selected
@@ -37,6 +38,8 @@ pub enum Message {
     // Modal and event handling
     /// Error modal message
     ErrorModal(ErrorModalMessage),
+    /// Cards list scroll position changed
+    CardsScrolled(RelativeOffset),
     /// System event
     Event(iced::Event),
 }
