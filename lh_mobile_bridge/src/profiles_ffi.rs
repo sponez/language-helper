@@ -9,21 +9,19 @@
 use std::os::raw::c_char;
 
 use crate::common::{c_str_to_rust, error_response, success_response, APP_API, RUNTIME};
-use crate::ffi_call;
 
 unsafe fn parse_card_filter(
     filter: *const c_char,
 ) -> Result<lh_api::models::card_filter::CardFilter, *const c_char> {
-    let filter_str = match c_str_to_rust(filter, "card_filter") {
-        Ok(s) => s,
-        Err(err_ptr) => return Err(err_ptr),
-    };
+    let filter_str = c_str_to_rust(filter, "card_filter")?;
 
     match filter_str.to_lowercase().as_str() {
         "all" => Ok(lh_api::models::card_filter::CardFilter::All),
         "straight" => Ok(lh_api::models::card_filter::CardFilter::Straight),
         "reverse" => Ok(lh_api::models::card_filter::CardFilter::Reverse),
-        _ => Err(error_response("Invalid card_filter, expected all|straight|reverse")),
+        _ => Err(error_response(
+            "Invalid card_filter, expected all|straight|reverse",
+        )),
     }
 }
 
@@ -485,11 +483,11 @@ pub unsafe extern "C" fn create_test_session(
         Err(err_ptr) => return err_ptr,
     };
 
-    ffi_call!(APP_API
-        .as_ref()
-        .unwrap()
-        .profile_api()
-        .create_test_session(&username_str, &profile_name_str, card_filter))
+    ffi_call!(APP_API.as_ref().unwrap().profile_api().create_test_session(
+        &username_str,
+        &profile_name_str,
+        card_filter
+    ))
 }
 
 /// Create a repeat session from learned cards (shuffled, all cards)

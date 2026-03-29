@@ -429,7 +429,9 @@ impl LearnRouter {
                         // Move to next card
                         updated_session.current_card_in_set += 1;
                         updated_session.current_card_provided_answers.clear();
-                        updated_session.current_card_completed_meaning_indices.clear();
+                        updated_session
+                            .current_card_completed_meaning_indices
+                            .clear();
                         updated_session.current_card_failed = false;
 
                         // Calculate actual set size
@@ -492,7 +494,9 @@ impl LearnRouter {
                     updated_session.phase = lh_api::models::learning_session::LearningPhase::Study;
                     updated_session.test_results.clear();
                     updated_session.current_card_provided_answers.clear();
-                    updated_session.current_card_completed_meaning_indices.clear();
+                    updated_session
+                        .current_card_completed_meaning_indices
+                        .clear();
                     updated_session.current_card_failed = false;
 
                     self.screen_state = ScreenState::Study {
@@ -511,7 +515,9 @@ impl LearnRouter {
                     updated_session.phase = lh_api::models::learning_session::LearningPhase::Study;
                     updated_session.test_results.clear();
                     updated_session.current_card_provided_answers.clear();
-                    updated_session.current_card_completed_meaning_indices.clear();
+                    updated_session
+                        .current_card_completed_meaning_indices
+                        .clear();
                     updated_session.current_card_failed = false;
 
                     // Check if there are more cards available
@@ -744,9 +750,16 @@ impl LearnRouter {
 
                 let start_btn = action_button(&i18n, "learn-start-button", Some(Message::Start));
 
-                let mut content = column![title, instruction, input, filter_label, filter_picker, start_btn]
-                    .spacing(20)
-                    .align_x(Alignment::Center);
+                let mut content = column![
+                    title,
+                    instruction,
+                    input,
+                    filter_label,
+                    filter_picker,
+                    start_btn
+                ]
+                .spacing(20)
+                .align_x(Alignment::Center);
 
                 if let Some(err) = error_message {
                     let error_text = text(err)
@@ -798,8 +811,12 @@ impl LearnRouter {
                 let actual_set_size = session.cards_per_set.min(remaining_cards);
 
                 if let Some(card) = session.all_cards.get(current_index) {
-                    let card_view =
-                        card_display(&i18n, card, session.current_card_in_set + 1, actual_set_size);
+                    let card_view = card_display(
+                        &i18n,
+                        card,
+                        session.current_card_in_set + 1,
+                        actual_set_size,
+                    );
 
                     let next_btn =
                         action_button(&i18n, "learn-next-card", Some(Message::NextCardInStudy));
@@ -923,8 +940,11 @@ impl LearnRouter {
                         // Self-review mode: Show Answer button, then Correct/False buttons
                         if !answer_shown {
                             // Show "Show Answer" button
-                            let show_answer_btn =
-                                action_button(&i18n, "learn-show-answer", Some(Message::ShowAnswer));
+                            let show_answer_btn = action_button(
+                                &i18n,
+                                "learn-show-answer",
+                                Some(Message::ShowAnswer),
+                            );
                             content_elements.push(show_answer_btn);
                         } else {
                             // Answer is shown - display Correct/False buttons

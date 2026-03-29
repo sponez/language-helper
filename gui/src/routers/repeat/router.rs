@@ -384,7 +384,9 @@ impl RepeatRouter {
 
                         updated_session.current_card_in_set += 1;
                         updated_session.current_card_provided_answers.clear();
-                        updated_session.current_card_completed_meaning_indices.clear();
+                        updated_session
+                            .current_card_completed_meaning_indices
+                            .clear();
                         updated_session.current_card_failed = false;
 
                         // Update streak immediately
@@ -452,11 +454,9 @@ impl RepeatRouter {
 
                 let task = Task::perform(
                     async move {
-                        app_api.profile_api().create_repeat_session(
-                            &username,
-                            &profile_name,
-                            filter,
-                        )
+                        app_api
+                            .profile_api()
+                            .create_repeat_session(&username, &profile_name, filter)
                             .await
                             .map_err(|e| format!("Failed to create repeat session: {}", e))
                     },
@@ -559,8 +559,7 @@ impl RepeatRouter {
                     ],
                     *selected_filter,
                 );
-                let start_btn =
-                    action_button(&i18n, "repeat-start-button", Some(Message::Start));
+                let start_btn = action_button(&i18n, "repeat-start-button", Some(Message::Start));
                 let content = column![title, label, picker, start_btn]
                     .spacing(20)
                     .align_x(Alignment::Center);
@@ -637,8 +636,11 @@ impl RepeatRouter {
 
                     if is_self_review {
                         if !answer_shown {
-                            let show_answer_btn =
-                                action_button(&i18n, "learn-show-answer", Some(Message::ShowAnswer));
+                            let show_answer_btn = action_button(
+                                &i18n,
+                                "learn-show-answer",
+                                Some(Message::ShowAnswer),
+                            );
                             content_elements.push(show_answer_btn);
                         } else {
                             let correct_btn = action_button(

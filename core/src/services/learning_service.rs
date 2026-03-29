@@ -400,7 +400,10 @@ mod tests {
             unimplemented!()
         }
 
-        async fn get_card_settings(&self, _db_path: PathBuf) -> Result<crate::models::CardSettings, CoreError> {
+        async fn get_card_settings(
+            &self,
+            _db_path: PathBuf,
+        ) -> Result<crate::models::CardSettings, CoreError> {
             unimplemented!()
         }
 
@@ -465,7 +468,11 @@ mod tests {
             unimplemented!()
         }
 
-        async fn delete_card(&self, _db_path: PathBuf, _word_name: String) -> Result<bool, CoreError> {
+        async fn delete_card(
+            &self,
+            _db_path: PathBuf,
+            _word_name: String,
+        ) -> Result<bool, CoreError> {
             unimplemented!()
         }
     }
@@ -662,7 +669,10 @@ mod tests {
         );
 
         // Valid: one correct answer per meaning is enough
-        assert!(validate_all_answers(&card, &["ключ".to_string(), "весна".to_string()]));
+        assert!(validate_all_answers(
+            &card,
+            &["ключ".to_string(), "весна".to_string()]
+        ));
 
         // Invalid: missing second meaning
         assert!(!validate_all_answers(&card, &["ключ".to_string()]));
@@ -827,8 +837,9 @@ mod tests {
 
         // Run multiple times to check for shuffling
         let mut different_orders = 0;
-        let first_session = create_test_session(cards.clone(), "manual".to_string(), CardFilter::All)
-            .expect("Session creation should succeed");
+        let first_session =
+            create_test_session(cards.clone(), "manual".to_string(), CardFilter::All)
+                .expect("Session creation should succeed");
         let first_order: Vec<String> = first_session
             .all_cards
             .iter()
@@ -836,8 +847,7 @@ mod tests {
             .collect();
 
         for _ in 0..10 {
-            let session =
-                create_test_session(cards.clone(), "manual".to_string(), CardFilter::All)
+            let session = create_test_session(cards.clone(), "manual".to_string(), CardFilter::All)
                 .expect("Session creation should succeed");
             let order: Vec<String> = session
                 .all_cards
@@ -883,19 +893,15 @@ mod tests {
                 ("key (for lock)", "llave", vec!["key"]),
             ],
         )];
-        let mut session = LearningSession::new(
-            cards,
-            0,
-            1,
-            "manual".to_string(),
-            CardFilter::All,
-        );
+        let mut session = LearningSession::new(cards, 0, 1, "manual".to_string(), CardFilter::All);
 
         let (is_correct, _, completed_index) = service.check_answer_for_session(&session, "spring");
         assert!(is_correct);
         assert_eq!(completed_index, Some(0));
 
-        session.current_card_provided_answers.push("spring".to_string());
+        session
+            .current_card_provided_answers
+            .push("spring".to_string());
         session.current_card_completed_meaning_indices.push(0);
 
         let (is_correct, _, completed_index) = service.check_answer_for_session(&session, "source");
@@ -917,13 +923,8 @@ mod tests {
                 ("informal greeting", "saludo informal", vec!["hola"]),
             ],
         );
-        let mut session = LearningSession::new(
-            vec![card],
-            0,
-            1,
-            "manual".to_string(),
-            CardFilter::All,
-        );
+        let mut session =
+            LearningSession::new(vec![card], 0, 1, "manual".to_string(), CardFilter::All);
 
         assert_eq!(service.remaining_answers_for_session(&session), 2);
 

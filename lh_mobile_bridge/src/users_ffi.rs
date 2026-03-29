@@ -4,8 +4,7 @@
 
 use std::os::raw::c_char;
 
-use crate::common::{c_str_to_rust, error_response, APP_API};
-use crate::ffi_call;
+use crate::common::{c_str_to_rust, APP_API};
 
 /// Get all usernames
 ///

@@ -54,7 +54,11 @@ fn card_matches_query(card: &CardDto, query: &str) -> bool {
 
     let mut haystacks = std::iter::once(card.word.name.as_str())
         .chain(card.word.readings.iter().map(String::as_str))
-        .chain(card.meanings.iter().map(|meaning| meaning.definition.as_str()))
+        .chain(
+            card.meanings
+                .iter()
+                .map(|meaning| meaning.definition.as_str()),
+        )
         .chain(
             card.meanings
                 .iter()
@@ -462,8 +466,8 @@ impl ManageCardsRouter {
                             }),
                     )
                 }
-                    .width(Length::Fill)
-                    .height(Length::Fill)
+                .width(Length::Fill)
+                .height(Length::Fill)
             }
         };
 

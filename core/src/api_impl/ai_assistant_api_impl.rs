@@ -3,9 +3,9 @@
 //! This module provides the concrete implementation of the AiAssistantApi trait
 //! using the AI provider abstraction layer.
 
+use std::collections::HashSet;
 use std::future::Future;
 use std::pin::Pin;
-use std::collections::HashSet;
 
 use lh_api::apis::ai_assistant_api::AiAssistantApi;
 use lh_api::errors::api_error::ApiError;
@@ -326,7 +326,10 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
         )
     }
 
-    fn definitions_are_near_duplicates(a: &lh_api::models::card::MeaningDto, b: &lh_api::models::card::MeaningDto) -> bool {
+    fn definitions_are_near_duplicates(
+        a: &lh_api::models::card::MeaningDto,
+        b: &lh_api::models::card::MeaningDto,
+    ) -> bool {
         let a_def = Self::normalize_text(&a.definition);
         let b_def = Self::normalize_text(&b.definition);
         let a_translated = Self::normalize_text(&a.translated_definition);
@@ -340,7 +343,10 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
             || b_translated.contains(&a_translated)
     }
 
-    fn meanings_should_merge(a: &lh_api::models::card::MeaningDto, b: &lh_api::models::card::MeaningDto) -> bool {
+    fn meanings_should_merge(
+        a: &lh_api::models::card::MeaningDto,
+        b: &lh_api::models::card::MeaningDto,
+    ) -> bool {
         if Self::definitions_are_near_duplicates(a, b) {
             return true;
         }
@@ -365,14 +371,17 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
             && (a_translations.is_subset(&b_translations)
                 || b_translations.is_subset(&a_translations))
             && (Self::normalize_text(&a.definition).contains(&Self::normalize_text(&b.definition))
-                || Self::normalize_text(&b.definition).contains(&Self::normalize_text(&a.definition))
+                || Self::normalize_text(&b.definition)
+                    .contains(&Self::normalize_text(&a.definition))
                 || Self::normalize_text(&a.translated_definition)
                     .contains(&Self::normalize_text(&b.translated_definition))
                 || Self::normalize_text(&b.translated_definition)
                     .contains(&Self::normalize_text(&a.translated_definition)))
     }
 
-    fn normalize_meaning(mut meaning: lh_api::models::card::MeaningDto) -> Option<lh_api::models::card::MeaningDto> {
+    fn normalize_meaning(
+        mut meaning: lh_api::models::card::MeaningDto,
+    ) -> Option<lh_api::models::card::MeaningDto> {
         meaning.definition = meaning.definition.trim().to_string();
         meaning.translated_definition = meaning.translated_definition.trim().to_string();
         meaning.word_translations = Self::dedupe_preserve_order(meaning.word_translations);
