@@ -266,12 +266,7 @@ Flutter Mobile App:
 │   └── providers/               # State management
 │       └── app_provider.dart
 │
-└── rust/                        # Rust mobile bridge
-    └── lh_mobile_bridge/        # NEW crate
-        ├── src/
-        │   └── lib.rs           # C FFI exports
-        ├── Cargo.toml
-        └── ...
+└── rust/                        # Optional Rust integration layer
 
 Existing Rust Crates (REUSED):
 ├── api/         ✅ Already has all traits & DTOs
@@ -282,9 +277,9 @@ Existing Rust Crates (REUSED):
 **Key Insight**:
 - ✅ **90% of code already exists** in Rust (`api/`, `core/`, `persistence/`)
 - ✅ **Only need to create**:
-  1. Thin Rust FFI wrapper (`lh_mobile_bridge/`)
+  1. A Rust integration layer
   2. Flutter UI screens
-  3. Dart FFI bindings
+  3. Dart bindings
 - ✅ **No business logic rewriting** - just call existing APIs!
 
 ### Key Technology Choices
@@ -306,9 +301,9 @@ Existing Rust Crates (REUSED):
 
 ### Development Phases (Revised - Just Build UI!)
 
-**Phase 1: FFI Bridge Setup (Day 1)**
-- Create `lh_mobile_bridge/` crate
-- Expose C-compatible FFI from existing `AppApi`
+**Phase 1: Rust Integration Setup (Day 1)**
+- Create a Rust integration crate
+- Expose the existing `AppApi`
 - Build for Android (arm64-v8a, armeabi-v7a, x86_64)
 - Test basic FFI calls from Dart
 
@@ -562,9 +557,9 @@ pub trait UsersApi {
 }
 ```
 
-**New Rust FFI Bridge** (thin wrapper):
+**Possible Rust integration layer** (illustrative):
 ```rust
-// lh_mobile_bridge/src/lib.rs
+// mobile integration crate
 #[no_mangle]
 pub extern "C" fn get_usernames() -> *const c_char {
     let runtime = Runtime::new().unwrap();
@@ -622,10 +617,10 @@ class UserListScreen extends StatelessWidget {
 
 ### Next Steps
 
-1. **Create FFI bridge crate**
+1. **Create a mobile integration crate**
    ```bash
    cd language-helper-2
-   cargo new --lib lh_mobile_bridge
+   cargo new --lib mobile_integration
    # Add dependencies and expose FFI functions
    ```
 
