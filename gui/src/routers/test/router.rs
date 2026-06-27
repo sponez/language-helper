@@ -25,7 +25,7 @@ use crate::states::{ProfileState, UserState};
 
 use crate::routers::learn::elements::action_button::action_button;
 use crate::routers::learn::elements::answer_input::AnswerInputMessage;
-use crate::routers::learn::elements::card_display::card_display;
+use crate::routers::learn::elements::card_display::card_display_with_options;
 
 fn required_answers(card: &CardDto) -> usize {
     card.meanings.len()
@@ -84,6 +84,8 @@ pub enum ScreenState {
         feedback: Option<AnswerFeedback>,
         /// For self-review mode: tracks if answer has been shown
         answer_shown: bool,
+        /// Whether usage examples are expanded on the full card
+        examples_expanded: bool,
     },
     /// Results screen after completing test
     Results { passed: bool },
@@ -173,6 +175,7 @@ impl TestRouter {
                         answer_input: String::new(),
                         feedback: None,
                         answer_shown: false,
+                        examples_expanded: false,
                     };
 
                     // Auto-focus answer input
@@ -312,6 +315,7 @@ impl TestRouter {
                             answer_input: String::new(),
                             feedback: None,
                             answer_shown: false,
+                            examples_expanded: false,
                         };
                     }
                     // No auto-focus needed in self-review mode
@@ -352,6 +356,7 @@ impl TestRouter {
                             answer_input: String::new(),
                             feedback: None,
                             answer_shown: false,
+                            examples_expanded: false,
                         };
                     }
                     // No auto-focus needed in self-review mode
@@ -402,6 +407,7 @@ impl TestRouter {
                                 answer_input: String::new(),
                                 feedback: None,
                                 answer_shown: false,
+                                examples_expanded: false,
                             };
                         }
 
@@ -418,6 +424,7 @@ impl TestRouter {
                             answer_input: String::new(),
                             feedback: None,
                             answer_shown: false,
+                            examples_expanded: false,
                         };
 
                         // Auto-focus answer input for more answers
@@ -464,6 +471,16 @@ impl TestRouter {
                 );
 
                 (None, task)
+            }
+
+            Message::ToggleExamples => {
+                if let ScreenState::Testing {
+                    examples_expanded, ..
+                } = &mut self.screen_state
+                {
+                    *examples_expanded = !*examples_expanded;
+                }
+                (None, Task::none())
             }
 
             Message::Back => (Some(RouterEvent::Pop), Task::none()),
@@ -597,6 +614,7 @@ impl TestRouter {
                 answer_input,
                 feedback,
                 answer_shown,
+                examples_expanded,
             } => {
                 let current_index = session.current_card_in_set;
                 if let Some(card) = session.all_cards.get(current_index) {
@@ -613,8 +631,14 @@ impl TestRouter {
                     };
 
                     if show_full_card {
-                        let card_view =
-                            card_display(&i18n, card, current_index + 1, session.all_cards.len());
+                        let card_view = card_display_with_options(
+                            &i18n,
+                            card,
+                            current_index + 1,
+                            session.all_cards.len(),
+                            *examples_expanded,
+                            Some(Message::ToggleExamples),
+                        );
                         content_elements.push(card_view);
                     } else {
                         let word_label = text(i18n.get("learn-foreign-word-label", None))

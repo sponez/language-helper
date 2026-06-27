@@ -6,7 +6,9 @@ use async_trait::async_trait;
 use lh_api::apis::profiles_api::ProfilesApi;
 use lh_api::errors::api_error::ApiError;
 use lh_api::models::assistant_settings::AssistantSettingsDto;
-use lh_api::models::card::{CardDto, CardType as ApiCardType, MeaningDto, WordDto};
+use lh_api::models::card::{
+    CardDto, CardType as ApiCardType, MeaningDto, UsageExampleDto, WordDto,
+};
 use lh_api::models::card_filter::CardFilter as ApiCardFilter;
 use lh_api::models::card_settings::CardSettingsDto;
 use lh_api::models::learning_session::{LearningPhase as ApiLearningPhase, LearningSessionDto};
@@ -15,7 +17,7 @@ use lh_api::models::test_result::TestResultDto;
 use crate::errors::CoreError;
 use crate::models::{
     AssistantSettings, Card, CardFilter, CardSettings, CardType, LearningPhase, LearningSession,
-    Meaning, TestResult, Word,
+    Meaning, TestResult, UsageExample, Word,
 };
 use crate::repositories::profile_repository::ProfileRepository;
 use crate::services::learning_service::{
@@ -54,6 +56,14 @@ fn card_to_dto(card: Card) -> CardDto {
                 definition: m.definition,
                 translated_definition: m.translated_definition,
                 word_translations: m.word_translations,
+                examples: m
+                    .examples
+                    .into_iter()
+                    .map(|example| UsageExampleDto {
+                        sentence: example.sentence,
+                        translation: example.translation,
+                    })
+                    .collect(),
             })
             .collect(),
         streak: card.streak,
@@ -75,8 +85,22 @@ fn dto_to_card(dto: CardDto) -> Result<Card, ApiError> {
         .meanings
         .into_iter()
         .map(|m| {
-            Meaning::new(m.definition, m.translated_definition, m.word_translations)
-                .map_err(|e| ApiError::validation_error(e.to_string()))
+            let examples: Result<Vec<UsageExample>, ApiError> = m
+                .examples
+                .into_iter()
+                .map(|example| {
+                    UsageExample::new(example.sentence, example.translation)
+                        .map_err(|e| ApiError::validation_error(e.to_string()))
+                })
+                .collect();
+
+            Meaning::new_with_examples(
+                m.definition,
+                m.translated_definition,
+                m.word_translations,
+                examples?,
+            )
+            .map_err(|e| ApiError::validation_error(e.to_string()))
         })
         .collect();
 

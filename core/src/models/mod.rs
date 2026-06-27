@@ -15,7 +15,7 @@ pub mod user_settings;
 
 pub use app_settings::AppSettings;
 pub use assistant_settings::AssistantSettings;
-pub use card::{Card, CardType, Meaning, Word};
+pub use card::{Card, CardType, Meaning, UsageExample, Word};
 pub use card_filter::CardFilter;
 pub use card_settings::CardSettings;
 pub use learning_session::{LearningPhase, LearningSession};

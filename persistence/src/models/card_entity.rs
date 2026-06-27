@@ -55,6 +55,8 @@ pub struct MeaningEntity {
     pub translated_definition: String,
     /// Word translations as JSON array string.
     pub word_translations: String,
+    /// Usage examples as JSON array string.
+    pub examples: String,
 }
 
 impl MeaningEntity {
@@ -67,6 +69,9 @@ impl MeaningEntity {
                     e
                 ))
             })?;
+        let examples_json = serde_json::to_string(&meaning.examples).map_err(|e| {
+            PersistenceError::serialization_error(format!("Failed to serialize examples: {}", e))
+        })?;
 
         Ok(Self {
             id: 0, // Will be set by database
@@ -74,6 +79,7 @@ impl MeaningEntity {
             definition: meaning.definition.clone(),
             translated_definition: meaning.translated_definition.clone(),
             word_translations: word_translations_json,
+            examples: examples_json,
         })
     }
 
@@ -86,11 +92,19 @@ impl MeaningEntity {
                     e
                 ))
             })?;
+        let examples: Vec<lh_core::models::UsageExample> = serde_json::from_str(&self.examples)
+            .map_err(|e| {
+                PersistenceError::serialization_error(format!(
+                    "Failed to deserialize examples: {}",
+                    e
+                ))
+            })?;
 
-        Ok(Meaning::new_unchecked(
+        Ok(Meaning::new_unchecked_with_examples(
             self.definition.clone(),
             self.translated_definition.clone(),
             word_translations,
+            examples,
         ))
     }
 }
@@ -170,9 +184,12 @@ mod tests {
             definition: "def".to_string(),
             translated_definition: "trad".to_string(),
             word_translations: r#"["trans1"]"#.to_string(),
+            examples: r#"[{"sentence":"test sentence","translation":"test translation"}]"#
+                .to_string(),
         };
         let meaning = entity.to_domain().unwrap();
         assert_eq!(meaning.definition, "def");
         assert_eq!(meaning.word_translations.len(), 1);
+        assert_eq!(meaning.examples.len(), 1);
     }
 }

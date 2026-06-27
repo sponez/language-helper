@@ -33,7 +33,7 @@ use crate::states::{ProfileState, UserState};
 
 use super::elements::action_button::action_button;
 use super::elements::answer_input::AnswerInputMessage;
-use super::elements::card_display::card_display;
+use super::elements::card_display::card_display_with_options;
 
 fn required_answers(card: &CardDto) -> usize {
     card.meanings.len()
@@ -90,7 +90,10 @@ pub enum ScreenState {
     /// Loading session
     Loading,
     /// Study phase - showing cards
-    Study { session: LearningSessionDto },
+    Study {
+        session: LearningSessionDto,
+        examples_expanded: bool,
+    },
     /// Test phase - testing knowledge
     Test {
         session: LearningSessionDto,
@@ -98,6 +101,8 @@ pub enum ScreenState {
         feedback: Option<AnswerFeedback>,
         /// For self-review mode: tracks if answer has been shown
         answer_shown: bool,
+        /// Whether usage examples are expanded on the full card
+        examples_expanded: bool,
     },
     /// Results screen after completing test
     Results {
@@ -237,7 +242,10 @@ impl LearnRouter {
             Message::SessionStarted(result) => match result {
                 Ok(session) => {
                     // Transition to study phase
-                    self.screen_state = ScreenState::Study { session };
+                    self.screen_state = ScreenState::Study {
+                        session,
+                        examples_expanded: false,
+                    };
                     (None, Task::none())
                 }
                 Err(err) => {
@@ -251,7 +259,7 @@ impl LearnRouter {
             },
 
             Message::NextCardInStudy => {
-                if let ScreenState::Study { session } = &mut self.screen_state {
+                if let ScreenState::Study { session, .. } = &mut self.screen_state {
                     // Move to next card in the set
                     let mut updated_session = session.clone();
                     updated_session.current_card_in_set += 1;
@@ -273,6 +281,7 @@ impl LearnRouter {
                             answer_input: String::new(),
                             feedback: None,
                             answer_shown: false,
+                            examples_expanded: false,
                         };
 
                         // Auto-focus answer input
@@ -286,6 +295,7 @@ impl LearnRouter {
                         // Stay in study phase with next card
                         self.screen_state = ScreenState::Study {
                             session: updated_session,
+                            examples_expanded: false,
                         };
                     }
                 }
@@ -293,7 +303,7 @@ impl LearnRouter {
             }
 
             Message::StartTest => {
-                if let ScreenState::Study { session } = &self.screen_state {
+                if let ScreenState::Study { session, .. } = &self.screen_state {
                     // Transition to test phase
                     let mut updated_session = session.clone();
                     updated_session.current_card_in_set = 0;
@@ -304,6 +314,7 @@ impl LearnRouter {
                         answer_input: String::new(),
                         feedback: None,
                         answer_shown: false,
+                        examples_expanded: false,
                     };
 
                     // Auto-focus answer input
@@ -455,6 +466,7 @@ impl LearnRouter {
                                 answer_input: String::new(),
                                 feedback: None,
                                 answer_shown: false,
+                                examples_expanded: false,
                             };
 
                             // Auto-focus answer input
@@ -472,6 +484,7 @@ impl LearnRouter {
                             answer_input: String::new(),
                             feedback: None,
                             answer_shown: false,
+                            examples_expanded: false,
                         };
 
                         // Auto-focus answer input
@@ -501,6 +514,7 @@ impl LearnRouter {
 
                     self.screen_state = ScreenState::Study {
                         session: updated_session,
+                        examples_expanded: false,
                     };
                 }
                 (None, Task::none())
@@ -532,6 +546,7 @@ impl LearnRouter {
                         // Start next set
                         self.screen_state = ScreenState::Study {
                             session: updated_session,
+                            examples_expanded: false,
                         };
                     }
                 }
@@ -590,6 +605,7 @@ impl LearnRouter {
                             answer_input: String::new(),
                             feedback: None,
                             answer_shown: false,
+                            examples_expanded: false,
                         };
                     }
                 }
@@ -641,8 +657,24 @@ impl LearnRouter {
                             answer_input: String::new(),
                             feedback: None,
                             answer_shown: false,
+                            examples_expanded: false,
                         };
                     }
+                }
+                (None, Task::none())
+            }
+
+            Message::ToggleExamples => {
+                match &mut self.screen_state {
+                    ScreenState::Study {
+                        examples_expanded, ..
+                    }
+                    | ScreenState::Test {
+                        examples_expanded, ..
+                    } => {
+                        *examples_expanded = !*examples_expanded;
+                    }
+                    _ => {}
                 }
                 (None, Task::none())
             }
@@ -803,7 +835,10 @@ impl LearnRouter {
                     .into()
             }
 
-            ScreenState::Study { session } => {
+            ScreenState::Study {
+                session,
+                examples_expanded,
+            } => {
                 // Study phase UI
                 let current_index = session.current_set_start_index + session.current_card_in_set;
                 // Calculate actual set size
@@ -811,11 +846,13 @@ impl LearnRouter {
                 let actual_set_size = session.cards_per_set.min(remaining_cards);
 
                 if let Some(card) = session.all_cards.get(current_index) {
-                    let card_view = card_display(
+                    let card_view = card_display_with_options(
                         &i18n,
                         card,
                         session.current_card_in_set + 1,
                         actual_set_size,
+                        *examples_expanded,
+                        Some(Message::ToggleExamples),
                     );
 
                     let next_btn =
@@ -878,6 +915,7 @@ impl LearnRouter {
                 answer_input,
                 feedback,
                 answer_shown,
+                examples_expanded,
             } => {
                 // Test phase UI
                 let current_index = session.current_set_start_index + session.current_card_in_set;
@@ -906,11 +944,13 @@ impl LearnRouter {
                             session.all_cards.len() - session.current_set_start_index;
                         let actual_set_size = session.cards_per_set.min(remaining_cards);
 
-                        let card_view = card_display(
+                        let card_view = card_display_with_options(
                             &i18n,
                             card,
                             session.current_card_in_set + 1,
                             actual_set_size,
+                            *examples_expanded,
+                            Some(Message::ToggleExamples),
                         );
                         content_elements.push(card_view);
                     } else {

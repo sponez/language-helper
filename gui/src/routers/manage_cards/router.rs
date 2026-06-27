@@ -43,7 +43,10 @@ use super::elements::tab_buttons::tab_buttons;
 #[derive(Debug, Clone)]
 enum ScreenState {
     List,
-    ShowCard(CardDto),
+    ShowCard {
+        card: CardDto,
+        examples_expanded: bool,
+    },
 }
 
 fn card_matches_query(card: &CardDto, query: &str) -> bool {
@@ -68,7 +71,19 @@ fn card_matches_query(card: &CardDto, query: &str) -> bool {
             card.meanings
                 .iter()
                 .flat_map(|meaning| meaning.word_translations.iter().map(String::as_str)),
-        );
+        )
+        .chain(card.meanings.iter().flat_map(|meaning| {
+            meaning
+                .examples
+                .iter()
+                .map(|example| example.sentence.as_str())
+        }))
+        .chain(card.meanings.iter().flat_map(|meaning| {
+            meaning
+                .examples
+                .iter()
+                .map(|example| example.translation.as_str())
+        }));
 
     haystacks.any(|value| value.to_lowercase().contains(&query))
 }
@@ -210,11 +225,23 @@ impl ManageCardsRouter {
                 (None, task)
             }
             Message::ShowCard(card) => {
-                self.screen_state = ScreenState::ShowCard(card);
+                self.screen_state = ScreenState::ShowCard {
+                    card,
+                    examples_expanded: false,
+                };
+                (None, Task::none())
+            }
+            Message::ToggleExamples => {
+                if let ScreenState::ShowCard {
+                    examples_expanded, ..
+                } = &mut self.screen_state
+                {
+                    *examples_expanded = !*examples_expanded;
+                }
                 (None, Task::none())
             }
             Message::Back => match self.screen_state {
-                ScreenState::ShowCard(_) => {
+                ScreenState::ShowCard { .. } => {
                     self.screen_state = ScreenState::List;
                     (
                         None,
@@ -290,14 +317,24 @@ impl ManageCardsRouter {
     pub fn view(&self) -> Element<'_, Message> {
         let i18n = &self.app_state.i18n();
 
-        if let ScreenState::ShowCard(card) = &self.screen_state {
+        if let ScreenState::ShowCard {
+            card,
+            examples_expanded,
+        } = &self.screen_state
+        {
             let title = iced::widget::text(&card.word.name)
                 .size(24)
                 .shaping(iced::widget::text::Shaping::Advanced);
 
-            let card_view = crate::routers::learn::elements::card_display::card_display::<Message>(
-                i18n, card, 1, 1,
-            );
+            let card_view =
+                crate::routers::learn::elements::card_display::card_display_with_options::<Message>(
+                    i18n,
+                    card,
+                    1,
+                    1,
+                    *examples_expanded,
+                    Some(Message::ToggleExamples),
+                );
 
             let content = column![title, card_view]
                 .spacing(20)

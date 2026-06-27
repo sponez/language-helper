@@ -241,6 +241,7 @@ Instructions:
             card_language = user_language.to_string();
             target_language = profile_language.to_string();
         }
+        let reading_instructions = Self::build_reading_instructions(&card_language);
 
         format!(
             r#"You are a precise dictionary card builder. Output must be valid JSON only (UTF-8, no comments, no trailing commas), exactly matching the schema below.
@@ -264,6 +265,12 @@ Output JSON schema (must match exactly):
       "translated_definition": "string",
       "word_translations": [
         "string"
+      ],
+      "examples": [
+        {{
+          "sentence": "string",
+          "translation": "string"
+        }}
       ]
     }}
   ]
@@ -271,22 +278,65 @@ Output JSON schema (must match exactly):
 
 For the word or expression "{card_name}" you must fill a compact but complete set of meanings.
 "readings" must be deduplicated.
-"meanings" must be deduplicated and non-overlapping.
-Prefer the most common and general meanings first.
-Add a separate meaning only if it expresses a genuinely different shade that does NOT naturally follow from a more general meaning.
-Do not split near-synonymous senses into multiple meanings.
-Do not repeat the same translation across multiple meanings unless that overlap is truly unavoidable.
-Rare or niche senses should be omitted unless they are clearly important and not implied by the common meanings.
-"readings" is transcriptions, kana, romaji, and more (leave blank for expressions)
+"meanings" must be deduplicated, non-overlapping, and minimal.
+Prefer one strong core meaning when the word has one broad semantic center.
+Add a separate meaning only if it expresses a genuinely different core sense that cannot be naturally understood as a translation, register, nuance, or subtype of another meaning.
+Do not split near-synonymous translations, stylistic variants, register variants, or domain-specific subtypes into multiple meanings.
+Put related translations for the same semantic core into the same "word_translations" list.
+For example, if a word's core is "dignity", translations like "dignity", "honor", "nobility", or "rank/status" should usually stay in one meaning unless the language has a clearly separate independent sense.
+If unsure whether two senses are distinct, merge them.
+Rare, archaic, legal, technical, or niche senses should be omitted unless they are common enough for a learner and not implied by the common meanings.
+Typical output should have 1 meaning; use 2-4 only when the word has clearly different common core senses.
+"readings" are pronunciation/reading aids for "{card_name}" in {card_language}.
+They must NOT contain translations, definitions, grammar labels, meanings, or example sentences.
+Use the natural reading notation for {card_language}, following this policy:
+{reading_instructions}
+Deduplicate readings and keep only useful alternatives.
 Each "meaning" must have a "definition". "definition" is the definition of the word or expression, as in a dictionary in the {card_language} language.
 "translated_definition" is a translation of the definition into {target_language} language.
 "word_translations" are possible translations in the {target_language} language of the word or expression "{card_name}" for this "definition".
+"examples" must contain 1-2 short natural sentences in {card_language} that demonstrate this exact meaning, with "translation" in {target_language}.
+Examples should be practical, learner-friendly, and not introduce a different sense of the word.
 
 OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
             card_type = card_type,
             card_language = card_language,
+            reading_instructions = reading_instructions,
             target_language = target_language,
             card_name = card_name
+        )
+    }
+
+    fn build_reading_instructions(card_language: &str) -> String {
+        let language = Self::normalize_text(card_language);
+        let specific = if language.contains("japanese") {
+            "Japanese: use kana readings. Use hiragana for native/Sino-Japanese words and katakana for loanwords; do not use romaji unless the word is normally written in Latin script. Example: 漢字 -> かんじ."
+        } else if language.contains("chinese") {
+            "Chinese: use Hanyu Pinyin with tone marks. Example: 尊严 -> zūnyán. Include multiple readings only for genuinely common pronunciations."
+        } else if language.contains("korean") {
+            "Korean: use Hangul pronunciation for Hanja, Latin-script words, or irregular/non-obvious readings. If the word is already ordinary Hangul and the spelling directly gives the pronunciation, use an empty array."
+        } else if language.contains("arabic") {
+            "Arabic: use fully vocalized Arabic with harakat when the written word is unvowelled. If useful, add one standard learner transliteration after it as a separate reading; do not translate."
+        } else if language.contains("thai") {
+            "Thai: use a common learner romanization or phonetic transcription that reflects the natural Thai pronunciation. Include tone information only if it is naturally part of the chosen notation."
+        } else if language.contains("russian") || language.contains("ukrainian") {
+            "Russian/Ukrainian: use the word with stress marked when stress is useful or ambiguous. Example: замок -> за́мок or замо́к. Do not romanize by default."
+        } else if language.contains("hindi") {
+            "Hindi: use a standard learner transliteration for Devanagari when helpful; keep inherent vowels and long vowels clear. Use an empty array if no pronunciation aid is needed."
+        } else if language.contains("bengali") {
+            "Bengali: use a standard learner transliteration when helpful; keep the natural Bengali pronunciation rather than a letter-by-letter spelling. Use an empty array if no aid is needed."
+        } else if language.contains("english") {
+            "English: use IPA or a compact learner-friendly pronunciation respelling when the pronunciation is not obvious. Example: though -> /ðoʊ/. Use an empty array for transparent words if no aid is needed."
+        } else {
+            "Use the conventional pronunciation aid learners normally expect for this language: stress marks, IPA, standard romanization/transliteration, or another established reading system. If the word is already written in a regular phonetic script and no auxiliary reading is normally used, use an empty array."
+        };
+
+        format!(
+            r#"- {specific}
+- For scripts with established reading systems, prefer that system over generic romanization.
+- For alphabetic languages with mostly transparent spelling, use readings only for stress, irregular pronunciation, or ambiguity.
+- For multi-word expressions, include a reading only if it is useful and natural for the language; otherwise use an empty array.
+- Never put the original word itself in "readings" unless the reading notation is meaningfully different from "word.name"."#
         )
     }
 
@@ -312,6 +362,34 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
             let normalized = Self::normalize_text(trimmed);
             if seen.insert(normalized) {
                 deduped.push(trimmed.to_string());
+            }
+        }
+
+        deduped
+    }
+
+    fn dedupe_examples_preserve_order(
+        values: Vec<lh_api::models::card::UsageExampleDto>,
+    ) -> Vec<lh_api::models::card::UsageExampleDto> {
+        let mut seen = HashSet::new();
+        let mut deduped = Vec::new();
+
+        for mut value in values {
+            value.sentence = value.sentence.trim().to_string();
+            value.translation = value.translation.trim().to_string();
+
+            if value.sentence.is_empty() || value.translation.is_empty() {
+                continue;
+            }
+
+            let key = format!(
+                "{}|{}",
+                Self::normalize_text(&value.sentence),
+                Self::normalize_text(&value.translation)
+            );
+
+            if seen.insert(key) {
+                deduped.push(value);
             }
         }
 
@@ -385,6 +463,7 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
         meaning.definition = meaning.definition.trim().to_string();
         meaning.translated_definition = meaning.translated_definition.trim().to_string();
         meaning.word_translations = Self::dedupe_preserve_order(meaning.word_translations);
+        meaning.examples = Self::dedupe_examples_preserve_order(meaning.examples);
 
         if meaning.definition.is_empty()
             || meaning.translated_definition.is_empty()
@@ -417,6 +496,9 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
                     existing.word_translations.extend(meaning.word_translations);
                     existing.word_translations =
                         Self::dedupe_preserve_order(existing.word_translations.clone());
+                    existing.examples.extend(meaning.examples);
+                    existing.examples =
+                        Self::dedupe_examples_preserve_order(existing.examples.clone());
                 }
                 continue;
             }
@@ -428,6 +510,8 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
                 existing.word_translations.extend(meaning.word_translations);
                 existing.word_translations =
                     Self::dedupe_preserve_order(existing.word_translations.clone());
+                existing.examples.extend(meaning.examples);
+                existing.examples = Self::dedupe_examples_preserve_order(existing.examples.clone());
 
                 if existing.definition.len() > meaning.definition.len() {
                     existing.definition = meaning.definition;
@@ -437,6 +521,7 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
                 }
             } else {
                 meaning.word_translations = Self::dedupe_preserve_order(meaning.word_translations);
+                meaning.examples = Self::dedupe_examples_preserve_order(meaning.examples);
                 merged.push(meaning);
             }
         }
@@ -447,7 +532,7 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
 
     /// Parses a CardDto from JSON text returned by AI.
     fn parse_card_from_json(json_text: &str) -> Result<CardDto, ApiError> {
-        use lh_api::models::card::{CardType, MeaningDto, WordDto};
+        use lh_api::models::card::{CardType, MeaningDto, UsageExampleDto, WordDto};
         use serde::Deserialize;
 
         // Simplified structures for lenient parsing
@@ -481,6 +566,19 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
             #[serde(alias = "word_translations")]
             #[serde(default)]
             word_translations: Vec<String>,
+            #[serde(default)]
+            examples: Vec<SimpleUsageExample>,
+        }
+
+        #[derive(Deserialize)]
+        struct SimpleUsageExample {
+            #[serde(alias = "text")]
+            #[serde(alias = "source")]
+            #[serde(alias = "foreign_sentence")]
+            sentence: String,
+            #[serde(alias = "translated_sentence")]
+            #[serde(alias = "target")]
+            translation: String,
         }
 
         // Try to extract JSON if the response contains markdown code blocks
@@ -521,6 +619,14 @@ OUTPUT: JSON. NO OTHER WORDS AND EXPLANATIONS"#,
                 definition: m.definition,
                 translated_definition: m.translated_definition,
                 word_translations: m.word_translations,
+                examples: m
+                    .examples
+                    .into_iter()
+                    .map(|example| UsageExampleDto {
+                        sentence: example.sentence,
+                        translation: example.translation,
+                    })
+                    .collect(),
             })
             .collect();
 
@@ -567,7 +673,7 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
 
     /// Parses an array of CardDto from JSON text returned by AI.
     fn parse_card_array_from_json(json_text: &str) -> Result<Vec<CardDto>, ApiError> {
-        use lh_api::models::card::{CardType, MeaningDto, WordDto};
+        use lh_api::models::card::{CardType, MeaningDto, UsageExampleDto, WordDto};
         use serde::Deserialize;
 
         // Simplified structures for lenient parsing
@@ -601,6 +707,19 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
             #[serde(alias = "word_translations")]
             #[serde(default)]
             word_translations: Vec<String>,
+            #[serde(default)]
+            examples: Vec<SimpleUsageExample>,
+        }
+
+        #[derive(Deserialize)]
+        struct SimpleUsageExample {
+            #[serde(alias = "text")]
+            #[serde(alias = "source")]
+            #[serde(alias = "foreign_sentence")]
+            sentence: String,
+            #[serde(alias = "translated_sentence")]
+            #[serde(alias = "target")]
+            translation: String,
         }
 
         // Try to extract JSON if the response contains markdown code blocks
@@ -644,6 +763,14 @@ OUTPUT: JSON array of updated cards (or []). NO OTHER WORDS AND EXPLANATIONS"#,
                         definition: m.definition,
                         translated_definition: m.translated_definition,
                         word_translations: m.word_translations,
+                        examples: m
+                            .examples
+                            .into_iter()
+                            .map(|example| UsageExampleDto {
+                                sentence: example.sentence,
+                                translation: example.translation,
+                            })
+                            .collect(),
                     })
                     .collect();
 

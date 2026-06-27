@@ -35,6 +35,14 @@ pub enum Message {
     RemoveTranslation(usize, usize),
     /// Translated definition changed for meaning at index
     TranslatedDefinitionChanged(usize, String),
+    /// Example sentence changed for meaning at meaning_index, example_index
+    ExampleSentenceChanged(usize, usize, String),
+    /// Example translation changed for meaning at meaning_index, example_index
+    ExampleTranslationChanged(usize, usize, String),
+    /// Add usage example to meaning at index
+    AddExample(usize),
+    /// Remove usage example from meaning at meaning_index, example_index
+    RemoveExample(usize, usize),
 
     // AI Assistant actions
     /// Fill card data using AI assistant

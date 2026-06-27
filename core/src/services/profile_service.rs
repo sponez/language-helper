@@ -516,10 +516,21 @@ impl<R: ProfileRepository> ProfileService<R> {
             // Add inverted meanings (one for each occurrence of this translation)
             for meaning in meanings {
                 // Swap definition and translated_definition
-                let inverted_meaning = crate::models::card::Meaning::new_unchecked(
+                let inverted_examples = meaning
+                    .examples
+                    .iter()
+                    .map(|example| {
+                        crate::models::card::UsageExample::new_unchecked(
+                            example.translation.clone(),
+                            example.sentence.clone(),
+                        )
+                    })
+                    .collect();
+                let inverted_meaning = crate::models::card::Meaning::new_unchecked_with_examples(
                     meaning.translated_definition.clone(),
                     meaning.definition.clone(),
                     vec![original_card.word.name.clone()],
+                    inverted_examples,
                 );
                 inverse_card.meanings.push(inverted_meaning);
             }

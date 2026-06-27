@@ -10,6 +10,8 @@ pub enum Message {
     Start,
     /// Session started (async result)
     SessionStarted(Result<lh_api::models::learning_session::LearningSessionDto, String>),
+    /// Toggle usage examples visibility on the full card
+    ToggleExamples,
 
     /// User typed an answer in test phase
     AnswerInputChanged(String),

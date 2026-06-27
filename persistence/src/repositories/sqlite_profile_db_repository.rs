@@ -121,6 +121,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                     definition TEXT NOT NULL,
                     translated_definition TEXT NOT NULL,
                     word_translations TEXT NOT NULL DEFAULT '[]',
+                    examples TEXT NOT NULL DEFAULT '[]',
                     FOREIGN KEY (word_name) REFERENCES cards(word_name) ON DELETE CASCADE
                 )",
                 [],
@@ -388,6 +389,7 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
                     db_path, e
                 ))
             })?;
+            Self::ensure_examples_column(&conn)?;
 
             // Start transaction (with automatic rollback on drop if not committed)
             let tx = conn.transaction().map_err(|e| {
@@ -424,13 +426,14 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
             for meaning in &card.meanings {
                 let meaning_entity = MeaningEntity::from_domain(&card_entity.word_name, meaning)?;
                 tx.execute(
-                    "INSERT INTO meanings (word_name, definition, translated_definition, word_translations)
-                     VALUES (?1, ?2, ?3, ?4)",
+                "INSERT INTO meanings (word_name, definition, translated_definition, word_translations, examples)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
                     params![
                         meaning_entity.word_name,
                         meaning_entity.definition,
                         meaning_entity.translated_definition,
-                        meaning_entity.word_translations
+                        meaning_entity.word_translations,
+                        meaning_entity.examples
                     ],
                 ).map_err(|e| {
                     PersistenceError::database_error(format!("Failed to insert meaning: {}", e))
@@ -584,12 +587,48 @@ impl PersistenceProfileDbRepository for SqliteProfileDbRepository {
 }
 
 impl SqliteProfileDbRepository {
+    fn ensure_examples_column(conn: &Connection) -> Result<(), PersistenceError> {
+        let mut stmt = conn.prepare("PRAGMA table_info(meanings)").map_err(|e| {
+            PersistenceError::database_error(format!("Failed to inspect meanings schema: {}", e))
+        })?;
+
+        let columns = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|e| {
+                PersistenceError::database_error(format!("Failed to query meanings schema: {}", e))
+            })?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                PersistenceError::database_error(format!(
+                    "Failed to collect meanings schema: {}",
+                    e
+                ))
+            })?;
+
+        if !columns.iter().any(|column| column == "examples") {
+            conn.execute(
+                "ALTER TABLE meanings ADD COLUMN examples TEXT NOT NULL DEFAULT '[]'",
+                [],
+            )
+            .map_err(|e| {
+                PersistenceError::database_error(format!(
+                    "Failed to add examples column to meanings: {}",
+                    e
+                ))
+            })?;
+        }
+
+        Ok(())
+    }
+
     /// Helper function to fetch cards with their related data.
     fn fetch_cards(
         conn: &Connection,
         query: &str,
         params: &[&dyn rusqlite::ToSql],
     ) -> Result<Vec<Card>, PersistenceError> {
+        Self::ensure_examples_column(conn)?;
+
         let mut stmt = conn.prepare(query).map_err(|e| {
             PersistenceError::database_error(format!("Failed to prepare query: {}", e))
         })?;
@@ -615,7 +654,7 @@ impl SqliteProfileDbRepository {
         for card_entity in card_entities {
             // Fetch meanings
             let mut meaning_stmt = conn
-                .prepare("SELECT id, word_name, definition, translated_definition, word_translations FROM meanings WHERE word_name = ?1")
+                .prepare("SELECT id, word_name, definition, translated_definition, word_translations, examples FROM meanings WHERE word_name = ?1")
                 .map_err(|e| {
                     PersistenceError::database_error(format!("Failed to prepare meanings query: {}", e))
                 })?;
@@ -628,6 +667,7 @@ impl SqliteProfileDbRepository {
                         definition: row.get(2)?,
                         translated_definition: row.get(3)?,
                         word_translations: row.get(4)?,
+                        examples: row.get(5)?,
                     })
                 })
                 .map_err(|e| {

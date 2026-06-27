@@ -3,6 +3,7 @@
 //! This module defines the flashcard entities and their components.
 
 use crate::errors::CoreError;
+use serde::{Deserialize, Serialize};
 
 /// Card type indicating the learning direction.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -179,6 +180,68 @@ pub struct Meaning {
     pub translated_definition: String,
     /// Translations of the word itself.
     pub word_translations: Vec<String>,
+    /// Usage examples for this meaning.
+    pub examples: Vec<UsageExample>,
+}
+
+/// Domain model for a usage example.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsageExample {
+    /// Example sentence in the card language.
+    pub sentence: String,
+    /// Translation of the sentence into the opposite language.
+    pub translation: String,
+}
+
+impl UsageExample {
+    /// Creates a new usage example with validation.
+    pub fn new<S1: Into<String>, S2: Into<String>>(
+        sentence: S1,
+        translation: S2,
+    ) -> Result<Self, CoreError> {
+        let sentence = sentence.into();
+        let translation = translation.into();
+
+        if sentence.trim().is_empty() {
+            return Err(CoreError::validation_error(
+                "Example sentence cannot be empty",
+            ));
+        }
+
+        if translation.trim().is_empty() {
+            return Err(CoreError::validation_error(
+                "Example translation cannot be empty",
+            ));
+        }
+
+        if sentence.len() > 1000 {
+            return Err(CoreError::validation_error(
+                "Example sentence cannot exceed 1000 characters",
+            ));
+        }
+
+        if translation.len() > 1000 {
+            return Err(CoreError::validation_error(
+                "Example translation cannot exceed 1000 characters",
+            ));
+        }
+
+        Ok(Self {
+            sentence,
+            translation,
+        })
+    }
+
+    /// Creates a usage example without validation.
+    pub fn new_unchecked<S1: Into<String>, S2: Into<String>>(
+        sentence: S1,
+        translation: S2,
+    ) -> Self {
+        Self {
+            sentence: sentence.into(),
+            translation: translation.into(),
+        }
+    }
 }
 
 impl Meaning {
@@ -198,6 +261,16 @@ impl Meaning {
         definition: S1,
         translated_definition: S2,
         word_translations: Vec<String>,
+    ) -> Result<Self, CoreError> {
+        Self::new_with_examples(definition, translated_definition, word_translations, vec![])
+    }
+
+    /// Creates a new Meaning with validation and usage examples.
+    pub fn new_with_examples<S1: Into<String>, S2: Into<String>>(
+        definition: S1,
+        translated_definition: S2,
+        word_translations: Vec<String>,
+        examples: Vec<UsageExample>,
     ) -> Result<Self, CoreError> {
         let definition = definition.into();
         let translated_definition = translated_definition.into();
@@ -228,6 +301,7 @@ impl Meaning {
             definition,
             translated_definition,
             word_translations,
+            examples,
         })
     }
 
@@ -237,10 +311,26 @@ impl Meaning {
         translated_definition: S2,
         word_translations: Vec<String>,
     ) -> Self {
+        Self::new_unchecked_with_examples(
+            definition,
+            translated_definition,
+            word_translations,
+            vec![],
+        )
+    }
+
+    /// Creates a Meaning with examples without validation.
+    pub fn new_unchecked_with_examples<S1: Into<String>, S2: Into<String>>(
+        definition: S1,
+        translated_definition: S2,
+        word_translations: Vec<String>,
+        examples: Vec<UsageExample>,
+    ) -> Self {
         Self {
             definition: definition.into(),
             translated_definition: translated_definition.into(),
             word_translations,
+            examples,
         }
     }
 }

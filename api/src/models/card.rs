@@ -58,6 +58,18 @@ pub struct MeaningDto {
     pub translated_definition: String,
     /// Translations of the word itself.
     pub word_translations: Vec<String>,
+    /// Usage examples for this meaning.
+    #[serde(default)]
+    pub examples: Vec<UsageExampleDto>,
+}
+
+/// Data transfer object for a usage example.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsageExampleDto {
+    /// Example sentence in the card language.
+    pub sentence: String,
+    /// Translation of the sentence into the opposite language.
+    pub translation: String,
 }
 
 #[cfg(test)]
@@ -102,9 +114,14 @@ mod tests {
             definition: "to eat".to_string(),
             translated_definition: "comer".to_string(),
             word_translations: vec!["eat".to_string(), "consume".to_string()],
+            examples: vec![UsageExampleDto {
+                sentence: "I eat breakfast.".to_string(),
+                translation: "Yo desayuno.".to_string(),
+            }],
         };
         assert_eq!(meaning.definition, "to eat");
         assert_eq!(meaning.word_translations.len(), 2);
+        assert_eq!(meaning.examples.len(), 1);
     }
 
     #[test]
@@ -119,6 +136,7 @@ mod tests {
                 definition: "greeting".to_string(),
                 translated_definition: "saludo".to_string(),
                 word_translations: vec!["hola".to_string()],
+                examples: vec![],
             }],
             streak: 0,
             created_at: 1000,

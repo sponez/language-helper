@@ -30,7 +30,7 @@ use iced::widget::{column, scrollable, stack, Container};
 use iced::{Alignment, Element, Length, Task};
 
 use lh_api::app_api::AppApi;
-use lh_api::models::card::{CardDto, CardType, MeaningDto, WordDto};
+use lh_api::models::card::{CardDto, CardType, MeaningDto, UsageExampleDto, WordDto};
 
 use crate::app_state::AppState;
 use crate::router::{self, RouterEvent, RouterNode};
@@ -85,12 +85,35 @@ impl TranslationField {
     }
 }
 
+/// Single usage example field
+#[derive(Debug, Clone)]
+pub struct ExampleField {
+    pub sentence: String,
+    pub translation: String,
+}
+
+impl Default for ExampleField {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ExampleField {
+    pub fn new() -> Self {
+        Self {
+            sentence: String::new(),
+            translation: String::new(),
+        }
+    }
+}
+
 /// Meaning with definition, translated definition, and translations
 #[derive(Debug, Clone)]
 pub struct MeaningFields {
     pub definition: String,
     pub translated_definition: String,
     pub translations: Vec<TranslationField>,
+    pub examples: Vec<ExampleField>,
 }
 
 impl Default for MeaningFields {
@@ -105,6 +128,7 @@ impl MeaningFields {
             definition: String::new(),
             translated_definition: String::new(),
             translations: vec![],
+            examples: vec![],
         }
     }
 }
@@ -217,6 +241,14 @@ impl AddCardRouter {
                     .word_translations
                     .iter()
                     .map(|t| TranslationField { value: t.clone() })
+                    .collect(),
+                examples: m
+                    .examples
+                    .iter()
+                    .map(|example| ExampleField {
+                        sentence: example.sentence.clone(),
+                        translation: example.translation.clone(),
+                    })
                     .collect(),
             })
             .collect();
@@ -333,6 +365,42 @@ impl AddCardRouter {
                 }
                 (None, Task::none())
             }
+            Message::ExampleSentenceChanged(meaning_index, example_index, value) => {
+                if let Some(meaning) = self.meanings.get_mut(meaning_index) {
+                    if let Some(example) = meaning.examples.get_mut(example_index) {
+                        example.sentence = value;
+                    }
+                }
+                (None, Task::none())
+            }
+            Message::ExampleTranslationChanged(meaning_index, example_index, value) => {
+                if let Some(meaning) = self.meanings.get_mut(meaning_index) {
+                    if let Some(example) = meaning.examples.get_mut(example_index) {
+                        example.translation = value;
+                    }
+                }
+                (None, Task::none())
+            }
+            Message::AddExample(meaning_index) => {
+                if let Some(meaning) = self.meanings.get_mut(meaning_index) {
+                    if meaning.examples.len() >= 5 {
+                        self.error_message =
+                            Some("Maximum 5 examples per meaning allowed".to_string());
+                    } else {
+                        meaning.examples.push(ExampleField::new());
+                        self.error_message = None;
+                    }
+                }
+                (None, Task::none())
+            }
+            Message::RemoveExample(meaning_index, example_index) => {
+                if let Some(meaning) = self.meanings.get_mut(meaning_index) {
+                    if example_index < meaning.examples.len() {
+                        meaning.examples.remove(example_index);
+                    }
+                }
+                (None, Task::none())
+            }
             Message::FillWithAI => {
                 if self.word_name.trim().is_empty() {
                     self.error_message =
@@ -405,6 +473,14 @@ impl AddCardRouter {
                                     .word_translations
                                     .into_iter()
                                     .map(|t| TranslationField { value: t })
+                                    .collect(),
+                                examples: m
+                                    .examples
+                                    .into_iter()
+                                    .map(|example| ExampleField {
+                                        sentence: example.sentence,
+                                        translation: example.translation,
+                                    })
                                     .collect(),
                             })
                             .collect();
@@ -744,6 +820,24 @@ impl AddCardRouter {
                     ));
                 }
             }
+
+            for (j, example) in meaning.examples.iter().enumerate() {
+                if example.sentence.trim().is_empty() {
+                    return Err(format!(
+                        "Example sentence {} of meaning {} cannot be empty",
+                        j + 1,
+                        i + 1
+                    ));
+                }
+
+                if example.translation.trim().is_empty() {
+                    return Err(format!(
+                        "Example translation {} of meaning {} cannot be empty",
+                        j + 1,
+                        i + 1
+                    ));
+                }
+            }
         }
 
         Ok(())
@@ -763,6 +857,14 @@ impl AddCardRouter {
                 definition: m.definition.clone(),
                 translated_definition: m.translated_definition.clone(),
                 word_translations: m.translations.iter().map(|t| t.value.clone()).collect(),
+                examples: m
+                    .examples
+                    .iter()
+                    .map(|example| UsageExampleDto {
+                        sentence: example.sentence.clone(),
+                        translation: example.translation.clone(),
+                    })
+                    .collect(),
             })
             .collect();
 
@@ -909,6 +1011,14 @@ impl AddCardRouter {
                                 definition: meaning.translated_definition.clone(),
                                 translated_definition: meaning.definition.clone(),
                                 word_translations: vec![saved_card.word.name.clone()],
+                                examples: meaning
+                                    .examples
+                                    .iter()
+                                    .map(|example| UsageExampleDto {
+                                        sentence: example.translation.clone(),
+                                        translation: example.sentence.clone(),
+                                    })
+                                    .collect(),
                             });
                         }
                     }

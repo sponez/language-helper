@@ -17,6 +17,8 @@ pub enum Message {
     NextCardInStudy,
     /// Start test phase button pressed
     StartTest,
+    /// Toggle usage examples visibility on the full card
+    ToggleExamples,
 
     /// User typed an answer in test phase
     AnswerInputChanged(String),

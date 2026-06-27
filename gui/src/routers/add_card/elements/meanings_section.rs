@@ -99,6 +99,58 @@ pub fn meanings_section<'a>(
             .padding(10)
             .style(container::rounded_box);
 
+        let examples_label = text(i18n.get("add-card-examples-label", None))
+            .size(12)
+            .shaping(iced::widget::text::Shaping::Advanced);
+
+        let mut examples_column = Column::new().spacing(8);
+
+        for (example_index, example) in meaning.examples.iter().enumerate() {
+            let sentence_input = text_input(
+                &i18n.get("add-card-example-sentence-placeholder", None),
+                &example.sentence,
+            )
+            .on_input(move |v| Message::ExampleSentenceChanged(meaning_index, example_index, v))
+            .padding(8)
+            .width(Length::Fixed(330.0));
+
+            let translation_input = text_input(
+                &i18n.get("add-card-example-translation-placeholder", None),
+                &example.translation,
+            )
+            .on_input(move |v| Message::ExampleTranslationChanged(meaning_index, example_index, v))
+            .padding(8)
+            .width(Length::Fixed(330.0));
+
+            let remove_example_button = button(text("-").size(14))
+                .on_press(Message::RemoveExample(meaning_index, example_index))
+                .padding(6);
+
+            let example_column = column![sentence_input, translation_input].spacing(6);
+
+            let example_row = row![example_column, remove_example_button]
+                .spacing(8)
+                .align_y(Alignment::Center);
+
+            examples_column = examples_column.push(example_row);
+        }
+
+        let add_example_text = text(i18n.get("add-card-add-example", None))
+            .size(12)
+            .shaping(iced::widget::text::Shaping::Advanced);
+
+        let add_example_button = button(add_example_text)
+            .on_press(Message::AddExample(meaning_index))
+            .padding(6);
+
+        examples_column = examples_column
+            .push(add_example_button)
+            .align_x(Alignment::Center);
+
+        let examples_container = container(examples_column)
+            .padding(10)
+            .style(container::rounded_box);
+
         // Remove meaning button
         let remove_meaning_text = text(i18n.get("add-card-remove-meaning", None))
             .size(12)
@@ -115,6 +167,8 @@ pub fn meanings_section<'a>(
             trans_def_input,
             translations_label,
             translations_container,
+            examples_label,
+            examples_container,
             remove_meaning_button,
         ]
         .spacing(8)

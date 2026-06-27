@@ -100,6 +100,7 @@ mod tests {
                 definition: "greeting".to_string(),
                 translated_definition: "saludo".to_string(),
                 word_translations: vec!["hola".to_string()],
+                examples: vec![],
             }],
             streak: 0,
             created_at: 1000,
