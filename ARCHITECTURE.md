@@ -6,7 +6,7 @@ Language Helper 2 follows a **clean architecture** pattern with clear separation
 
 ## Layer Structure
 
-### 1. GUI Layer (`gui/`)
+### 1. GUI Layer (`backend/gui/`)
 
 **Purpose**: User interface and presentation logic
 
@@ -20,7 +20,7 @@ Language Helper 2 follows a **clean architecture** pattern with clear separation
 
 **Key Components**:
 
-#### Router System (`gui/src/router.rs`)
+#### Router System (`backend/gui/src/router.rs`)
 The application uses a stack-based router for navigation:
 
 ```rust
@@ -50,7 +50,7 @@ UserListRouter (root)
 
 **Auto-refresh**: After any `Pop` or `PopTo` operation, the target router's `refresh()` method is automatically called to reload data from the API.
 
-#### Runtime Utility (`gui/src/runtime_util.rs`)
+#### Runtime Utility (`backend/gui/src/runtime_util.rs`)
 Bridges synchronous GUI code with async API calls:
 
 ```rust
@@ -61,14 +61,14 @@ pub fn block_on<F: Future>(future: F) -> F::Output {
 
 Uses a shared Tokio runtime to avoid creating a new runtime for each async operation.
 
-#### Internationalization (`gui/src/i18n.rs`)
+#### Internationalization (`backend/gui/src/i18n.rs`)
 Fluent-based localization system:
 - Load messages from `.ftl` files
 - Support for multiple locales
 - Pluralization and variable substitution
 - Font loading for different scripts
 
-### 2. API Layer (`api/`)
+### 2. API Layer (`backend/api/`)
 
 **Purpose**: Define contracts between layers
 
@@ -105,7 +105,7 @@ pub trait ProfileApi {
 }
 ```
 
-### 3. Core Layer (`core/`)
+### 3. Core Layer (`backend/core/`)
 
 **Purpose**: Business logic and coordination
 
@@ -157,7 +157,7 @@ impl UserService {
 }
 ```
 
-### 4. Persistence Layer (`persistence/`)
+### 4. Persistence Layer (`backend/persistence/`)
 
 **Purpose**: Data access and storage
 
@@ -410,7 +410,7 @@ match block_on(api.delete_user(username)) {
 
 ### Tokio Runtime Management
 
-**Shared Runtime** (`gui/src/runtime_util.rs`):
+**Shared Runtime** (`backend/gui/src/runtime_util.rs`):
 ```rust
 static RUNTIME: Lazy<Runtime> = Lazy::new(|| {
     Runtime::new().expect("Failed to create Tokio runtime")

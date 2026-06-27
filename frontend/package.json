@@ -1,0 +1,30 @@
+{
+  "name": "language-helper-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mantine/core": "^9.4.0",
+    "@mantine/hooks": "^9.4.0",
+    "@tanstack/react-query": "^5.101.1",
+    "@tauri-apps/api": "^2.11.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router": "8.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.0.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "oxlint": "^1.69.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.0"
+  }
+}

@@ -29,8 +29,9 @@ git clone https://github.com/yourusername/language-helper-2.git
 cd language-helper-2
 ```
 
-2. Build the project:
+2. Build the Rust workspace:
 ```bash
+cd backend
 cargo build
 ```
 
@@ -43,13 +44,15 @@ cargo test
 
 ```
 language-helper-2/
-├── app/          # Application entry point
-├── gui/          # User interface layer (Iced)
-├── api/          # API contracts (traits & DTOs)
-├── core/         # Business logic
-├── persistence/  # Data access layer
+├── backend/
+│   ├── app/          # Legacy application entry point
+│   ├── gui/          # Legacy user interface layer (Iced)
+│   ├── api/          # API contracts (traits & DTOs)
+│   ├── core/         # Business logic
+│   └── persistence/  # Data access layer
+├── frontend/         # React, TypeScript and Vite application
 ├── ARCHITECTURE.md  # Detailed architecture documentation
-└── CLAUDE.md        # Development workflow guidelines
+└── TAURI_MIGRATION_PLAN.md
 ```
 
 ## Development Workflow
@@ -330,9 +333,9 @@ GUI (user-friendly messages)
 
 ### Adding a New Feature
 
-1. Define API trait in `api/src/apis/`
-2. Create DTOs in `api/src/models/`
-3. Implement service in `core/src/services/`
+1. Define API trait in `backend/api/src/apis/`
+2. Create DTOs in `backend/api/src/models/`
+3. Implement service in `backend/core/src/services/`
 4. Add repository methods if needed
 5. Implement in GUI routers
 6. Add tests at each layer
@@ -340,15 +343,15 @@ GUI (user-friendly messages)
 
 ### Adding a New Language
 
-1. Create `gui/locales/{locale-code}/main.ftl`
+1. Create `backend/gui/locales/{locale-code}/main.ftl`
 2. Copy keys from `en-US/main.ftl`
 3. Translate all strings
-4. Add font if needed in `app/src/assets/fonts/`
+4. Add font if needed in `backend/app/src/assets/fonts/`
 5. Test in UI
 
 ### Adding a New Router Screen
 
-1. Create directory in `gui/src/routers/{screen_name}/`
+1. Create directory in `backend/gui/src/routers/{screen_name}/`
 2. Create `router.rs`, `message.rs`
 3. Create `elements/` for UI components
 4. Implement `RouterNode` trait

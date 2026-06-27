@@ -16,7 +16,7 @@
 - Работа с асинхронными данными: TanStack Query.
 - UI-компоненты и темы: Mantine.
 - Основной и единственный язык первой версии: английский.
-- Текущие Fluent-локализации из `gui/locales` не переносятся.
+- Текущие Fluent-локализации из `backend/gui/locales` не переносятся.
 - Архитектура frontend не должна мешать последующему подключению i18n.
 - Rust crates `api`, `core` и `persistence` сохраняются.
 - Iced-приложение остаётся рабочим до достижения функционального паритета.
@@ -54,6 +54,29 @@ React-компоненты не должны напрямую импортиро
 ## 4. Предлагаемая структура проекта
 
 ```text
+backend/
+  Cargo.toml
+  api/
+  core/
+  persistence/
+  app/                  # Legacy Iced entry point during migration
+  gui/                  # Legacy Iced UI during migration
+  bootstrap/            # Planned shared composition root
+  desktop/              # Planned Tauri Rust crate
+    capabilities/
+    src/
+      commands/
+        users.rs
+        profiles.rs
+        cards.rs
+        learning.rs
+        settings.rs
+        assistant.rs
+      error.rs
+      state.rs
+      lib.rs
+      main.rs
+
 frontend/
   src/
     app/
@@ -78,28 +101,6 @@ frontend/
     models/
     routes/
     main.tsx
-
-desktop/
-  src-tauri/
-    capabilities/
-    src/
-      commands/
-        users.rs
-        profiles.rs
-        cards.rs
-        learning.rs
-        settings.rs
-        assistant.rs
-      error.rs
-      state.rs
-      lib.rs
-      main.rs
-
-bootstrap/
-  Cargo.toml
-  src/
-    config.rs
-    lib.rs
 ```
 
 Название нового Rust crate можно уточнить при реализации. Рабочее название:

@@ -15,6 +15,9 @@ jobs:
       PKG_NAME: app
       BIN_NAME: app
       PROFILE: release
+    defaults:
+      run:
+        working-directory: backend
 
     steps:
       - name: Checkout
@@ -67,7 +70,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-universal
-          path: dist/*
+          path: backend/dist/*
 
       # ---------- Windows ----------
       - name: Build (Windows)
@@ -90,4 +93,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: dist/*
+          path: backend/dist/*

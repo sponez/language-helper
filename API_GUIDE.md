@@ -32,7 +32,7 @@ All APIs are defined as traits in the `api` crate and implemented in the `core` 
 
 ### AppApi
 
-**Location**: `api/src/app_api.rs`
+**Location**: `backend/api/src/app_api.rs`
 
 Main aggregator trait providing access to all sub-APIs.
 
@@ -52,7 +52,7 @@ pub trait AppApi: Send + Sync {
 
 ### UsersApi
 
-**Location**: `api/src/apis/user_api.rs`
+**Location**: `backend/api/src/apis/user_api.rs`
 
 User and profile metadata management.
 
@@ -134,7 +134,7 @@ Deletes a profile and its database.
 
 ### ProfilesApi
 
-**Location**: `api/src/apis/profiles_api.rs`
+**Location**: `backend/api/src/apis/profiles_api.rs`
 
 Learning content and session management within a profile.
 
@@ -343,7 +343,7 @@ Generates inverse cards (manually or with AI).
 
 ### AppSettingsApi
 
-**Location**: `api/src/apis/app_settings_api.rs`
+**Location**: `backend/api/src/apis/app_settings_api.rs`
 
 Global application settings.
 
@@ -371,7 +371,7 @@ Updates default UI language.
 
 ### SystemRequirementsApi
 
-**Location**: `api/src/apis/system_requirements_api.rs`
+**Location**: `backend/api/src/apis/system_requirements_api.rs`
 
 System compatibility checking.
 
@@ -399,7 +399,7 @@ Checks if Ollama is installed and version.
 
 ### AiAssistantApi
 
-**Location**: `api/src/apis/ai_assistant_api.rs`
+**Location**: `backend/api/src/apis/ai_assistant_api.rs`
 
 AI operations (Ollama and cloud providers).
 
@@ -494,7 +494,7 @@ Intelligently merges inverse cards using AI.
 
 ### UserDto
 
-**Location**: `api/src/models/user.rs`
+**Location**: `backend/api/src/models/user.rs`
 
 ```rust
 pub struct UserDto {
@@ -507,7 +507,7 @@ pub struct UserDto {
 
 ### ProfileDto
 
-**Location**: `api/src/models/profile.rs`
+**Location**: `backend/api/src/models/profile.rs`
 
 ```rust
 pub struct ProfileDto {
@@ -520,7 +520,7 @@ pub struct ProfileDto {
 
 ### CardDto
 
-**Location**: `api/src/models/card.rs`
+**Location**: `backend/api/src/models/card.rs`
 
 ```rust
 pub struct CardDto {
@@ -550,7 +550,7 @@ pub enum CardType {
 
 ### CardSettingsDto
 
-**Location**: `api/src/models/card_settings.rs`
+**Location**: `backend/api/src/models/card_settings.rs`
 
 ```rust
 pub struct CardSettingsDto {
@@ -562,7 +562,7 @@ pub struct CardSettingsDto {
 
 ### AssistantSettingsDto
 
-**Location**: `api/src/models/assistant_settings.rs`
+**Location**: `backend/api/src/models/assistant_settings.rs`
 
 ```rust
 pub struct AssistantSettingsDto {
@@ -575,7 +575,7 @@ pub struct AssistantSettingsDto {
 
 ### LearningSessionDto
 
-**Location**: `api/src/models/learning_session.rs`
+**Location**: `backend/api/src/models/learning_session.rs`
 
 ```rust
 pub struct LearningSessionDto {
@@ -597,7 +597,7 @@ pub enum LearningPhase {
 
 ### TestResultDto
 
-**Location**: `api/src/models/test_result.rs`
+**Location**: `backend/api/src/models/test_result.rs`
 
 ```rust
 pub struct TestResultDto {
@@ -616,7 +616,7 @@ Services implement the business logic behind APIs.
 
 ### LearningService
 
-**Location**: `core/src/services/learning_service.rs`
+**Location**: `backend/core/src/services/learning_service.rs`
 
 Implements learning algorithm logic:
 - Session creation with cyclic shift
@@ -625,7 +625,7 @@ Implements learning algorithm logic:
 
 ### AiProvider
 
-**Location**: `core/src/services/ai_provider.rs`
+**Location**: `backend/core/src/services/ai_provider.rs`
 
 Trait for AI providers:
 

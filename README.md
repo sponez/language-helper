@@ -138,10 +138,19 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed documentation.
 
 ## 🚀 Getting Started
 
+## Repository Layout
+
+```text
+language-helper-2/
+├── backend/   # Rust workspace and the legacy Iced application
+└── frontend/  # React, TypeScript and Vite application
+```
+
 ### Prerequisites
 
 - **Rust**: Latest stable version (1.70+)
 - **Cargo**: Comes with Rust
+- **Node.js**: Required for the new frontend
 - **Ollama** (optional): For local AI features - [Install Ollama](https://ollama.com/)
 
 ### Installation
@@ -152,14 +161,22 @@ git clone https://github.com/yourusername/language-helper-2.git
 cd language-helper-2
 ```
 
-2. Build the project:
+2. Build the Rust workspace:
 ```bash
+cd backend
 cargo build --release
 ```
 
-3. Run the application:
+3. Run the legacy Iced application:
 ```bash
 cargo run --release
+```
+
+4. Run the new frontend in browser development mode:
+```bash
+cd ../frontend
+npm install
+npm run dev
 ```
 
 ### First Run
@@ -239,6 +256,8 @@ data/
 ### Running Tests
 
 ```bash
+cd backend
+
 # Run all tests
 cargo test
 
@@ -254,6 +273,8 @@ cargo test -- --nocapture
 ### Code Quality
 
 ```bash
+cd backend
+
 # Format code
 cargo fmt
 

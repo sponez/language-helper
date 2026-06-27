@@ -4,3 +4,6 @@
 data
 target
 release/
+
+frontend/node_modules/
+frontend/dist/
