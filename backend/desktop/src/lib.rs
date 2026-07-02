@@ -16,7 +16,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::users::get_usernames,
-            commands::users::create_user
+            commands::users::create_user,
+            commands::profiles::list_language_profiles,
+            commands::profiles::create_language_profile
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Language Helper");

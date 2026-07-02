@@ -1,4 +1,6 @@
-use application::ports::input::local_user::models::LocalUserError;
+use application::ports::input::{
+    language_profile::models::LanguageProfileError, local_user::models::LocalUserError,
+};
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -15,6 +17,23 @@ impl From<LocalUserError> for CommandError {
             LocalUserError::NotFound => "user_not_found",
             LocalUserError::Conflict => "user_conflict",
             LocalUserError::Unexpected(_) => "unexpected_error",
+        };
+
+        Self {
+            code,
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<LanguageProfileError> for CommandError {
+    fn from(error: LanguageProfileError) -> Self {
+        let code = match &error {
+            LanguageProfileError::InvalidProfile => "invalid_language_profile",
+            LanguageProfileError::AlreadyExists => "language_profile_already_exists",
+            LanguageProfileError::NotFound => "language_profile_not_found",
+            LanguageProfileError::Conflict => "language_profile_conflict",
+            LanguageProfileError::Unexpected(_) => "unexpected_error",
         };
 
         Self {

@@ -12,14 +12,14 @@ name = "language-helper"
 path = "src/main.rs"
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2", default-features = false, features = [] }
 
 [dependencies]
-application = { path = "../application" }
-lh_bootstrap = { path = "../bootstrap" }
-serde = { workspace = true, features = ["derive"] }
-tauri = { version = "2", features = [] }
+application = { path = "../application", default-features = false }
+lh_bootstrap = { path = "../bootstrap", default-features = false }
+serde = { workspace = true, default-features = false }
+tauri = { version = "2", default-features = false, features = ["wry"] }
 
 [dev-dependencies]
-tempfile = "3.8"
-tokio = { workspace = true }
+tempfile = { version = "3.8", default-features = false }
+tokio = { workspace = true, default-features = false }

@@ -4,11 +4,11 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-application = { path = "../application" }
-rusqlite = { version = "0.37.0", features = ["bundled"] }
-thiserror = { workspace = true }
-tokio = { workspace = true }
-async-trait = { workspace = true }
+application = { path = "../application", default-features = false }
+rusqlite = { version = "0.37.0", default-features = false, features = ["bundled"] }
+thiserror = { workspace = true, default-features = false }
+tokio = { workspace = true, default-features = false }
+async-trait = { workspace = true, default-features = false }
 
 [dev-dependencies]
-tempfile = "3.8"
+tempfile = { version = "3.8", default-features = false }

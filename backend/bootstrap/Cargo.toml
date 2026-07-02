@@ -4,10 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-adapters = { path = "../adapters" }
-application = { path = "../application" }
-thiserror = { workspace = true }
+adapters = { path = "../adapters", default-features = false }
+application = { path = "../application", default-features = false }
+thiserror = { workspace = true, default-features = false }
 
 [dev-dependencies]
-tempfile = "3.8"
-tokio = { workspace = true }
+tempfile = { version = "3.8", default-features = false }
+tokio = { workspace = true, default-features = false }

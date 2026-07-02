@@ -1,20 +1,28 @@
 use std::sync::Arc;
 
-use application::ports::input::local_user::LocalUserUsecase;
+use application::ports::input::{
+    language_profile::LanguageProfileUsecase, local_user::LocalUserUsecase,
+};
 use lh_bootstrap::BootstrapBridge;
 
 pub struct DesktopState {
     local_users: Arc<dyn LocalUserUsecase>,
+    language_profiles: Arc<dyn LanguageProfileUsecase>,
 }
 
 impl DesktopState {
     pub fn new(bridge: BootstrapBridge) -> Self {
         Self {
             local_users: bridge.local_users(),
+            language_profiles: bridge.language_profiles(),
         }
     }
 
     pub fn local_users(&self) -> Arc<dyn LocalUserUsecase> {
         Arc::clone(&self.local_users)
+    }
+
+    pub fn language_profiles(&self) -> Arc<dyn LanguageProfileUsecase> {
+        Arc::clone(&self.language_profiles)
     }
 }

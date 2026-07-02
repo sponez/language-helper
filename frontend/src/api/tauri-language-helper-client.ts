@@ -2,6 +2,8 @@ import { invoke } from '@tauri-apps/api/core'
 
 import type {
   BackendStatus,
+  CreateLanguageProfileInput,
+  LanguageProfile,
   LanguageHelperClient,
 } from './language-helper-client'
 
@@ -16,5 +18,20 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
 
   createUser(username: string): Promise<string> {
     return invoke<string>('create_user', { username })
+  }
+
+  getLanguageProfiles(username: string): Promise<LanguageProfile[]> {
+    return invoke<LanguageProfile[]>('list_language_profiles', { username })
+  }
+
+  createLanguageProfile(
+    input: CreateLanguageProfileInput,
+  ): Promise<LanguageProfile> {
+    return invoke<LanguageProfile>('create_language_profile', {
+      username: input.username,
+      name: input.name,
+      sourceLanguage: input.sourceLanguage,
+      targetLanguage: input.targetLanguage,
+    })
   }
 }

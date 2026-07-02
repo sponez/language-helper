@@ -16,15 +16,30 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useState } from 'react'
 
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
+import type { CreateLanguageProfileInput } from '../api/language-helper-client'
 import { useTranslations } from '../locales/TranslationProvider'
 import classes from './HomePage.module.css'
 
 const CONTROL_CHARACTER_PATTERN = /\p{Cc}/u
+const LANGUAGES = [
+  { value: 'en-US', label: 'English' },
+  { value: 'ru-RU', label: 'Russian' },
+  { value: 'ja-JP', label: 'Japanese' },
+]
+
+const LANGUAGE_LABELS = Object.fromEntries(
+  LANGUAGES.map((language) => [language.value, language.label]),
+)
 
 type UsernameError =
   | 'home.usernameRequired'
   | 'home.usernameTooLong'
   | 'home.usernameInvalid'
+
+type ProfileNameError =
+  | 'home.profileNameRequired'
+  | 'home.profileNameTooLong'
+  | 'home.profileNameInvalid'
 
 function validateUsername(username: string): UsernameError | null {
   const normalizedUsername = username.trim()
@@ -44,19 +59,46 @@ function validateUsername(username: string): UsernameError | null {
   return null
 }
 
+function validateProfileName(name: string): ProfileNameError | null {
+  const normalizedName = name.trim()
+  if (normalizedName.length === 0) {
+    return 'home.profileNameRequired'
+  }
+  if ([...normalizedName].length > 50) {
+    return 'home.profileNameTooLong'
+  }
+  if (CONTROL_CHARACTER_PATTERN.test(normalizedName)) {
+    return 'home.profileNameInvalid'
+  }
+  return null
+}
+
 export function HomePage() {
   const client = useLanguageHelperClient()
   const queryClient = useQueryClient()
   const { t } = useTranslations()
   const { colorScheme, setColorScheme } = useMantineColorScheme()
-  const [modalOpened, modal] = useDisclosure(false)
+  const [userModalOpened, userModal] = useDisclosure(false)
+  const [profileModalOpened, profileModal] = useDisclosure(false)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
+  const [selectedProfile, setSelectedProfile] = useState<string | null>(null)
   const [username, setUsername] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [profileName, setProfileName] = useState('')
+  const [sourceLanguage, setSourceLanguage] = useState<string | null>(null)
+  const [targetLanguage, setTargetLanguage] = useState<string | null>(null)
+  const [profileSubmitted, setProfileSubmitted] = useState(false)
 
   const users = useQuery({
     queryKey: ['users'],
     queryFn: () => client.getUsernames(),
+    retry: false,
+  })
+
+  const profiles = useQuery({
+    queryKey: ['language-profiles', selectedUser],
+    queryFn: () => client.getLanguageProfiles(selectedUser!),
+    enabled: selectedUser !== null,
     retry: false,
   })
 
@@ -67,17 +109,73 @@ export function HomePage() {
       setSelectedUser(createdUsername)
       setUsername('')
       setSubmitted(false)
-      modal.close()
+      userModal.close()
+    },
+  })
+
+  const createProfile = useMutation({
+    mutationFn: (input: CreateLanguageProfileInput) =>
+      client.createLanguageProfile(input),
+    onSuccess: async (createdProfile) => {
+      await queryClient.invalidateQueries({
+        queryKey: ['language-profiles', selectedUser],
+      })
+      setSelectedProfile(createdProfile.id)
+      setProfileName('')
+      setSourceLanguage(null)
+      setTargetLanguage(null)
+      setProfileSubmitted(false)
+      profileModal.close()
     },
   })
 
   const usernameError = validateUsername(username)
+  const profileNameError = validateProfileName(profileName)
+  const languagesMatch =
+    sourceLanguage !== null && sourceLanguage === targetLanguage
 
   function closeCreateUser() {
-    modal.close()
+    userModal.close()
     setUsername('')
     setSubmitted(false)
     createUser.reset()
+  }
+
+  function selectUser(user: string | null) {
+    setSelectedUser(user)
+    setSelectedProfile(null)
+    createProfile.reset()
+  }
+
+  function closeCreateProfile() {
+    profileModal.close()
+    setProfileName('')
+    setSourceLanguage(null)
+    setTargetLanguage(null)
+    setProfileSubmitted(false)
+    createProfile.reset()
+  }
+
+  function submitCreateProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setProfileSubmitted(true)
+
+    if (
+      !selectedUser ||
+      profileNameError ||
+      !sourceLanguage ||
+      !targetLanguage ||
+      languagesMatch
+    ) {
+      return
+    }
+
+    createProfile.mutate({
+      username: selectedUser,
+      name: profileName.trim(),
+      sourceLanguage,
+      targetLanguage,
+    })
   }
 
   function submitCreateUser(event: FormEvent<HTMLFormElement>) {
@@ -94,6 +192,13 @@ export function HomePage() {
   const userOptions = (users.data ?? []).map((user) => ({
     value: user,
     label: user,
+  }))
+
+  const profileOptions = (profiles.data ?? []).map((profile) => ({
+    value: profile.id,
+    label: `${profile.name} · ${LANGUAGE_LABELS[profile.sourceLanguage]} → ${
+      LANGUAGE_LABELS[profile.targetLanguage]
+    }`,
   }))
 
   return (
@@ -124,33 +229,68 @@ export function HomePage() {
         />
       </Group>
 
-      <Group className={classes.userPicker} gap={10} wrap="nowrap">
-        <Select
-          aria-label={t('home.selectUser')}
-          className={classes.userSelect}
-          data={userOptions}
-          value={selectedUser}
-          placeholder={
-            users.isPending ? t('home.loadingUsers') : t('home.selectUser')
-          }
-          nothingFoundMessage={t('home.noUsers')}
-          disabled={users.isPending || users.isError}
-          rightSection={users.isPending ? <Loader size={16} /> : undefined}
-          searchable
-          onChange={setSelectedUser}
-        />
-        <ActionIcon
-          aria-label={t('home.addUser')}
-          className={classes.addButton}
-          size={36}
-          variant="default"
-          onClick={modal.open}
-        >
-          <Text component="span" size="lg" lh={1}>
-            +
-          </Text>
-        </ActionIcon>
-      </Group>
+      <Stack className={classes.pickers} gap={10}>
+        <Group className={classes.pickerRow} gap={10} wrap="nowrap">
+          <Select
+            aria-label={t('home.selectUser')}
+            className={classes.pickerSelect}
+            data={userOptions}
+            value={selectedUser}
+            placeholder={
+              users.isPending ? t('home.loadingUsers') : t('home.selectUser')
+            }
+            nothingFoundMessage={t('home.noUsers')}
+            disabled={users.isPending || users.isError}
+            rightSection={users.isPending ? <Loader size={16} /> : undefined}
+            searchable
+            onChange={selectUser}
+          />
+          <ActionIcon
+            aria-label={t('home.addUser')}
+            className={classes.addButton}
+            size={36}
+            variant="default"
+            onClick={userModal.open}
+          >
+            <Text component="span" size="lg" lh={1}>
+              +
+            </Text>
+          </ActionIcon>
+        </Group>
+
+        <Group className={classes.pickerRow} gap={10} wrap="nowrap">
+          <Select
+            aria-label={t('home.selectProfile')}
+            className={classes.pickerSelect}
+            data={profileOptions}
+            value={selectedProfile}
+            placeholder={
+              profiles.isFetching
+                ? t('home.loadingProfiles')
+                : t('home.selectProfile')
+            }
+            nothingFoundMessage={t('home.noProfiles')}
+            disabled={!selectedUser || profiles.isFetching || profiles.isError}
+            rightSection={
+              profiles.isFetching ? <Loader size={16} /> : undefined
+            }
+            searchable
+            onChange={setSelectedProfile}
+          />
+          <ActionIcon
+            aria-label={t('home.addProfile')}
+            className={classes.addButton}
+            size={36}
+            variant="default"
+            disabled={!selectedUser || profiles.isFetching || profiles.isError}
+            onClick={profileModal.open}
+          >
+            <Text component="span" size="lg" lh={1}>
+              +
+            </Text>
+          </ActionIcon>
+        </Group>
+      </Stack>
 
       {users.isError && (
         <Alert
@@ -162,11 +302,21 @@ export function HomePage() {
         </Alert>
       )}
 
+      {profiles.isError && selectedUser && (
+        <Alert
+          className={classes.loadError}
+          color="red"
+          title={t('home.profileLoadError')}
+        >
+          {profiles.error.message}
+        </Alert>
+      )}
+
       <Modal
         centered
         closeOnClickOutside={!createUser.isPending}
         closeOnEscape={!createUser.isPending}
-        opened={modalOpened}
+        opened={userModalOpened}
         overlayProps={{ backgroundOpacity: 0.5, blur: 0 }}
         radius={10}
         size={400}
@@ -209,6 +359,94 @@ export function HomePage() {
                 variant="default"
                 w={120}
                 onClick={closeCreateUser}
+              >
+                {t('home.cancel')}
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Modal>
+
+      <Modal
+        centered
+        closeOnClickOutside={!createProfile.isPending}
+        closeOnEscape={!createProfile.isPending}
+        opened={profileModalOpened}
+        overlayProps={{ backgroundOpacity: 0.5, blur: 0 }}
+        radius={10}
+        size={400}
+        title={t('home.createProfileTitle')}
+        onClose={closeCreateProfile}
+      >
+        <form onSubmit={submitCreateProfile}>
+          <Stack gap={20}>
+            <TextInput
+              autoFocus
+              label={t('home.profileName')}
+              maxLength={50}
+              placeholder={t('home.profileNamePlaceholder')}
+              value={profileName}
+              error={
+                profileSubmitted && profileNameError
+                  ? t(profileNameError)
+                  : undefined
+              }
+              onChange={(event) => {
+                setProfileName(event.currentTarget.value)
+                createProfile.reset()
+              }}
+            />
+            <Select
+              label={t('home.sourceLanguage')}
+              placeholder={t('home.selectLanguage')}
+              data={LANGUAGES}
+              value={sourceLanguage}
+              error={
+                profileSubmitted && !sourceLanguage
+                  ? t('home.selectLanguage')
+                  : undefined
+              }
+              searchable
+              onChange={(value) => {
+                setSourceLanguage(value)
+                createProfile.reset()
+              }}
+            />
+            <Select
+              label={t('home.targetLanguage')}
+              placeholder={t('home.selectLanguage')}
+              data={LANGUAGES}
+              value={targetLanguage}
+              error={
+                profileSubmitted && !targetLanguage
+                  ? t('home.selectLanguage')
+                  : profileSubmitted && languagesMatch
+                    ? t('home.languagesMustDiffer')
+                    : undefined
+              }
+              searchable
+              onChange={(value) => {
+                setTargetLanguage(value)
+                createProfile.reset()
+              }}
+            />
+
+            {createProfile.isError && (
+              <Alert color="red" title={t('home.createProfileError')}>
+                {createProfile.error.message}
+              </Alert>
+            )}
+
+            <Group justify="center" gap={10}>
+              <Button loading={createProfile.isPending} type="submit" w={120}>
+                {t('home.create')}
+              </Button>
+              <Button
+                disabled={createProfile.isPending}
+                type="button"
+                variant="default"
+                w={120}
+                onClick={closeCreateProfile}
               >
                 {t('home.cancel')}
               </Button>

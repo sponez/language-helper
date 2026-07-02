@@ -4,8 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-async-trait = { workspace = true }
-thiserror = { workspace = true }
+async-trait = { workspace = true, default-features = false }
+thiserror = { workspace = true, default-features = false }
+uuid = { workspace = true, default-features = false }
 
 [dev-dependencies]
-tokio = { workspace = true }
+tokio = { workspace = true, default-features = false }
