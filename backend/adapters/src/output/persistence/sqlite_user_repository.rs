@@ -7,10 +7,10 @@ use std::{
 
 use application::ports::{
     input::local_user::models::{LocalUser, UserId},
-    output::repository::user::{models::UserRepositoryError, UserRepository},
+    output::repository::user::{UserRepository, models::UserRepositoryError},
 };
 use async_trait::async_trait;
-use rusqlite::{params, Connection, ErrorCode, OptionalExtension};
+use rusqlite::{Connection, ErrorCode, OptionalExtension, params};
 use thiserror::Error;
 
 #[derive(Debug, Error)]

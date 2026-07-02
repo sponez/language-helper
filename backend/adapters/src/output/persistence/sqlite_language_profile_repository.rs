@@ -6,15 +6,17 @@ use std::{
 
 use application::ports::{
     input::{
-        language_profile::models::{AnswerMode, LanguageProfile, LearningSettings, ProfileId},
+        language_profile::models::{
+            AiProviderSettings, AnswerMode, LanguageProfile, LearningSettings, ProfileId,
+        },
         local_user::models::UserId,
     },
     output::repository::language_profile::{
-        models::LanguageProfileRepositoryError, LanguageProfileRepository,
+        LanguageProfileRepository, models::LanguageProfileRepositoryError,
     },
 };
 use async_trait::async_trait;
-use rusqlite::{params, Connection, ErrorCode, OptionalExtension};
+use rusqlite::{Connection, ErrorCode, OptionalExtension, params};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -69,6 +71,10 @@ impl SqliteLanguageProfileRepository {
                     cards_per_set INTEGER NOT NULL,
                     answer_mode TEXT NOT NULL,
                     mastery_threshold INTEGER NOT NULL,
+                    check_reading_if_possible INTEGER NOT NULL,
+                    ai_provider TEXT,
+                    ai_api_key TEXT,
+                    ai_model_name TEXT,
                     version INTEGER NOT NULL DEFAULT 0,
                     FOREIGN KEY (user_id) REFERENCES users(username) ON DELETE CASCADE,
                     UNIQUE (user_id, name)
@@ -145,8 +151,14 @@ impl SqliteLanguageProfileRepository {
                 cards_per_set: row.get(5)?,
                 answer_mode,
                 mastery_threshold: row.get(7)?,
+                check_reading_if_possible: row.get(8)?,
             },
-            version: row.get(8)?,
+            ai_settings: AiProviderSettings {
+                provider: row.get(9)?,
+                api_key: row.get(10)?,
+                model_name: row.get(11)?,
+            },
+            version: row.get(12)?,
         })
     }
 }
@@ -165,8 +177,10 @@ impl LanguageProfileRepository for SqliteLanguageProfileRepository {
                 .execute(
                     "INSERT INTO language_profiles (
                         id, user_id, name, source_language, target_language,
-                        cards_per_set, answer_mode, mastery_threshold, version
-                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                        cards_per_set, answer_mode, mastery_threshold,
+                        check_reading_if_possible, ai_provider, ai_api_key,
+                        ai_model_name, version
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                     params![
                         stored.id.as_str(),
                         stored.owner_id.as_str(),
@@ -176,6 +190,10 @@ impl LanguageProfileRepository for SqliteLanguageProfileRepository {
                         stored.settings.cards_per_set,
                         Self::answer_mode_name(&stored.settings.answer_mode),
                         stored.settings.mastery_threshold,
+                        stored.settings.check_reading_if_possible,
+                        stored.ai_settings.provider,
+                        stored.ai_settings.api_key,
+                        stored.ai_settings.model_name,
                         stored.version,
                     ],
                 )
@@ -199,7 +217,9 @@ impl LanguageProfileRepository for SqliteLanguageProfileRepository {
                 .lock_connection()?
                 .query_row(
                     "SELECT id, user_id, name, source_language, target_language,
-                            cards_per_set, answer_mode, mastery_threshold, version
+                            cards_per_set, answer_mode, mastery_threshold,
+                            check_reading_if_possible, ai_provider, ai_api_key,
+                            ai_model_name, version
                      FROM language_profiles
                      WHERE user_id = ?1 AND id = ?2",
                     params![user_id.as_str(), profile_id.as_str()],
@@ -223,7 +243,9 @@ impl LanguageProfileRepository for SqliteLanguageProfileRepository {
             let mut statement = connection
                 .prepare(
                     "SELECT id, user_id, name, source_language, target_language,
-                            cards_per_set, answer_mode, mastery_threshold, version
+                            cards_per_set, answer_mode, mastery_threshold,
+                            check_reading_if_possible, ai_provider, ai_api_key,
+                            ai_model_name, version
                      FROM language_profiles
                      WHERE user_id = ?1
                      ORDER BY name ASC",
@@ -254,8 +276,10 @@ impl LanguageProfileRepository for SqliteLanguageProfileRepository {
                     "UPDATE language_profiles
                      SET name = ?1, source_language = ?2, target_language = ?3,
                          cards_per_set = ?4, answer_mode = ?5, mastery_threshold = ?6,
+                         check_reading_if_possible = ?7,
+                         ai_provider = ?8, ai_api_key = ?9, ai_model_name = ?10,
                          version = version + 1
-                     WHERE user_id = ?7 AND id = ?8 AND version = ?9",
+                     WHERE user_id = ?11 AND id = ?12 AND version = ?13",
                     params![
                         profile.name,
                         profile.source_language,
@@ -263,6 +287,10 @@ impl LanguageProfileRepository for SqliteLanguageProfileRepository {
                         profile.settings.cards_per_set,
                         Self::answer_mode_name(&profile.settings.answer_mode),
                         profile.settings.mastery_threshold,
+                        profile.settings.check_reading_if_possible,
+                        profile.ai_settings.provider,
+                        profile.ai_settings.api_key,
+                        profile.ai_settings.model_name,
                         profile.owner_id.as_str(),
                         profile.id.as_str(),
                         expected_version,
@@ -337,6 +365,7 @@ mod tests {
             source_language: "en-US".to_string(),
             target_language: "ja-JP".to_string(),
             settings: LearningSettings::default(),
+            ai_settings: AiProviderSettings::default(),
             version: 0,
         };
         repository.insert(profile.clone()).await.unwrap();

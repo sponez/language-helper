@@ -1,4 +1,4 @@
-use application::ports::input::local_user::{models::CreateLocalUserCommand, LocalUserUsecase};
+use application::ports::input::local_user::{LocalUserUsecase, models::CreateLocalUserCommand};
 use tauri::State;
 
 use crate::{error::CommandError, state::DesktopState};

@@ -5,20 +5,21 @@ use uuid::Uuid;
 
 use crate::ports::{
     input::language_profile::{
+        LanguageProfileUsecase,
         models::{
             CreateLanguageProfileCommand, DeleteLanguageProfileCommand, GetLanguageProfileQuery,
             LanguageProfile, LanguageProfileChanges, LanguageProfileError, LanguageProfileSummary,
             ListLanguageProfilesQuery, ProfileId, UpdateLanguageProfileCommand,
         },
-        LanguageProfileUsecase,
     },
     output::repository::language_profile::{
-        models::LanguageProfileRepositoryError, LanguageProfileRepository,
+        LanguageProfileRepository, models::LanguageProfileRepositoryError,
     },
 };
 
 const MAX_PROFILE_NAME_LENGTH: usize = 50;
 const SUPPORTED_LANGUAGES: [&str; 3] = ["en-US", "ru-RU", "ja-JP"];
+const SUPPORTED_AI_PROVIDERS: [&str; 2] = ["openai", "gemini"];
 
 pub struct LanguageProfileService {
     repository: Arc<dyn LanguageProfileRepository>,
@@ -79,7 +80,29 @@ impl LanguageProfileService {
             profile.target_language = target_language;
         }
         if let Some(settings) = changes.settings {
+            if settings.cards_per_set == 0
+                || settings.cards_per_set > 100
+                || settings.mastery_threshold == 0
+                || settings.mastery_threshold > 50
+            {
+                return Err(LanguageProfileError::InvalidProfile);
+            }
             profile.settings = settings;
+        }
+        if let Some(mut ai_settings) = changes.ai_settings {
+            if ai_settings
+                .provider
+                .as_deref()
+                .is_some_and(|provider| !SUPPORTED_AI_PROVIDERS.contains(&provider))
+            {
+                return Err(LanguageProfileError::InvalidProfile);
+            }
+            ai_settings.model_name = ai_settings
+                .model_name
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty());
+            ai_settings.api_key = ai_settings.api_key.filter(|value| !value.is_empty());
+            profile.ai_settings = ai_settings;
         }
 
         Self::validate_languages(&profile.source_language, &profile.target_language)?;
@@ -115,6 +138,7 @@ impl LanguageProfileUsecase for LanguageProfileService {
                 source_language: command.source_language,
                 target_language: command.target_language,
                 settings: command.settings,
+                ai_settings: Default::default(),
                 version: 0,
             })
             .await
@@ -326,9 +350,11 @@ mod tests {
                 .await,
             Err(LanguageProfileError::AlreadyExists)
         );
-        assert!(service
-            .create_profile(command("bob", "Japanese", "ru-RU", "ja-JP"))
-            .await
-            .is_ok());
+        assert!(
+            service
+                .create_profile(command("bob", "Japanese", "ru-RU", "ja-JP"))
+                .await
+                .is_ok()
+        );
     }
 }

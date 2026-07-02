@@ -14,6 +14,7 @@ import {
 import { useDisclosure } from '@mantine/hooks'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useState } from 'react'
+import { useNavigate } from 'react-router'
 
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
 import type { CreateLanguageProfileInput } from '../api/language-helper-client'
@@ -74,6 +75,7 @@ function validateProfileName(name: string): ProfileNameError | null {
 }
 
 export function HomePage() {
+  const navigate = useNavigate()
   const client = useLanguageHelperClient()
   const queryClient = useQueryClient()
   const { t } = useTranslations()
@@ -290,6 +292,24 @@ export function HomePage() {
             </Text>
           </ActionIcon>
         </Group>
+
+        <Button
+          className={classes.continueButton}
+          disabled={!selectedUser || !selectedProfile}
+          onClick={() => {
+            const profile = profiles.data?.find(
+              (item) => item.id === selectedProfile,
+            )
+
+            if (selectedUser && profile) {
+              void navigate('/workspace', {
+                state: { username: selectedUser, profile },
+              })
+            }
+          }}
+        >
+          {t('home.continue')}
+        </Button>
       </Stack>
 
       {users.isError && (

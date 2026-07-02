@@ -1,0 +1,31 @@
+.page {
+  min-height: 100dvh;
+  padding: 48px 24px;
+  overflow-y: auto;
+  background: var(--mantine-color-body);
+}
+
+.content {
+  width: min(880px, 100%);
+  margin: 0 auto;
+}
+
+.menu {
+  width: min(320px, 100%);
+  margin: 8vh auto 0;
+}
+
+.settingsGrid {
+  align-items: stretch;
+}
+
+.settingsBlock {
+  height: 100%;
+  background: var(--mantine-color-dark-7);
+}
+
+@media (max-width: 48em) {
+  .page {
+    padding: 28px 16px;
+  }
+}

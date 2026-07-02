@@ -18,6 +18,22 @@ export interface CreateLanguageProfileInput {
   targetLanguage: string
 }
 
+export interface ProfileSettings {
+  version: number
+  cardsPerSet: number
+  answerMode: 'written' | 'self-review'
+  masteryThreshold: number
+  checkReadingIfPossible: boolean
+  provider: 'openai' | 'gemini' | null
+  apiKey: string | null
+  modelName: string | null
+}
+
+export interface SaveProfileSettingsInput extends ProfileSettings {
+  username: string
+  profileId: string
+}
+
 /**
  * Transport-independent boundary between React and the application backend.
  *
@@ -32,4 +48,11 @@ export interface LanguageHelperClient {
   createLanguageProfile(
     input: CreateLanguageProfileInput,
   ): Promise<LanguageProfile>
+  getProfileSettings(
+    username: string,
+    profileId: string,
+  ): Promise<ProfileSettings>
+  saveProfileSettings(
+    input: SaveProfileSettingsInput,
+  ): Promise<ProfileSettings>
 }

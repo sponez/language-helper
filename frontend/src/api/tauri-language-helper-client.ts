@@ -5,6 +5,8 @@ import type {
   CreateLanguageProfileInput,
   LanguageProfile,
   LanguageHelperClient,
+  ProfileSettings,
+  SaveProfileSettingsInput,
 } from './language-helper-client'
 
 export class TauriLanguageHelperClient implements LanguageHelperClient {
@@ -32,6 +34,24 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
       name: input.name,
       sourceLanguage: input.sourceLanguage,
       targetLanguage: input.targetLanguage,
+    })
+  }
+
+  getProfileSettings(
+    username: string,
+    profileId: string,
+  ): Promise<ProfileSettings> {
+    return invoke<ProfileSettings>('get_profile_settings', {
+      username,
+      profileId,
+    })
+  }
+
+  saveProfileSettings(
+    input: SaveProfileSettingsInput,
+  ): Promise<ProfileSettings> {
+    return invoke<ProfileSettings>('save_profile_settings', {
+      settings: input,
     })
   }
 }

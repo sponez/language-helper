@@ -18,7 +18,9 @@ pub fn run() {
             commands::users::get_usernames,
             commands::users::create_user,
             commands::profiles::list_language_profiles,
-            commands::profiles::create_language_profile
+            commands::profiles::create_language_profile,
+            commands::profiles::get_profile_settings,
+            commands::profiles::save_profile_settings
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Language Helper");

@@ -4,10 +4,10 @@ use async_trait::async_trait;
 
 use crate::ports::{
     input::local_user::{
-        models::{CreateLocalUserCommand, LocalUser, LocalUserError, LocalUserSummary, UserId},
         LocalUserUsecase,
+        models::{CreateLocalUserCommand, LocalUser, LocalUserError, LocalUserSummary, UserId},
     },
-    output::repository::user::{models::UserRepositoryError, UserRepository},
+    output::repository::user::{UserRepository, models::UserRepositoryError},
 };
 
 const MAX_USERNAME_LENGTH: usize = 50;

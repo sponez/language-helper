@@ -3,11 +3,14 @@ import type {
   CreateLanguageProfileInput,
   LanguageProfile,
   LanguageHelperClient,
+  ProfileSettings,
+  SaveProfileSettingsInput,
 } from './language-helper-client'
 
 export class MockLanguageHelperClient implements LanguageHelperClient {
   private readonly usernames: string[] = []
   private readonly profiles = new Map<string, LanguageProfile[]>()
+  private readonly settings = new Map<string, ProfileSettings>()
 
   async getBackendStatus(): Promise<BackendStatus> {
     return {
@@ -53,6 +56,52 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       targetLanguage: input.targetLanguage,
     }
     profiles.push(profile)
+    this.settings.set(profile.id, {
+      version: 0,
+      cardsPerSet: 10,
+      answerMode: 'written',
+      masteryThreshold: 5,
+      checkReadingIfPossible: false,
+      provider: null,
+      apiKey: null,
+      modelName: null,
+    })
     return profile
+  }
+
+  async getProfileSettings(
+    _username: string,
+    profileId: string,
+  ): Promise<ProfileSettings> {
+    const settings = this.settings.get(profileId)
+    if (!settings) {
+      throw new Error('Profile settings were not found.')
+    }
+    return { ...settings }
+  }
+
+  async saveProfileSettings(
+    input: SaveProfileSettingsInput,
+  ): Promise<ProfileSettings> {
+    const current = this.settings.get(input.profileId)
+    if (!current) {
+      throw new Error('Profile settings were not found.')
+    }
+    if (current.version !== input.version) {
+      throw new Error('Profile settings were changed concurrently.')
+    }
+
+    const saved: ProfileSettings = {
+      version: current.version + 1,
+      cardsPerSet: input.cardsPerSet,
+      answerMode: input.answerMode,
+      masteryThreshold: input.masteryThreshold,
+      checkReadingIfPossible: input.checkReadingIfPossible,
+      provider: input.provider,
+      apiKey: input.apiKey,
+      modelName: input.modelName,
+    }
+    this.settings.set(input.profileId, saved)
+    return { ...saved }
   }
 }
