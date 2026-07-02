@@ -1,8 +1,10 @@
 //! Persistence adapters.
 
+pub mod sqlite_card_repository;
 pub mod sqlite_language_profile_repository;
 pub mod sqlite_user_repository;
 
+pub use sqlite_card_repository::{SqliteCardRepository, SqliteCardRepositoryInitError};
 pub use sqlite_language_profile_repository::{
     SqliteLanguageProfileRepository, SqliteLanguageProfileRepositoryInitError,
 };

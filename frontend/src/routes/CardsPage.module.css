@@ -1,0 +1,146 @@
+.page {
+  width: min(900px, 100%);
+  margin: 0 auto;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.search {
+  grid-column: span 2;
+}
+
+.sortRow {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.sortSelect {
+  flex: 1;
+}
+
+.list {
+  height: min(440px, 52vh);
+  min-height: 220px;
+}
+
+.listViewport {
+  padding-right: 10px;
+}
+
+.cardRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.word {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.details {
+  width: min(720px, 100%);
+  margin: 0 auto;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.meaning {
+  background: var(--mantine-color-dark-6);
+}
+
+.meaningLayout {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.meaningIndex {
+  display: grid;
+  min-height: 34px;
+  place-items: center;
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-dark-5);
+  color: var(--mantine-color-gray-3);
+}
+
+.meaningContent {
+  min-width: 0;
+}
+
+.meaningField {
+  padding: 10px;
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-dark-5);
+  overflow-wrap: anywhere;
+}
+
+.examplesToggle {
+  transition:
+    border-radius 150ms ease,
+    background-color 150ms ease;
+}
+
+.examplesToggleOpened {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.examplesList {
+  padding: 10px;
+  border: 1px solid var(--mantine-color-dark-4);
+  border-top: 0;
+  border-bottom-right-radius: var(--mantine-radius-sm);
+  border-bottom-left-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-dark-7);
+}
+
+.example {
+  background: var(--mantine-color-dark-6);
+}
+
+.dynamicRow {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.dynamicInput {
+  flex: 1;
+}
+
+@media (max-width: 48em) {
+  .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .search {
+    grid-column: auto;
+  }
+
+  .cardRow {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .word {
+    flex-basis: 100%;
+  }
+}

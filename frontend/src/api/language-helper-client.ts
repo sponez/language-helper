@@ -34,6 +34,91 @@ export interface SaveProfileSettingsInput extends ProfileSettings {
   profileId: string
 }
 
+export type CardDirection = 'straight' | 'reverse'
+export type CardMastery = 'any' | 'learned' | 'unlearned'
+export type CardSortField = 'word' | 'createdAt' | 'streak'
+export type SortDirection = 'ascending' | 'descending'
+
+export interface UsageExample {
+  sentence: string
+  translation: string
+}
+
+export interface CardMeaning {
+  definition: string
+  translatedDefinition: string
+  wordTranslations: string[]
+  examples: UsageExample[]
+}
+
+export interface Card {
+  id: string
+  profileId: string
+  direction: CardDirection
+  word: string
+  readings: string[]
+  meanings: CardMeaning[]
+  streak: number
+  createdAt: number
+  version: number
+}
+
+export interface CardSummary {
+  id: string
+  word: string
+  direction: CardDirection
+  streak: number
+  createdAt: number
+}
+
+export interface CardPage {
+  items: CardSummary[]
+  nextCursor: string | null
+}
+
+export interface ListCardsInput {
+  username: string
+  profileId: string
+  search?: string
+  direction: CardDirection | null
+  mastery: CardMastery
+  masteryThreshold: number
+  maxStreak: number | null
+  sortField: CardSortField
+  sortDirection: SortDirection
+  cursor: string | null
+  limit: number
+}
+
+export interface NewCardInput {
+  direction: CardDirection
+  word: string
+  readings: string[]
+  meanings: CardMeaning[]
+}
+
+export interface CreateCardsInput {
+  username: string
+  profileId: string
+  cards: NewCardInput[]
+}
+
+export interface UpdateCardInput {
+  username: string
+  profileId: string
+  cardId: string
+  expectedVersion: number
+  word: string
+  readings: string[]
+  meanings: CardMeaning[]
+}
+
+export interface DeleteCardsInput {
+  username: string
+  profileId: string
+  cardIds: string[]
+}
+
 /**
  * Transport-independent boundary between React and the application backend.
  *
@@ -55,4 +140,9 @@ export interface LanguageHelperClient {
   saveProfileSettings(
     input: SaveProfileSettingsInput,
   ): Promise<ProfileSettings>
+  listCards(input: ListCardsInput): Promise<CardPage>
+  getCard(username: string, profileId: string, cardId: string): Promise<Card>
+  createCards(input: CreateCardsInput): Promise<Card[]>
+  updateCard(input: UpdateCardInput): Promise<Card>
+  deleteCards(input: DeleteCardsInput): Promise<number>
 }

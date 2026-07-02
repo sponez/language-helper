@@ -2,11 +2,17 @@ import { invoke } from '@tauri-apps/api/core'
 
 import type {
   BackendStatus,
+  Card,
+  CardPage,
   CreateLanguageProfileInput,
+  CreateCardsInput,
+  DeleteCardsInput,
   LanguageProfile,
   LanguageHelperClient,
   ProfileSettings,
   SaveProfileSettingsInput,
+  ListCardsInput,
+  UpdateCardInput,
 } from './language-helper-client'
 
 export class TauriLanguageHelperClient implements LanguageHelperClient {
@@ -53,5 +59,29 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
     return invoke<ProfileSettings>('save_profile_settings', {
       settings: input,
     })
+  }
+
+  listCards(input: ListCardsInput): Promise<CardPage> {
+    return invoke<CardPage>('list_cards', { query: input })
+  }
+
+  getCard(
+    username: string,
+    profileId: string,
+    cardId: string,
+  ): Promise<Card> {
+    return invoke<Card>('get_card', { username, profileId, cardId })
+  }
+
+  createCards(input: CreateCardsInput): Promise<Card[]> {
+    return invoke<Card[]>('create_cards', { command: input })
+  }
+
+  updateCard(input: UpdateCardInput): Promise<Card> {
+    return invoke<Card>('update_card', { command: input })
+  }
+
+  deleteCards(input: DeleteCardsInput): Promise<number> {
+    return invoke<number>('delete_cards', { command: input })
   }
 }

@@ -1,16 +1,23 @@
 import type {
   BackendStatus,
+  Card,
+  CardPage,
+  CreateCardsInput,
   CreateLanguageProfileInput,
+  DeleteCardsInput,
   LanguageProfile,
   LanguageHelperClient,
   ProfileSettings,
   SaveProfileSettingsInput,
+  ListCardsInput,
+  UpdateCardInput,
 } from './language-helper-client'
 
 export class MockLanguageHelperClient implements LanguageHelperClient {
   private readonly usernames: string[] = []
   private readonly profiles = new Map<string, LanguageProfile[]>()
   private readonly settings = new Map<string, ProfileSettings>()
+  private readonly cards = new Map<string, Card[]>()
 
   async getBackendStatus(): Promise<BackendStatus> {
     return {
@@ -66,6 +73,7 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       apiKey: null,
       modelName: null,
     })
+    this.cards.set(profile.id, [])
     return profile
   }
 
@@ -103,5 +111,129 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
     }
     this.settings.set(input.profileId, saved)
     return { ...saved }
+  }
+
+  async listCards(input: ListCardsInput): Promise<CardPage> {
+    const query = input.search?.trim().toLocaleLowerCase() ?? ''
+    const sorted = [...(this.cards.get(input.profileId) ?? [])]
+      .filter(
+        (card) =>
+          !query ||
+          card.word.toLocaleLowerCase().includes(query) ||
+          card.readings.some((reading) =>
+            reading.toLocaleLowerCase().includes(query),
+          ),
+      )
+      .filter((card) => !input.direction || card.direction === input.direction)
+      .filter((card) => {
+        if (input.mastery === 'learned') {
+          return card.streak >= input.masteryThreshold
+        }
+        if (input.mastery === 'unlearned') {
+          return card.streak < input.masteryThreshold
+        }
+        return true
+      })
+      .filter(
+        (card) =>
+          input.maxStreak === null || card.streak <= input.maxStreak,
+      )
+      .sort((left, right) => {
+        const compared =
+          input.sortField === 'word'
+            ? left.word.localeCompare(right.word)
+            : input.sortField === 'streak'
+              ? left.streak - right.streak
+              : left.createdAt - right.createdAt
+        const stable = compared || left.id.localeCompare(right.id)
+        return input.sortDirection === 'ascending' ? stable : -stable
+      })
+    const offset = Number(input.cursor ?? 0)
+    const items = sorted.slice(offset, offset + input.limit)
+    const nextOffset = offset + items.length
+    return {
+      items: items.map(({ id, word, direction, streak, createdAt }) => ({
+        id,
+        word,
+        direction,
+        streak,
+        createdAt,
+      })),
+      nextCursor: nextOffset < sorted.length ? String(nextOffset) : null,
+    }
+  }
+
+  async getCard(
+    _username: string,
+    profileId: string,
+    cardId: string,
+  ): Promise<Card> {
+    const card = this.cards
+      .get(profileId)
+      ?.find((candidate) => candidate.id === cardId)
+    if (!card) {
+      throw new Error('Card was not found.')
+    }
+    return structuredClone(card)
+  }
+
+  async createCards(input: CreateCardsInput): Promise<Card[]> {
+    const cards = this.cards.get(input.profileId)
+    if (!cards) {
+      throw new Error('Language profile was not found.')
+    }
+    const created = input.cards.map((card) => {
+      if (
+        cards.some(
+          (existing) =>
+            existing.direction === card.direction &&
+            existing.word === card.word.trim(),
+        )
+      ) {
+        throw new Error('A card with this word and direction already exists.')
+      }
+      return {
+        ...structuredClone(card),
+        id: crypto.randomUUID(),
+        profileId: input.profileId,
+        word: card.word.trim(),
+        streak: 0,
+        createdAt: Date.now(),
+        version: 0,
+      }
+    })
+    cards.push(...created)
+    return structuredClone(created)
+  }
+
+  async updateCard(input: UpdateCardInput): Promise<Card> {
+    const cards = this.cards.get(input.profileId)
+    const index = cards?.findIndex((card) => card.id === input.cardId) ?? -1
+    if (!cards || index < 0) {
+      throw new Error('Card was not found.')
+    }
+    if (cards[index].version !== input.expectedVersion) {
+      throw new Error('Card was modified concurrently.')
+    }
+    cards[index] = {
+      ...cards[index],
+      word: input.word,
+      readings: structuredClone(input.readings),
+      meanings: structuredClone(input.meanings),
+      version: input.expectedVersion + 1,
+    }
+    return structuredClone(cards[index])
+  }
+
+  async deleteCards(input: DeleteCardsInput): Promise<number> {
+    const cards = this.cards.get(input.profileId)
+    if (!cards) {
+      throw new Error('Language profile was not found.')
+    }
+    const ids = new Set(input.cardIds)
+    const retained = cards.filter((card) => !ids.has(card.id))
+    const deleted = cards.length - retained.length
+    this.cards.set(input.profileId, retained)
+    return deleted
   }
 }

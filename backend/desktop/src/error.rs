@@ -1,5 +1,6 @@
 use application::ports::input::{
-    language_profile::models::LanguageProfileError, local_user::models::LocalUserError,
+    card_catalog::models::CardCatalogError, language_profile::models::LanguageProfileError,
+    local_user::models::LocalUserError,
 };
 use serde::Serialize;
 
@@ -7,6 +8,23 @@ use serde::Serialize;
 pub struct CommandError {
     code: &'static str,
     message: String,
+}
+
+impl From<CardCatalogError> for CommandError {
+    fn from(error: CardCatalogError) -> Self {
+        let code = match &error {
+            CardCatalogError::InvalidCard => "invalid_card",
+            CardCatalogError::AlreadyExists => "card_already_exists",
+            CardCatalogError::NotFound => "card_not_found",
+            CardCatalogError::Conflict => "card_conflict",
+            CardCatalogError::Unexpected(_) => "unexpected_error",
+        };
+
+        Self {
+            code,
+            message: error.to_string(),
+        }
+    }
 }
 
 impl From<LocalUserError> for CommandError {

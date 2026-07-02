@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
 use adapters::output::persistence::{
-    SqliteLanguageProfileRepository, SqliteLanguageProfileRepositoryInitError,
-    SqliteUserRepository, SqliteUserRepositoryInitError,
+    SqliteCardRepository, SqliteCardRepositoryInitError, SqliteLanguageProfileRepository,
+    SqliteLanguageProfileRepositoryInitError, SqliteUserRepository, SqliteUserRepositoryInitError,
 };
 use application::{
-    ports::input::{language_profile::LanguageProfileUsecase, local_user::LocalUserUsecase},
-    usecases::{LanguageProfileService, LocalUserService},
+    ports::input::{
+        card_catalog::CardCatalogUsecase, language_profile::LanguageProfileUsecase,
+        local_user::LocalUserUsecase,
+    },
+    usecases::{CardCatalogService, LanguageProfileService, LocalUserService},
 };
 use thiserror::Error;
 
@@ -18,6 +21,8 @@ pub enum BootstrapError {
     UserRepository(#[from] SqliteUserRepositoryInitError),
     #[error("failed to initialize the language profile repository: {0}")]
     LanguageProfileRepository(#[from] SqliteLanguageProfileRepositoryInitError),
+    #[error("failed to initialize the card repository: {0}")]
+    CardRepository(#[from] SqliteCardRepositoryInitError),
 }
 
 /// Ready-to-use application ports shared by inbound adapters.
@@ -25,6 +30,7 @@ pub enum BootstrapError {
 pub struct BootstrapBridge {
     local_users: Arc<dyn LocalUserUsecase>,
     language_profiles: Arc<dyn LanguageProfileUsecase>,
+    cards: Arc<dyn CardCatalogUsecase>,
 }
 
 impl BootstrapBridge {
@@ -32,12 +38,15 @@ impl BootstrapBridge {
         let user_repository = Arc::new(SqliteUserRepository::new(&config.database_path)?);
         let language_profile_repository =
             Arc::new(SqliteLanguageProfileRepository::new(&config.database_path)?);
+        let card_repository = Arc::new(SqliteCardRepository::new(&config.database_path)?);
         let local_users = Arc::new(LocalUserService::new(user_repository));
         let language_profiles = Arc::new(LanguageProfileService::new(language_profile_repository));
+        let cards = Arc::new(CardCatalogService::new(card_repository));
 
         Ok(Self {
             local_users,
             language_profiles,
+            cards,
         })
     }
 
@@ -47,6 +56,10 @@ impl BootstrapBridge {
 
     pub fn language_profiles(&self) -> Arc<dyn LanguageProfileUsecase> {
         Arc::clone(&self.language_profiles)
+    }
+
+    pub fn cards(&self) -> Arc<dyn CardCatalogUsecase> {
+        Arc::clone(&self.cards)
     }
 }
 

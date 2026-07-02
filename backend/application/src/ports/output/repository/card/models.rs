@@ -6,6 +6,8 @@ pub enum CardRepositoryError {
     AlreadyExists,
     #[error("card repository conflict")]
     Conflict,
+    #[error("card or profile was not found")]
+    NotFound,
     #[error("card repository is unavailable")]
     Unavailable,
     #[error("card repository failed: {0}")]

@@ -20,6 +20,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router'
 import type { LanguageProfile } from '../api/language-helper-client'
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
 import { useTranslations } from '../locales/TranslationProvider'
+import { CardsPage } from './CardsPage'
 import classes from './WorkspacePage.module.css'
 
 interface WorkspaceLocationState {
@@ -55,7 +56,7 @@ export function WorkspacePage() {
   const navigate = useNavigate()
   const location = useLocation()
   const context = location.state as WorkspaceLocationState | null
-  const [view, setView] = useState<'menu' | 'settings'>('menu')
+  const [view, setView] = useState<'menu' | 'settings' | 'cards'>('menu')
   const [placeholder, setPlaceholder] = useState<string | null>(null)
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [saved, setSaved] = useState(false)
@@ -125,7 +126,13 @@ export function WorkspacePage() {
                 key={action}
                 size="md"
                 variant="default"
-                onClick={() => setPlaceholder(t(`workspace.${action}`))}
+                onClick={() => {
+                  if (action === 'cards') {
+                    setView('cards')
+                  } else {
+                    setPlaceholder(t(`workspace.${action}`))
+                  }
+                }}
               >
                 {t(`workspace.${action}`)}
               </Button>
@@ -152,6 +159,13 @@ export function WorkspacePage() {
               </Alert>
             )}
           </Stack>
+        ) : view === 'cards' ? (
+          <CardsPage
+            masteryThreshold={settings.masteryThreshold}
+            profileId={context.profile.id}
+            username={context.username}
+            onBack={() => setView('menu')}
+          />
         ) : (
           <Stack gap="md">
             <SimpleGrid className={classes.settingsGrid} cols={{ base: 1, md: 2 }}>

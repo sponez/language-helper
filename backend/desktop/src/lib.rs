@@ -20,7 +20,12 @@ pub fn run() {
             commands::profiles::list_language_profiles,
             commands::profiles::create_language_profile,
             commands::profiles::get_profile_settings,
-            commands::profiles::save_profile_settings
+            commands::profiles::save_profile_settings,
+            commands::cards::list_cards,
+            commands::cards::get_card,
+            commands::cards::create_cards,
+            commands::cards::update_card,
+            commands::cards::delete_cards
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Language Helper");
