@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 lh_api = { path = "../api" }
-lh_core = { path = "../core" }
+app_core = { path = "../core" }
 
 iced = { git = "https://github.com/iced-rs/iced.git", features = ["wgpu", "tiny-skia", "crisp", "web-colors", "thread-pool", "linux-theme-detection", "svg", "canvas", "qr_code", "markdown", "lazy", "tokio", "smol", "webgl", "advanced", "sipper"] }
 tokio = { workspace = true }

@@ -16,7 +16,7 @@ export function AppProviders({ children }: PropsWithChildren) {
   const [client] = useState(createLanguageHelperClient)
 
   return (
-    <MantineProvider defaultColorScheme="auto" theme={theme}>
+    <MantineProvider defaultColorScheme="dark" theme={theme}>
       <QueryClientProvider client={queryClient}>
         <LanguageHelperClientProvider client={client}>
           <TranslationProvider>{children}</TranslationProvider>

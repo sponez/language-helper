@@ -1,23 +1,22 @@
 # Language Helper Backend
 
-Rust workspace containing the application contracts, business logic, persistence,
-and the legacy Iced desktop application.
+Rust workspace containing the new hexagonal backend.
 
 ## Workspace crates
 
-- `api` — public traits and DTOs.
-- `core` — domain models, services, and API implementations.
-- `persistence` — SQLite repositories and entity mappers.
-- `gui` — legacy Iced UI retained during the Tauri migration.
-- `app` — legacy Iced application entry point and composition root.
+- `application` — inbound and outbound ports plus use-case implementations.
+- `adapters` — concrete inbound and outbound adapters.
+- `bootstrap` — shared composition root exposed as `BootstrapBridge`.
+
+The old `api`, `core`, `persistence`, `gui`, and `app` crates remain in the
+repository as migration reference, but are no longer workspace members.
 
 ## Commands
 
 ```bash
 cargo check --workspace
 cargo test --workspace
-cargo run -p app
 ```
 
-The planned Tauri command layer will live in this workspace and expose `AppApi`
-to the React frontend without moving business logic into commands.
+Future Tauri and HTTP adapters should construct `BootstrapBridge` and use its
+application ports without moving business logic into transport handlers.

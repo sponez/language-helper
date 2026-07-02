@@ -13,4 +13,5 @@ export interface BackendStatus {
 export interface LanguageHelperClient {
   getBackendStatus(): Promise<BackendStatus>
   getUsernames(): Promise<string[]>
+  createUser(username: string): Promise<string>
 }

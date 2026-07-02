@@ -1,5 +1,5 @@
 [package]
-name = "lh_core"
+name = "app_core"
 version.workspace = true
 edition.workspace = true
 
@@ -14,4 +14,4 @@ reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 strsim = "0.11"
-rand = "0.8"
+rand = "0.10.1"

@@ -13,4 +13,8 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
   getUsernames(): Promise<string[]> {
     return invoke<string[]>('get_usernames')
   }
+
+  createUser(username: string): Promise<string> {
+    return invoke<string>('create_user', { username })
+  }
 }

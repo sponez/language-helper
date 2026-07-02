@@ -1,0 +1,13 @@
+[package]
+name = "lh_bootstrap"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+adapters = { path = "../adapters" }
+application = { path = "../application" }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.8"
+tokio = { workspace = true }

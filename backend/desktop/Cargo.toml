@@ -1,0 +1,25 @@
+[package]
+name = "lh_desktop"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "lh_desktop"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "language-helper"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+application = { path = "../application" }
+lh_bootstrap = { path = "../bootstrap" }
+serde = { workspace = true, features = ["derive"] }
+tauri = { version = "2", features = [] }
+
+[dev-dependencies]
+tempfile = "3.8"
+tokio = { workspace = true }
