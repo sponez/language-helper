@@ -4,7 +4,6 @@ import {
   Badge,
   Button,
   Collapse,
-  Code,
   Group,
   Loader,
   Modal,
@@ -12,8 +11,8 @@ import {
   Paper,
   ScrollArea,
   Select,
-  SimpleGrid,
   Stack,
+  Tabs,
   Text,
   TextInput,
   Title,
@@ -100,6 +99,122 @@ function validateCard(card: NewCardInput): string | null {
   return null
 }
 
+function ReadOnlyMeanings({ meanings }: { meanings: CardMeaning[] }) {
+  const { t } = useTranslations()
+  const [openedExamples, setOpenedExamples] = useState<Set<number>>(
+    () => new Set(),
+  )
+
+  return (
+    <Stack>
+      {meanings.map((meaning, index) => {
+        const examplesOpened = openedExamples.has(index)
+
+        return (
+          <Paper key={index} className={classes.meaning} p="md" withBorder>
+            <div className={classes.meaningLayout}>
+              <div className={classes.meaningIndex}>{index + 1}</div>
+              <Stack className={classes.meaningContent} gap="sm">
+                <div className={classes.meaningField}>
+                  <Text c="dimmed" size="xs">
+                    {t('cards.definition')}
+                  </Text>
+                  <Text>{meaning.definition}</Text>
+                </div>
+                {meaning.translatedDefinition && (
+                  <div className={classes.meaningField}>
+                    <Text c="dimmed" size="xs">
+                      {t('cards.translatedDefinition')}
+                    </Text>
+                    <Text>{meaning.translatedDefinition}</Text>
+                  </div>
+                )}
+                <div className={classes.meaningField}>
+                  <Text c="dimmed" size="xs">
+                    {t('cards.translations')}
+                  </Text>
+                  <Text size="lg">{meaning.wordTranslations.join(', ')}</Text>
+                </div>
+                {meaning.examples.length > 0 && (
+                  <div>
+                    <Button
+                      className={`${classes.examplesToggle} ${
+                        examplesOpened ? classes.examplesToggleOpened : ''
+                      }`}
+                      fullWidth
+                      variant="light"
+                      onClick={() =>
+                        setOpenedExamples((opened) => {
+                          const next = new Set(opened)
+                          if (next.has(index)) next.delete(index)
+                          else next.add(index)
+                          return next
+                        })
+                      }
+                    >
+                      {examplesOpened
+                        ? t('cards.hideExamples')
+                        : t('cards.showExamples')}{' '}
+                      ({meaning.examples.length})
+                    </Button>
+                    <Collapse expanded={examplesOpened}>
+                      <Stack className={classes.examplesList} gap="xs">
+                        {meaning.examples.map((example, exampleIndex) => (
+                          <Paper
+                            key={exampleIndex}
+                            className={classes.example}
+                            p="sm"
+                            withBorder
+                          >
+                            <Text>{example.sentence}</Text>
+                            <Text c="dimmed" size="sm">
+                              {example.translation}
+                            </Text>
+                          </Paper>
+                        ))}
+                      </Stack>
+                    </Collapse>
+                  </div>
+                )}
+              </Stack>
+            </div>
+          </Paper>
+        )
+      })}
+    </Stack>
+  )
+}
+
+function ReadOnlyCard({ card }: { card: NewCardInput }) {
+  const { t } = useTranslations()
+
+  return (
+    <Stack className={classes.previewCard} gap="md">
+      <Group justify="center">
+        <Badge>{t(`cards.${card.direction}`)}</Badge>
+      </Group>
+      <Paper p="lg" withBorder>
+        <Title order={3}>{t('cards.word')}</Title>
+        <Text fw={600} mt="md" size="xl" ta="center">
+          {card.word}
+        </Text>
+      </Paper>
+      <Paper p="lg" withBorder>
+        <Title order={3}>{t('cards.readings')}</Title>
+        <Text c={card.readings.length ? undefined : 'dimmed'} mt="md">
+          {card.readings.length
+            ? card.readings.join(', ')
+            : t('cards.noReadings')}
+        </Text>
+      </Paper>
+      <Paper p="lg" withBorder>
+        <Title order={3}>{t('cards.meanings')}</Title>
+        <ReadOnlyMeanings meanings={card.meanings} />
+      </Paper>
+    </Stack>
+  )
+}
+
 function AiNormalizeButton({
   username,
   profileId,
@@ -164,16 +279,18 @@ function AiNormalizeButton({
       >
         <Stack>
           <Text c="dimmed">{t('cards.aiPreviewDescription')}</Text>
-          <SimpleGrid cols={{ base: 1, md: 2 }}>
-            <Stack>
-              <Text fw={600}>{t('cards.aiBefore')}</Text>
-              <Code block>{JSON.stringify(card, null, 2)}</Code>
-            </Stack>
-            <Stack>
-              <Text fw={600}>{t('cards.aiAfter')}</Text>
-              <Code block>{JSON.stringify(proposed, null, 2)}</Code>
-            </Stack>
-          </SimpleGrid>
+          <Tabs defaultValue="after">
+            <Tabs.List grow>
+              <Tabs.Tab value="before">{t('cards.aiBefore')}</Tabs.Tab>
+              <Tabs.Tab value="after">{t('cards.aiAfter')}</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="before" pt="md">
+              <ReadOnlyCard card={card} />
+            </Tabs.Panel>
+            <Tabs.Panel value="after" pt="md">
+              {proposed && <ReadOnlyCard card={proposed} />}
+            </Tabs.Panel>
+          </Tabs>
           <Group justify="flex-end">
             <Button
               onClick={() => {
@@ -769,9 +886,6 @@ function CardDetails({
   const [word, setWord] = useState('')
   const [readings, setReadings] = useState<string[]>([])
   const [meanings, setMeanings] = useState<CardMeaning[]>([])
-  const [openedExamples, setOpenedExamples] = useState<Set<number>>(
-    () => new Set(),
-  )
 
   const card = useQuery({
     queryKey: ['card', username, profileId, cardId],
@@ -985,92 +1099,7 @@ function CardDetails({
           </Stack>
         ) : (
           <Stack mt="md">
-            {current.meanings.map((meaning, index) => {
-              const examplesOpened = openedExamples.has(index)
-
-              return (
-                <Paper key={index} className={classes.meaning} p="md" withBorder>
-                  <div className={classes.meaningLayout}>
-                    <div className={classes.meaningIndex}>{index + 1}</div>
-                    <Stack className={classes.meaningContent} gap="sm">
-                      <div className={classes.meaningField}>
-                        <Text c="dimmed" size="xs">
-                          {t('cards.definition')}
-                        </Text>
-                        <Text>{meaning.definition}</Text>
-                      </div>
-                      {meaning.translatedDefinition && (
-                        <div className={classes.meaningField}>
-                          <Text c="dimmed" size="xs">
-                            {t('cards.translatedDefinition')}
-                          </Text>
-                          <Text>{meaning.translatedDefinition}</Text>
-                        </div>
-                      )}
-                      <div className={classes.meaningField}>
-                        <Text c="dimmed" size="xs">
-                          {t('cards.translations')}
-                        </Text>
-                        <Text size="lg">
-                          {meaning.wordTranslations.join(', ')}
-                        </Text>
-                      </div>
-                      {meaning.examples.length > 0 && (
-                        <div>
-                          <Button
-                            className={`${classes.examplesToggle} ${
-                              examplesOpened
-                                ? classes.examplesToggleOpened
-                                : ''
-                            }`}
-                            fullWidth
-                            variant="light"
-                            onClick={() =>
-                              setOpenedExamples((opened) => {
-                                const next = new Set(opened)
-                                if (next.has(index)) {
-                                  next.delete(index)
-                                } else {
-                                  next.add(index)
-                                }
-                                return next
-                              })
-                            }
-                          >
-                            {examplesOpened
-                              ? t('cards.hideExamples')
-                              : t('cards.showExamples')}{' '}
-                            ({meaning.examples.length})
-                          </Button>
-                          <Collapse expanded={examplesOpened}>
-                            <Stack
-                              className={classes.examplesList}
-                              gap="xs"
-                            >
-                              {meaning.examples.map(
-                                (example, exampleIndex) => (
-                                  <Paper
-                                    key={exampleIndex}
-                                    className={classes.example}
-                                    p="sm"
-                                    withBorder
-                                  >
-                                    <Text>{example.sentence}</Text>
-                                    <Text c="dimmed" size="sm">
-                                      {example.translation}
-                                    </Text>
-                                  </Paper>
-                                ),
-                              )}
-                            </Stack>
-                          </Collapse>
-                        </div>
-                      )}
-                    </Stack>
-                  </div>
-                </Paper>
-              )
-            })}
+            <ReadOnlyMeanings meanings={current.meanings} />
           </Stack>
         )}
       </Paper>

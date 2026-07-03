@@ -7,3 +7,5 @@ release/
 
 frontend/node_modules/
 frontend/dist/
+
+*.md
