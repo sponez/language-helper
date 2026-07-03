@@ -5,8 +5,9 @@ use application::ports::input::{
     study_session::{
         StudySessionUsecase,
         models::{
-            ApplyStudySessionActionCommand, CreateStudySessionCommand, CurrentCardView,
-            EndStudySessionCommand, SessionId, SetOutcome, StudySessionAction, StudySessionMode,
+            ApplyStudySessionActionCommand, AssessPronunciationCommand, CreateStudySessionCommand,
+            CurrentCardView, EndStudySessionCommand, PronunciationAssessmentReport,
+            PronunciationFeedbackKind, SessionId, SetOutcome, StudySessionAction, StudySessionMode,
             StudySessionPhase, StudySessionStatus, StudySessionTransition, StudySessionView,
         },
     },
@@ -39,6 +40,16 @@ pub struct ApplyStudySessionActionDto {
     expected_version: u64,
     action: String,
     answer: Option<String>,
+    message: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssessPronunciationDto {
+    username: String,
+    session_id: String,
+    expected_version: u64,
+    audio: Vec<u8>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -80,6 +91,10 @@ pub struct StudySessionDto {
     status: String,
     pronunciation_check_enabled: bool,
     pronunciation_accuracy_threshold: u8,
+    pronunciation_required: bool,
+    pronunciation_attempts_used: u8,
+    pronunciation_technical_failures: u8,
+    pronunciation_disable_required: bool,
     awaiting_continue: bool,
     current_card: Option<SessionCurrentCardDto>,
     current_card_number: usize,
@@ -106,7 +121,41 @@ pub struct AnswerFeedbackDto {
 pub struct StudySessionTransitionDto {
     session: StudySessionDto,
     answer_feedback: Option<AnswerFeedbackDto>,
+    pronunciation_feedback: Option<PronunciationFeedbackDto>,
     set_outcome: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PronunciationReportDto {
+    accuracy_score: u8,
+    fluency_score: Option<u8>,
+    completeness_score: Option<u8>,
+    recognized_text: Option<String>,
+    passed: bool,
+}
+
+impl From<PronunciationAssessmentReport> for PronunciationReportDto {
+    fn from(report: PronunciationAssessmentReport) -> Self {
+        Self {
+            accuracy_score: report.accuracy_score,
+            fluency_score: report.fluency_score,
+            completeness_score: report.completeness_score,
+            recognized_text: report.recognized_text,
+            passed: report.passed,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PronunciationFeedbackDto {
+    kind: String,
+    report: Option<PronunciationReportDto>,
+    attempt: u8,
+    threshold: u8,
+    technical_failures: u8,
+    message: Option<String>,
 }
 
 fn parse_direction(value: Option<String>) -> Result<Option<CardDirection>, CommandError> {
@@ -182,6 +231,10 @@ impl From<StudySessionView> for StudySessionDto {
             .to_string(),
             pronunciation_check_enabled: view.pronunciation_check_enabled,
             pronunciation_accuracy_threshold: view.pronunciation_accuracy_threshold,
+            pronunciation_required: view.pronunciation_required,
+            pronunciation_attempts_used: view.pronunciation_attempts_used,
+            pronunciation_technical_failures: view.pronunciation_technical_failures,
+            pronunciation_disable_required: view.pronunciation_disable_required,
             awaiting_continue: view.awaiting_continue,
             current_card,
             current_card_number: view.progress.current_card,
@@ -212,6 +265,23 @@ impl From<StudySessionTransition> for StudySessionTransitionDto {
                     remaining_meanings: feedback.remaining_meanings,
                     score_delta: feedback.score_delta,
                 }),
+            pronunciation_feedback: transition.pronunciation_feedback.map(|feedback| {
+                PronunciationFeedbackDto {
+                    kind: match feedback.kind {
+                        PronunciationFeedbackKind::Passed => "passed",
+                        PronunciationFeedbackKind::Retry => "retry",
+                        PronunciationFeedbackKind::Failed => "failed",
+                        PronunciationFeedbackKind::TechnicalError => "technicalError",
+                        PronunciationFeedbackKind::DisableRequired => "disableRequired",
+                    }
+                    .to_string(),
+                    report: feedback.report.map(Into::into),
+                    attempt: feedback.attempt,
+                    threshold: feedback.threshold,
+                    technical_failures: feedback.technical_failures,
+                    message: feedback.message,
+                }
+            }),
             set_outcome: transition.set_outcome.map(|outcome| {
                 match outcome {
                     SetOutcome::Passed => "passed",
@@ -271,6 +341,14 @@ pub async fn apply_study_session_action(
         "nextStudyCard" => StudySessionAction::NextStudyCard,
         "startMiniTest" => StudySessionAction::StartMiniTest,
         "continueAfterFeedback" => StudySessionAction::ContinueAfterFeedback,
+        "registerPronunciationCaptureFailure" => {
+            StudySessionAction::RegisterPronunciationCaptureFailure {
+                message: command.message.unwrap_or_else(|| {
+                    "The microphone recording could not be prepared.".to_string()
+                }),
+            }
+        }
+        "disablePronunciation" => StudySessionAction::DisablePronunciation,
         "submitWrittenAnswer" => StudySessionAction::SubmitWrittenAnswer {
             answer: command.answer.ok_or(
                 application::ports::input::study_session::models::StudySessionError::InvalidSession,
@@ -290,6 +368,24 @@ pub async fn apply_study_session_action(
             session_id: SessionId::new(command.session_id),
             expected_version: command.expected_version,
             action,
+        })
+        .await
+        .map(Into::into)
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn assess_pronunciation(
+    state: State<'_, DesktopState>,
+    command: AssessPronunciationDto,
+) -> Result<StudySessionTransitionDto, CommandError> {
+    state
+        .study_sessions()
+        .assess_pronunciation(AssessPronunciationCommand {
+            user_id: UserId::new(command.username),
+            session_id: SessionId::new(command.session_id),
+            expected_version: command.expected_version,
+            audio: command.audio,
         })
         .await
         .map(Into::into)
@@ -484,7 +580,7 @@ mod tests {
                 min_score: None,
                 max_score: None,
                 cards_per_set: Some(1),
-                pronunciation_check_enabled: true,
+                pronunciation_check_enabled: false,
                 pronunciation_accuracy_threshold: 75,
             })
             .await

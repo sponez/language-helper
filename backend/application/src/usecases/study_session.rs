@@ -13,20 +13,30 @@ use crate::ports::{
         study_session::{
             StudySessionUsecase,
             models::{
-                AnswerFeedback, ApplyStudySessionActionCommand, CreateStudySessionCommand,
-                CurrentCardView, EndStudySessionCommand, SessionAnswerResult, SessionFilter,
-                SetOutcome, StudySession, StudySessionAction, StudySessionError, StudySessionMode,
-                StudySessionPhase, StudySessionProgress, StudySessionStatus, StudySessionSummary,
-                StudySessionTransition, StudySessionView,
+                AnswerFeedback, ApplyStudySessionActionCommand, AssessPronunciationCommand,
+                CreateStudySessionCommand, CurrentCardView, EndStudySessionCommand,
+                PronunciationAssessmentReport, PronunciationFeedback, PronunciationFeedbackKind,
+                SessionAnswerResult, SessionFilter, SetOutcome, StudySession, StudySessionAction,
+                StudySessionError, StudySessionMode, StudySessionPhase, StudySessionProgress,
+                StudySessionStatus, StudySessionSummary, StudySessionTransition, StudySessionView,
             },
         },
     },
-    output::repository::{
-        CardRepository, StudySessionRepository,
-        card::models::CardRepositoryError,
-        study_session::models::{
-            CardProgressUpdate, EndSessionRequest, StoreSessionRequest, StudySessionCommit,
-            StudySessionRepositoryError,
+    output::{
+        PronunciationAssessor,
+        pronunciation_assessor::models::{
+            PronunciationAssessmentError, PronunciationAssessmentRequest,
+        },
+        repository::{
+            CardRepository, LanguageProfileRepository, PronunciationSettingsRepository,
+            StudySessionRepository,
+            card::models::CardRepositoryError,
+            language_profile::models::LanguageProfileRepositoryError,
+            pronunciation_settings::models::PronunciationSettingsRepositoryError,
+            study_session::models::{
+                CardProgressUpdate, EndSessionRequest, StoreSessionRequest, StudySessionCommit,
+                StudySessionRepositoryError,
+            },
         },
     },
 };
@@ -34,11 +44,26 @@ use crate::ports::{
 pub struct StudySessionService {
     cards: Arc<dyn CardRepository>,
     sessions: Arc<dyn StudySessionRepository>,
+    profiles: Arc<dyn LanguageProfileRepository>,
+    pronunciation_settings: Arc<dyn PronunciationSettingsRepository>,
+    pronunciation_assessor: Arc<dyn PronunciationAssessor>,
 }
 
 impl StudySessionService {
-    pub fn new(cards: Arc<dyn CardRepository>, sessions: Arc<dyn StudySessionRepository>) -> Self {
-        Self { cards, sessions }
+    pub fn new(
+        cards: Arc<dyn CardRepository>,
+        sessions: Arc<dyn StudySessionRepository>,
+        profiles: Arc<dyn LanguageProfileRepository>,
+        pronunciation_settings: Arc<dyn PronunciationSettingsRepository>,
+        pronunciation_assessor: Arc<dyn PronunciationAssessor>,
+    ) -> Self {
+        Self {
+            cards,
+            sessions,
+            profiles,
+            pronunciation_settings,
+            pronunciation_assessor,
+        }
     }
 
     fn map_card_error(error: CardRepositoryError) -> StudySessionError {
@@ -63,6 +88,33 @@ impl StudySessionService {
                 StudySessionError::Unexpected("study session repository is unavailable".to_string())
             }
             StudySessionRepositoryError::Unexpected(message) => {
+                StudySessionError::Unexpected(message)
+            }
+        }
+    }
+
+    fn map_profile_error(error: LanguageProfileRepositoryError) -> StudySessionError {
+        match error {
+            LanguageProfileRepositoryError::Conflict => StudySessionError::Conflict,
+            LanguageProfileRepositoryError::AlreadyExists => {
+                StudySessionError::Unexpected("unexpected duplicate profile".to_string())
+            }
+            LanguageProfileRepositoryError::Unavailable => {
+                StudySessionError::Unexpected("profile repository is unavailable".to_string())
+            }
+            LanguageProfileRepositoryError::Unexpected(message) => {
+                StudySessionError::Unexpected(message)
+            }
+        }
+    }
+
+    fn map_settings_error(error: PronunciationSettingsRepositoryError) -> StudySessionError {
+        match error {
+            PronunciationSettingsRepositoryError::Conflict => StudySessionError::Conflict,
+            PronunciationSettingsRepositoryError::Unavailable => StudySessionError::Unexpected(
+                "pronunciation settings repository is unavailable".to_string(),
+            ),
+            PronunciationSettingsRepositoryError::Unexpected(message) => {
                 StudySessionError::Unexpected(message)
             }
         }
@@ -213,6 +265,14 @@ impl StudySessionService {
             status: session.status,
             pronunciation_check_enabled: session.pronunciation_check_enabled,
             pronunciation_accuracy_threshold: session.pronunciation_accuracy_threshold,
+            pronunciation_required: session.status == StudySessionStatus::Active
+                && session.phase == StudySessionPhase::Test
+                && session.pronunciation_check_enabled
+                && !session.pronunciation_passed
+                && !session.awaiting_continue,
+            pronunciation_attempts_used: session.pronunciation_attempts.len() as u8,
+            pronunciation_technical_failures: session.pronunciation_technical_failures,
+            pronunciation_disable_required: session.pronunciation_disable_required,
             awaiting_continue: session.awaiting_continue,
             current_card,
             progress: StudySessionProgress {
@@ -278,6 +338,7 @@ impl StudySessionService {
         if session.phase != StudySessionPhase::Test
             || session.awaiting_continue
             || answer.trim().is_empty()
+            || (session.pronunciation_check_enabled && !session.pronunciation_passed)
         {
             return Err(StudySessionError::InvalidAction);
         }
@@ -331,6 +392,7 @@ impl StudySessionService {
                 word: card.word.text,
                 is_correct,
                 submitted_answers: session.provided_answers.clone(),
+                pronunciation_reports: session.pronunciation_attempts.clone(),
                 score_delta,
             });
             if score_delta != 0 {
@@ -357,6 +419,7 @@ impl StudySessionService {
                     .saturating_sub(session.completed_meaning_indices.len()),
                 score_delta,
             }),
+            pronunciation_feedback: None,
             set_outcome: None,
         })
     }
@@ -372,6 +435,9 @@ impl StudySessionService {
         session.awaiting_continue = false;
         session.provided_answers.clear();
         session.completed_meaning_indices.clear();
+        session.pronunciation_attempts.clear();
+        session.pronunciation_passed = false;
+        session.pronunciation_disable_required = false;
         let mut selected = None;
         let mut set_outcome = None;
 
@@ -416,7 +482,205 @@ impl StudySessionService {
         Ok(StudySessionTransition {
             session: self.view(&session).await?,
             answer_feedback: None,
+            pronunciation_feedback: None,
             set_outcome,
+        })
+    }
+
+    fn pronunciation_feedback(
+        session: &StudySession,
+        kind: PronunciationFeedbackKind,
+        report: Option<PronunciationAssessmentReport>,
+        message: Option<String>,
+    ) -> PronunciationFeedback {
+        PronunciationFeedback {
+            kind,
+            attempt: session.pronunciation_attempts.len() as u8,
+            threshold: session.pronunciation_accuracy_threshold,
+            technical_failures: session.pronunciation_technical_failures,
+            report,
+            message,
+        }
+    }
+
+    async fn record_pronunciation_technical_failure(
+        &self,
+        mut session: StudySession,
+        expected_version: u64,
+        message: String,
+    ) -> Result<StudySessionTransition, StudySessionError> {
+        if session.phase != StudySessionPhase::Test
+            || !session.pronunciation_check_enabled
+            || session.pronunciation_passed
+            || session.awaiting_continue
+        {
+            return Err(StudySessionError::InvalidAction);
+        }
+        session.pronunciation_technical_failures = session
+            .pronunciation_technical_failures
+            .saturating_add(1)
+            .min(2);
+        session.pronunciation_disable_required = session.pronunciation_technical_failures >= 2;
+        let kind = if session.pronunciation_disable_required {
+            PronunciationFeedbackKind::DisableRequired
+        } else {
+            PronunciationFeedbackKind::TechnicalError
+        };
+        let message = message.chars().take(200).collect::<String>();
+        let session = self
+            .commit(session, expected_version, Vec::new(), None)
+            .await?;
+        Ok(StudySessionTransition {
+            pronunciation_feedback: Some(Self::pronunciation_feedback(
+                &session,
+                kind,
+                None,
+                Some(message),
+            )),
+            session: self.view(&session).await?,
+            answer_feedback: None,
+            set_outcome: None,
+        })
+    }
+
+    async fn assess_recording(
+        &self,
+        mut session: StudySession,
+        expected_version: u64,
+        audio: Vec<u8>,
+    ) -> Result<StudySessionTransition, StudySessionError> {
+        if session.phase != StudySessionPhase::Test
+            || !session.pronunciation_check_enabled
+            || session.pronunciation_passed
+            || session.pronunciation_disable_required
+            || session.awaiting_continue
+            || session.pronunciation_attempts.len() >= 2
+        {
+            return Err(StudySessionError::InvalidAction);
+        }
+        let card = self
+            .load_current_card(&session)
+            .await?
+            .ok_or(StudySessionError::InvalidAction)?;
+        let profile = self
+            .profiles
+            .find(&session.owner_id, &session.profile_id)
+            .await
+            .map_err(Self::map_profile_error)?
+            .ok_or(StudySessionError::NotFound)?;
+        let settings = self
+            .pronunciation_settings
+            .find(&session.owner_id)
+            .await
+            .map_err(Self::map_settings_error)?
+            .filter(|settings| settings.is_configured())
+            .ok_or(StudySessionError::PronunciationNotConfigured)?;
+        let locale = match card.direction {
+            crate::ports::input::card_catalog::models::CardDirection::Straight => {
+                profile.target_language
+            }
+            crate::ports::input::card_catalog::models::CardDirection::Reverse => {
+                profile.source_language
+            }
+        };
+        let reference_text = match locale.as_str() {
+            "ja-JP" => card
+                .word
+                .readings
+                .first()
+                .filter(|reading| !reading.trim().is_empty())
+                .cloned()
+                .unwrap_or_else(|| card.word.text.clone()),
+            "ru-RU" => card
+                .word
+                .text
+                .chars()
+                .filter(|character| !matches!(character, '\u{301}' | '\u{b4}'))
+                .collect(),
+            _ => card.word.text.clone(),
+        };
+        let assessed = self
+            .pronunciation_assessor
+            .assess(PronunciationAssessmentRequest {
+                endpoint: settings.endpoint.expect("configured endpoint"),
+                subscription_key: settings
+                    .subscription_key
+                    .expect("configured subscription key"),
+                locale,
+                reference_text,
+                audio,
+            })
+            .await;
+        let report = match assessed {
+            Ok(report) => report,
+            Err(error) => {
+                let message = match error {
+                    PronunciationAssessmentError::InvalidAudio => {
+                        "The recording format is invalid.".to_string()
+                    }
+                    PronunciationAssessmentError::InvalidResponse => {
+                        "Azure Speech returned an invalid response.".to_string()
+                    }
+                    PronunciationAssessmentError::Provider(message) => message,
+                };
+                return self
+                    .record_pronunciation_technical_failure(session, expected_version, message)
+                    .await;
+            }
+        };
+        session.pronunciation_technical_failures = 0;
+        session.pronunciation_disable_required = false;
+        let report = PronunciationAssessmentReport {
+            passed: report.accuracy_score >= session.pronunciation_accuracy_threshold,
+            accuracy_score: report.accuracy_score,
+            fluency_score: report.fluency_score,
+            completeness_score: report.completeness_score,
+            recognized_text: report.recognized_text,
+        };
+        session.pronunciation_attempts.push(report.clone());
+        let mut progress = Vec::new();
+        let kind = if report.passed {
+            session.pronunciation_passed = true;
+            PronunciationFeedbackKind::Passed
+        } else if session.pronunciation_attempts.len() < 2 {
+            PronunciationFeedbackKind::Retry
+        } else {
+            let score_delta = if session.mode == StudySessionMode::Test {
+                -2
+            } else {
+                0
+            };
+            session.awaiting_continue = true;
+            session.current_set_failed = true;
+            session.results.push(SessionAnswerResult {
+                card_id: card.id.clone(),
+                word: card.word.text,
+                is_correct: false,
+                submitted_answers: Vec::new(),
+                pronunciation_reports: session.pronunciation_attempts.clone(),
+                score_delta,
+            });
+            if score_delta != 0 {
+                progress.push(CardProgressUpdate {
+                    card_id: card.id,
+                    score_delta,
+                });
+            }
+            PronunciationFeedbackKind::Failed
+        };
+        let session = self
+            .commit(session, expected_version, progress, None)
+            .await?;
+        Ok(StudySessionTransition {
+            pronunciation_feedback: Some(Self::pronunciation_feedback(
+                &session,
+                kind,
+                Some(report),
+                None,
+            )),
+            session: self.view(&session).await?,
+            answer_feedback: None,
+            set_outcome: None,
         })
     }
 
@@ -446,6 +710,16 @@ impl StudySessionUsecase for StudySessionService {
         command: CreateStudySessionCommand,
     ) -> Result<StudySessionView, StudySessionError> {
         Self::validate(&command)?;
+        if command.pronunciation_check_enabled
+            && !self
+                .pronunciation_settings
+                .find(&command.user_id)
+                .await
+                .map_err(Self::map_settings_error)?
+                .is_some_and(|settings| settings.is_configured())
+        {
+            return Err(StudySessionError::PronunciationNotConfigured);
+        }
         let mut session = StudySession {
             id: crate::ports::input::study_session::models::SessionId::new(
                 Uuid::new_v4().to_string(),
@@ -473,6 +747,10 @@ impl StudySessionUsecase for StudySessionService {
             current_card_index: 0,
             provided_answers: Vec::new(),
             completed_meaning_indices: Vec::new(),
+            pronunciation_attempts: Vec::new(),
+            pronunciation_passed: false,
+            pronunciation_technical_failures: 0,
+            pronunciation_disable_required: false,
             awaiting_continue: false,
             current_set_failed: false,
             results: Vec::new(),
@@ -539,6 +817,31 @@ impl StudySessionUsecase for StudySessionService {
                 self.continue_after_feedback(session, command.expected_version)
                     .await
             }
+            StudySessionAction::RegisterPronunciationCaptureFailure { message } => {
+                self.record_pronunciation_technical_failure(
+                    session,
+                    command.expected_version,
+                    message,
+                )
+                .await
+            }
+            StudySessionAction::DisablePronunciation => {
+                if !session.pronunciation_disable_required {
+                    return Err(StudySessionError::InvalidAction);
+                }
+                let mut session = session;
+                session.pronunciation_check_enabled = false;
+                session.pronunciation_disable_required = false;
+                let session = self
+                    .commit(session, command.expected_version, Vec::new(), None)
+                    .await?;
+                Ok(StudySessionTransition {
+                    session: self.view(&session).await?,
+                    answer_feedback: None,
+                    pronunciation_feedback: None,
+                    set_outcome: None,
+                })
+            }
             StudySessionAction::PreviousStudyCard
             | StudySessionAction::NextStudyCard
             | StudySessionAction::StartMiniTest => {
@@ -570,6 +873,9 @@ impl StudySessionUsecase for StudySessionService {
                         session.current_set_failed = false;
                         session.provided_answers.clear();
                         session.completed_meaning_indices.clear();
+                        session.pronunciation_attempts.clear();
+                        session.pronunciation_passed = false;
+                        session.pronunciation_disable_required = false;
                     }
                     _ => unreachable!(),
                 }
@@ -579,10 +885,34 @@ impl StudySessionUsecase for StudySessionService {
                 Ok(StudySessionTransition {
                     session: self.view(&session).await?,
                     answer_feedback: None,
+                    pronunciation_feedback: None,
                     set_outcome: None,
                 })
             }
         }
+    }
+
+    async fn assess_pronunciation(
+        &self,
+        command: AssessPronunciationCommand,
+    ) -> Result<StudySessionTransition, StudySessionError> {
+        let session = self
+            .sessions
+            .find(&command.user_id, &command.session_id)
+            .await
+            .map_err(Self::map_session_error)?
+            .ok_or(StudySessionError::NotFound)?;
+        if session.status != StudySessionStatus::Active
+            || session.version != command.expected_version
+        {
+            return Err(if session.version != command.expected_version {
+                StudySessionError::Conflict
+            } else {
+                StudySessionError::InvalidAction
+            });
+        }
+        self.assess_recording(session, command.expected_version, command.audio)
+            .await
     }
 
     async fn finish_session(

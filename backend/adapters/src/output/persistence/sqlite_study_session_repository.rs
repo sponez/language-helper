@@ -10,8 +10,8 @@ use application::ports::{
         language_profile::models::ProfileId,
         local_user::models::UserId,
         study_session::models::{
-            SessionAnswerResult, SessionFilter, SessionId, StudySession, StudySessionMode,
-            StudySessionPhase, StudySessionStatus,
+            PronunciationAssessmentReport, SessionAnswerResult, SessionFilter, SessionId,
+            StudySession, StudySessionMode, StudySessionPhase, StudySessionStatus,
         },
     },
     output::repository::study_session::{
@@ -52,7 +52,19 @@ struct StoredResult {
     word: String,
     is_correct: bool,
     submitted_answers: Vec<String>,
+    #[serde(default)]
+    pronunciation_reports: Vec<StoredPronunciationReport>,
     score_delta: i32,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredPronunciationReport {
+    accuracy_score: u8,
+    fluency_score: Option<u8>,
+    completeness_score: Option<u8>,
+    recognized_text: Option<String>,
+    passed: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -76,6 +88,14 @@ struct StoredSession {
     current_card_index: usize,
     provided_answers: Vec<String>,
     completed_meaning_indices: Vec<usize>,
+    #[serde(default)]
+    pronunciation_attempts: Vec<StoredPronunciationReport>,
+    #[serde(default)]
+    pronunciation_passed: bool,
+    #[serde(default)]
+    pronunciation_technical_failures: u8,
+    #[serde(default)]
+    pronunciation_disable_required: bool,
     awaiting_continue: bool,
     current_set_failed: bool,
     results: Vec<StoredResult>,
@@ -125,6 +145,14 @@ impl StoredSession {
             current_card_index: session.current_card_index,
             provided_answers: session.provided_answers.clone(),
             completed_meaning_indices: session.completed_meaning_indices.clone(),
+            pronunciation_attempts: session
+                .pronunciation_attempts
+                .iter()
+                .map(StoredPronunciationReport::from_domain)
+                .collect(),
+            pronunciation_passed: session.pronunciation_passed,
+            pronunciation_technical_failures: session.pronunciation_technical_failures,
+            pronunciation_disable_required: session.pronunciation_disable_required,
             awaiting_continue: session.awaiting_continue,
             current_set_failed: session.current_set_failed,
             results: session
@@ -135,6 +163,11 @@ impl StoredSession {
                     word: result.word.clone(),
                     is_correct: result.is_correct,
                     submitted_answers: result.submitted_answers.clone(),
+                    pronunciation_reports: result
+                        .pronunciation_reports
+                        .iter()
+                        .map(StoredPronunciationReport::from_domain)
+                        .collect(),
                     score_delta: result.score_delta,
                 })
                 .collect(),
@@ -180,6 +213,14 @@ impl StoredSession {
             current_card_index: self.current_card_index,
             provided_answers: self.provided_answers,
             completed_meaning_indices: self.completed_meaning_indices,
+            pronunciation_attempts: self
+                .pronunciation_attempts
+                .into_iter()
+                .map(StoredPronunciationReport::into_domain)
+                .collect(),
+            pronunciation_passed: self.pronunciation_passed,
+            pronunciation_technical_failures: self.pronunciation_technical_failures,
+            pronunciation_disable_required: self.pronunciation_disable_required,
             awaiting_continue: self.awaiting_continue,
             current_set_failed: self.current_set_failed,
             results: self
@@ -190,11 +231,38 @@ impl StoredSession {
                     word: result.word,
                     is_correct: result.is_correct,
                     submitted_answers: result.submitted_answers,
+                    pronunciation_reports: result
+                        .pronunciation_reports
+                        .into_iter()
+                        .map(StoredPronunciationReport::into_domain)
+                        .collect(),
                     score_delta: result.score_delta,
                 })
                 .collect(),
             version: self.version,
         })
+    }
+}
+
+impl StoredPronunciationReport {
+    fn from_domain(report: &PronunciationAssessmentReport) -> Self {
+        Self {
+            accuracy_score: report.accuracy_score,
+            fluency_score: report.fluency_score,
+            completeness_score: report.completeness_score,
+            recognized_text: report.recognized_text.clone(),
+            passed: report.passed,
+        }
+    }
+
+    fn into_domain(self) -> PronunciationAssessmentReport {
+        PronunciationAssessmentReport {
+            accuracy_score: self.accuracy_score,
+            fluency_score: self.fluency_score,
+            completeness_score: self.completeness_score,
+            recognized_text: self.recognized_text,
+            passed: self.passed,
+        }
     }
 }
 

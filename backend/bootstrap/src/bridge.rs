@@ -2,20 +2,22 @@ use std::sync::Arc;
 
 use adapters::output::persistence::{
     SqliteCardRepository, SqliteCardRepositoryInitError, SqliteLanguageProfileRepository,
-    SqliteLanguageProfileRepositoryInitError, SqliteSpeechAudioRepository,
+    SqliteLanguageProfileRepositoryInitError, SqlitePronunciationSettingsRepository,
+    SqlitePronunciationSettingsRepositoryInitError, SqliteSpeechAudioRepository,
     SqliteSpeechAudioRepositoryInitError, SqliteStudySessionRepository,
     SqliteStudySessionRepositoryInitError, SqliteUserRepository, SqliteUserRepositoryInitError,
 };
-use adapters::output::{AiSpeechSynthesizer, GenAiCardNormalizer};
+use adapters::output::{AiSpeechSynthesizer, AzurePronunciationAssessor, GenAiCardNormalizer};
 use application::{
     ports::input::{
         card_catalog::CardCatalogUsecase, card_normalization::CardNormalizationUsecase,
         card_speech::CardSpeechUsecase, language_profile::LanguageProfileUsecase,
-        local_user::LocalUserUsecase, study_session::StudySessionUsecase,
+        local_user::LocalUserUsecase, pronunciation_settings::PronunciationSettingsUsecase,
+        study_session::StudySessionUsecase,
     },
     usecases::{
         CardCatalogService, CardNormalizationService, CardSpeechService, LanguageProfileService,
-        LocalUserService, StudySessionService,
+        LocalUserService, PronunciationSettingsService, StudySessionService,
     },
 };
 use thiserror::Error;
@@ -34,6 +36,8 @@ pub enum BootstrapError {
     StudySessionRepository(#[from] SqliteStudySessionRepositoryInitError),
     #[error("failed to initialize the speech audio repository: {0}")]
     SpeechAudioRepository(#[from] SqliteSpeechAudioRepositoryInitError),
+    #[error("failed to initialize the pronunciation settings repository: {0}")]
+    PronunciationSettingsRepository(#[from] SqlitePronunciationSettingsRepositoryInitError),
 }
 
 /// Ready-to-use application ports shared by inbound adapters.
@@ -44,6 +48,7 @@ pub struct BootstrapBridge {
     cards: Arc<dyn CardCatalogUsecase>,
     card_normalization: Arc<dyn CardNormalizationUsecase>,
     card_speech: Arc<dyn CardSpeechUsecase>,
+    pronunciation_settings: Arc<dyn PronunciationSettingsUsecase>,
     study_sessions: Arc<dyn StudySessionUsecase>,
 }
 
@@ -57,6 +62,9 @@ impl BootstrapBridge {
             Arc::new(SqliteStudySessionRepository::new(&config.database_path)?);
         let speech_audio_repository =
             Arc::new(SqliteSpeechAudioRepository::new(&config.database_path)?);
+        let pronunciation_settings_repository = Arc::new(
+            SqlitePronunciationSettingsRepository::new(&config.database_path)?,
+        );
         let local_users = Arc::new(LocalUserService::new(user_repository));
         let language_profiles = Arc::new(LanguageProfileService::new(Arc::clone(
             &language_profile_repository,
@@ -68,6 +76,14 @@ impl BootstrapBridge {
             Arc::clone(&card_repository)
                 as Arc<dyn application::ports::output::repository::CardRepository>,
             study_session_repository,
+            Arc::clone(&language_profile_repository)
+                as Arc<dyn application::ports::output::repository::LanguageProfileRepository>,
+            Arc::clone(&pronunciation_settings_repository)
+                as Arc<dyn application::ports::output::repository::PronunciationSettingsRepository>,
+            Arc::new(AzurePronunciationAssessor::default()),
+        ));
+        let pronunciation_settings = Arc::new(PronunciationSettingsService::new(
+            pronunciation_settings_repository,
         ));
         let card_normalization = Arc::new(CardNormalizationService::new(
             Arc::clone(&language_profile_repository)
@@ -87,6 +103,7 @@ impl BootstrapBridge {
             cards,
             card_normalization,
             card_speech,
+            pronunciation_settings,
             study_sessions,
         })
     }
@@ -109,6 +126,10 @@ impl BootstrapBridge {
 
     pub fn card_speech(&self) -> Arc<dyn CardSpeechUsecase> {
         Arc::clone(&self.card_speech)
+    }
+
+    pub fn pronunciation_settings(&self) -> Arc<dyn PronunciationSettingsUsecase> {
+        Arc::clone(&self.pronunciation_settings)
     }
 
     pub fn study_sessions(&self) -> Arc<dyn StudySessionUsecase> {

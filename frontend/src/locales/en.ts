@@ -62,6 +62,12 @@ export const en = {
     saveSettingsError: 'Could not save profile settings.',
     notConfigured: 'Not configured',
     menuKeyboardHint: '↑↓ Select · Enter Open · Esc Back',
+    azureSpeech: 'Azure Speech',
+    azureSpeechHint:
+      'Used for pronunciation assessment. Audio is sent to Azure and is not stored locally.',
+    azureEndpoint: 'Speech resource endpoint',
+    azureSubscriptionKey: 'Subscription key',
+    saveAzureSpeech: 'Save Azure Speech settings',
   },
   cards: {
     title: 'Cards',
@@ -188,8 +194,24 @@ export const en = {
     startMiniTest: 'Start mini-test',
     sayThisWord: 'Say this word',
     requiredAccuracy: 'Required accuracy',
-    pronunciationStub:
-      'Pronunciation assessment is not implemented yet. Continue to the written answer.',
+    pronunciationNotConfigured:
+      'Configure Azure Speech in Settings to enable this option.',
+    startRecording: 'Start recording',
+    stopRecording: 'Stop recording',
+    recording: 'Recording…',
+    recordingHint: 'Enter Start/Stop · recording stops automatically after 10 seconds',
+    microphoneError: 'Could not record audio from the microphone.',
+    microphoneUnsupported:
+      'Microphone recording is not supported in this environment.',
+    pronunciationScore: 'Accuracy score',
+    recognizedAs: 'Recognized as',
+    pronunciationPassed: 'Pronunciation accepted. Continue to the written answer.',
+    pronunciationRetry: 'Try saying the word once more.',
+    pronunciationFailed: 'The second pronunciation attempt failed.',
+    pronunciationTechnicalError:
+      'Pronunciation assessment could not be completed.',
+    tryAgain: 'Try again',
+    disablePronunciation: 'Disable for this session',
     continue: 'Continue',
     meaningsRemaining: 'Meanings remaining',
     acceptedAnswers: 'Accepted answers',

@@ -8,6 +8,9 @@ use application::ports::input::{
         },
     },
     local_user::models::UserId,
+    pronunciation_settings::models::{
+        GetPronunciationSettingsQuery, PronunciationSettings, SavePronunciationSettingsCommand,
+    },
 };
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -72,6 +75,36 @@ impl From<LanguageProfile> for AiSettingsDto {
             provider: profile.ai_settings.provider,
             api_key: profile.ai_settings.api_key,
             model_name: profile.ai_settings.model_name,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavePronunciationSettingsDto {
+    username: String,
+    version: u64,
+    endpoint: Option<String>,
+    subscription_key: Option<String>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PronunciationSettingsDto {
+    version: u64,
+    endpoint: Option<String>,
+    subscription_key: Option<String>,
+    configured: bool,
+}
+
+impl From<PronunciationSettings> for PronunciationSettingsDto {
+    fn from(settings: PronunciationSettings) -> Self {
+        let configured = settings.is_configured();
+        Self {
+            version: settings.version,
+            endpoint: settings.endpoint,
+            subscription_key: settings.subscription_key,
+            configured,
         }
     }
 }
@@ -174,6 +207,39 @@ pub async fn save_ai_settings(
         .await
         .map(Into::into)
         .map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn get_pronunciation_settings(
+    state: State<'_, DesktopState>,
+    username: String,
+) -> Result<PronunciationSettingsDto, CommandError> {
+    state
+        .pronunciation_settings()
+        .get_settings(GetPronunciationSettingsQuery {
+            user_id: UserId::new(username),
+        })
+        .await
+        .map(Into::into)
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn save_pronunciation_settings(
+    state: State<'_, DesktopState>,
+    settings: SavePronunciationSettingsDto,
+) -> Result<PronunciationSettingsDto, CommandError> {
+    state
+        .pronunciation_settings()
+        .save_settings(SavePronunciationSettingsCommand {
+            user_id: UserId::new(settings.username),
+            expected_version: settings.version,
+            endpoint: settings.endpoint,
+            subscription_key: settings.subscription_key,
+        })
+        .await
+        .map(Into::into)
+        .map_err(Into::into)
 }
 
 #[cfg(test)]

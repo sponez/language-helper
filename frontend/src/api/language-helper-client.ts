@@ -30,6 +30,20 @@ export interface SaveAiSettingsInput extends AiSettings {
   profileId: string
 }
 
+export interface PronunciationSettings {
+  version: number
+  endpoint: string | null
+  subscriptionKey: string | null
+  configured: boolean
+}
+
+export interface SavePronunciationSettingsInput {
+  username: string
+  version: number
+  endpoint: string | null
+  subscriptionKey: string | null
+}
+
 export type CardDirection = 'straight' | 'reverse'
 export type CardSortField = 'word' | 'createdAt' | 'score'
 export type SortDirection = 'ascending' | 'descending'
@@ -152,6 +166,8 @@ export type StudySessionAction =
   | 'startMiniTest'
   | 'submitWrittenAnswer'
   | 'continueAfterFeedback'
+  | 'registerPronunciationCaptureFailure'
+  | 'disablePronunciation'
 
 export interface CreateStudySessionInput {
   username: string
@@ -171,6 +187,14 @@ export interface ApplyStudySessionActionInput {
   expectedVersion: number
   action: StudySessionAction
   answer?: string
+  message?: string
+}
+
+export interface AssessPronunciationInput {
+  username: string
+  sessionId: string
+  expectedVersion: number
+  audio: number[]
 }
 
 export interface EndStudySessionInput {
@@ -198,6 +222,10 @@ export interface StudySession {
   status: StudySessionStatus
   pronunciationCheckEnabled: boolean
   pronunciationAccuracyThreshold: number
+  pronunciationRequired: boolean
+  pronunciationAttemptsUsed: number
+  pronunciationTechnicalFailures: number
+  pronunciationDisableRequired: boolean
   awaitingContinue: boolean
   currentCard: SessionCurrentCard | null
   currentCardNumber: number
@@ -222,6 +250,25 @@ export interface StudySessionTransition {
     remainingMeanings: number
     scoreDelta: number
   } | null
+  pronunciationFeedback: {
+    kind:
+      | 'passed'
+      | 'retry'
+      | 'failed'
+      | 'technicalError'
+      | 'disableRequired'
+    report: {
+      accuracyScore: number
+      fluencyScore: number | null
+      completenessScore: number | null
+      recognizedText: string | null
+      passed: boolean
+    } | null
+    attempt: number
+    threshold: number
+    technicalFailures: number
+    message: string | null
+  } | null
   setOutcome: 'passed' | 'retry' | null
 }
 
@@ -244,6 +291,10 @@ export interface LanguageHelperClient {
     profileId: string,
   ): Promise<AiSettings>
   saveAiSettings(input: SaveAiSettingsInput): Promise<AiSettings>
+  getPronunciationSettings(username: string): Promise<PronunciationSettings>
+  savePronunciationSettings(
+    input: SavePronunciationSettingsInput,
+  ): Promise<PronunciationSettings>
   listCards(input: ListCardsInput): Promise<CardPage>
   getCard(username: string, profileId: string, cardId: string): Promise<Card>
   createCards(input: CreateCardsInput): Promise<Card[]>
@@ -258,6 +309,9 @@ export interface LanguageHelperClient {
   createStudySession(input: CreateStudySessionInput): Promise<StudySession>
   applyStudySessionAction(
     input: ApplyStudySessionActionInput,
+  ): Promise<StudySessionTransition>
+  assessPronunciation(
+    input: AssessPronunciationInput,
   ): Promise<StudySessionTransition>
   finishStudySession(input: EndStudySessionInput): Promise<StudySession>
   cancelStudySession(input: EndStudySessionInput): Promise<StudySession>

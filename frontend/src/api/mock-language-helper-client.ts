@@ -23,6 +23,9 @@ import type {
   EndStudySessionInput,
   StudySession,
   StudySessionTransition,
+  PronunciationSettings,
+  SavePronunciationSettingsInput,
+  AssessPronunciationInput,
 } from './language-helper-client'
 
 interface MockSessionState {
@@ -126,6 +129,25 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
     }
     this.settings.set(input.profileId, saved)
     return { ...saved }
+  }
+
+  async getPronunciationSettings(
+    _username: string,
+  ): Promise<PronunciationSettings> {
+    return {
+      version: 0,
+      endpoint: null,
+      subscriptionKey: null,
+      configured: false,
+    }
+  }
+
+  async savePronunciationSettings(
+    _input: SavePronunciationSettingsInput,
+  ): Promise<PronunciationSettings> {
+    throw new Error(
+      'Pronunciation assessment is available only in the desktop application.',
+    )
   }
 
   async listCards(input: ListCardsInput): Promise<CardPage> {
@@ -450,6 +472,10 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       status: 'active',
       pronunciationCheckEnabled: input.pronunciationCheckEnabled,
       pronunciationAccuracyThreshold: input.pronunciationAccuracyThreshold,
+      pronunciationRequired: false,
+      pronunciationAttemptsUsed: 0,
+      pronunciationTechnicalFailures: 0,
+      pronunciationDisableRequired: false,
       awaitingContinue: false,
       currentCard: null,
       currentCardNumber: 1,
@@ -599,8 +625,17 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
     return {
       session: this.refreshView(state),
       answerFeedback,
+      pronunciationFeedback: null,
       setOutcome,
     }
+  }
+
+  async assessPronunciation(
+    _input: AssessPronunciationInput,
+  ): Promise<StudySessionTransition> {
+    throw new Error(
+      'Pronunciation assessment is available only in the desktop application.',
+    )
   }
 
   async finishStudySession(input: EndStudySessionInput): Promise<StudySession> {

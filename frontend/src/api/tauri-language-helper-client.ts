@@ -24,6 +24,9 @@ import type {
   EndStudySessionInput,
   StudySession,
   StudySessionTransition,
+  PronunciationSettings,
+  SavePronunciationSettingsInput,
+  AssessPronunciationInput,
 } from './language-helper-client'
 
 export class TauriLanguageHelperClient implements LanguageHelperClient {
@@ -70,6 +73,20 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
 
   saveAiSettings(input: SaveAiSettingsInput): Promise<AiSettings> {
     return invoke<AiSettings>('save_ai_settings', {
+      settings: input,
+    })
+  }
+
+  getPronunciationSettings(username: string): Promise<PronunciationSettings> {
+    return invoke<PronunciationSettings>('get_pronunciation_settings', {
+      username,
+    })
+  }
+
+  savePronunciationSettings(
+    input: SavePronunciationSettingsInput,
+  ): Promise<PronunciationSettings> {
+    return invoke<PronunciationSettings>('save_pronunciation_settings', {
       settings: input,
     })
   }
@@ -134,6 +151,14 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
     input: ApplyStudySessionActionInput,
   ): Promise<StudySessionTransition> {
     return invoke<StudySessionTransition>('apply_study_session_action', {
+      command: input,
+    })
+  }
+
+  assessPronunciation(
+    input: AssessPronunciationInput,
+  ): Promise<StudySessionTransition> {
+    return invoke<StudySessionTransition>('assess_pronunciation', {
       command: input,
     })
   }

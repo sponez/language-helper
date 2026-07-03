@@ -10,13 +10,14 @@ import {
   TextInput,
   Title,
 } from '@mantine/core'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 
 import type {
   AiSettings,
   LanguageProfile,
+  PronunciationSettings,
   StudySessionMode,
 } from '../api/language-helper-client'
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
@@ -38,6 +39,13 @@ const DEFAULT_SETTINGS: AiSettings = {
   modelName: null,
 }
 
+const DEFAULT_PRONUNCIATION_SETTINGS: PronunciationSettings = {
+  version: 0,
+  endpoint: null,
+  subscriptionKey: null,
+  configured: false,
+}
+
 type View = 'menu' | 'settings' | 'cards' | StudySessionMode
 type MenuItem = 'cards' | 'learning' | 'test' | 'settings' | 'back'
 
@@ -51,6 +59,7 @@ const MENU_ITEMS: MenuItem[] = [
 
 export function WorkspacePage() {
   const client = useLanguageHelperClient()
+  const queryClient = useQueryClient()
   const { t } = useTranslations()
   const navigate = useNavigate()
   const location = useLocation()
@@ -59,6 +68,10 @@ export function WorkspacePage() {
   const [menuCursor, setMenuCursor] = useState<number | null>(null)
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [saved, setSaved] = useState(false)
+  const [pronunciationSettings, setPronunciationSettings] = useState(
+    DEFAULT_PRONUNCIATION_SETTINGS,
+  )
+  const [pronunciationSaved, setPronunciationSaved] = useState(false)
 
   const loadedSettings = useQuery({
     queryKey: ['ai-settings', context?.username, context?.profile.id],
@@ -82,9 +95,41 @@ export function WorkspacePage() {
     },
   })
 
+  const loadedPronunciationSettings = useQuery({
+    queryKey: ['pronunciation-settings', context?.username],
+    queryFn: () => client.getPronunciationSettings(context!.username),
+    enabled: Boolean(context?.username),
+    retry: false,
+  })
+
+  const savePronunciation = useMutation({
+    mutationFn: () =>
+      client.savePronunciationSettings({
+        username: context!.username,
+        version: pronunciationSettings.version,
+        endpoint: pronunciationSettings.endpoint?.trim() || null,
+        subscriptionKey:
+          pronunciationSettings.subscriptionKey?.trim() || null,
+      }),
+    onSuccess: (result) => {
+      setPronunciationSettings(result)
+      setPronunciationSaved(true)
+      queryClient.setQueryData(
+        ['pronunciation-settings', context!.username],
+        result,
+      )
+    },
+  })
+
   useEffect(() => {
     if (loadedSettings.data) setSettings(loadedSettings.data)
   }, [loadedSettings.data])
+
+  useEffect(() => {
+    if (loadedPronunciationSettings.data) {
+      setPronunciationSettings(loadedPronunciationSettings.data)
+    }
+  }, [loadedPronunciationSettings.data])
 
   useEffect(() => {
     if (view === 'menu') setMenuCursor(null)
@@ -118,7 +163,9 @@ export function WorkspacePage() {
         if (event.key === 'Escape') {
           event.preventDefault()
           setSaved(false)
+          setPronunciationSaved(false)
           save.reset()
+          savePronunciation.reset()
           setView('menu')
         }
       }
@@ -126,7 +173,7 @@ export function WorkspacePage() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [menuCursor, navigate, save, view])
+  }, [menuCursor, navigate, save, savePronunciation, view])
 
   if (!context?.username || !context.profile) {
     return <Navigate replace to="/" />
@@ -135,7 +182,9 @@ export function WorkspacePage() {
   const profileCaption = `${context.profile.name} · ${context.profile.sourceLanguage} → ${context.profile.targetLanguage}`
   const closeSettings = () => {
     setSaved(false)
+    setPronunciationSaved(false)
     save.reset()
+    savePronunciation.reset()
     setView('menu')
   }
 
@@ -272,6 +321,58 @@ export function WorkspacePage() {
                   {speechModelName(settings.provider) ??
                     t('workspace.notConfigured')}
                 </Text>
+              </Stack>
+            </Paper>
+            <Paper className={classes.settingsBlock} p="xl" withBorder>
+              <Stack>
+                <Title order={3}>{t('workspace.azureSpeech')}</Title>
+                <Text c="dimmed" size="sm">
+                  {t('workspace.azureSpeechHint')}
+                </Text>
+                <TextInput
+                  label={t('workspace.azureEndpoint')}
+                  placeholder="https://your-resource.cognitiveservices.azure.com"
+                  value={pronunciationSettings.endpoint ?? ''}
+                  onChange={(event) => {
+                    const endpoint = event.currentTarget.value
+                    setPronunciationSaved(false)
+                    setPronunciationSettings((current) => ({
+                      ...current,
+                      endpoint,
+                    }))
+                  }}
+                />
+                <PasswordInput
+                  label={t('workspace.azureSubscriptionKey')}
+                  value={pronunciationSettings.subscriptionKey ?? ''}
+                  onChange={(event) => {
+                    const subscriptionKey = event.currentTarget.value
+                    setPronunciationSaved(false)
+                    setPronunciationSettings((current) => ({
+                      ...current,
+                      subscriptionKey,
+                    }))
+                  }}
+                />
+                {loadedPronunciationSettings.isError && (
+                  <Alert color="red">
+                    {loadedPronunciationSettings.error.message}
+                  </Alert>
+                )}
+                {savePronunciation.isError && (
+                  <Alert color="red">
+                    {savePronunciation.error.message}
+                  </Alert>
+                )}
+                {pronunciationSaved && (
+                  <Alert color="green">{t('workspace.saved')}</Alert>
+                )}
+                <Button
+                  loading={savePronunciation.isPending}
+                  onClick={() => savePronunciation.mutate()}
+                >
+                  {t('workspace.saveAzureSpeech')}
+                </Button>
               </Stack>
             </Paper>
             {loadedSettings.isError && (

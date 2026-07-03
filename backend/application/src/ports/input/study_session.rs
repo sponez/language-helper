@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 
 use self::models::{
-    ApplyStudySessionActionCommand, CreateStudySessionCommand, EndStudySessionCommand,
-    StudySessionError, StudySessionTransition, StudySessionView,
+    ApplyStudySessionActionCommand, AssessPronunciationCommand, CreateStudySessionCommand,
+    EndStudySessionCommand, StudySessionError, StudySessionTransition, StudySessionView,
 };
 
 pub mod models;
@@ -17,6 +17,11 @@ pub trait StudySessionUsecase: Send + Sync {
     async fn apply_action(
         &self,
         command: ApplyStudySessionActionCommand,
+    ) -> Result<StudySessionTransition, StudySessionError>;
+
+    async fn assess_pronunciation(
+        &self,
+        command: AssessPronunciationCommand,
     ) -> Result<StudySessionTransition, StudySessionError>;
 
     async fn finish_session(

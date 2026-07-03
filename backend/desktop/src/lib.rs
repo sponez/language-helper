@@ -33,6 +33,8 @@ pub fn run() {
             commands::profiles::create_language_profile,
             commands::profiles::get_ai_settings,
             commands::profiles::save_ai_settings,
+            commands::profiles::get_pronunciation_settings,
+            commands::profiles::save_pronunciation_settings,
             commands::cards::list_cards,
             commands::cards::get_card,
             commands::cards::create_cards,
@@ -44,6 +46,7 @@ pub fn run() {
             commands::speech::get_card_speech,
             commands::sessions::create_study_session,
             commands::sessions::apply_study_session_action,
+            commands::sessions::assess_pronunciation,
             commands::sessions::finish_study_session,
             commands::sessions::cancel_study_session
         ])

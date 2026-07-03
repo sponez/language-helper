@@ -1,7 +1,8 @@
 use application::ports::input::{
     card_catalog::models::CardCatalogError, card_normalization::models::CardNormalizationError,
     card_speech::models::CardSpeechError, language_profile::models::LanguageProfileError,
-    local_user::models::LocalUserError, study_session::models::StudySessionError,
+    local_user::models::LocalUserError, pronunciation_settings::models::PronunciationSettingsError,
+    study_session::models::StudySessionError,
 };
 use serde::Serialize;
 
@@ -105,7 +106,22 @@ impl From<StudySessionError> for CommandError {
             StudySessionError::NotFound => "study_session_not_found",
             StudySessionError::InvalidAction => "invalid_study_session_action",
             StudySessionError::Conflict => "study_session_conflict",
+            StudySessionError::PronunciationNotConfigured => "pronunciation_not_configured",
             StudySessionError::Unexpected(_) => "unexpected_error",
+        };
+        Self {
+            code,
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<PronunciationSettingsError> for CommandError {
+    fn from(error: PronunciationSettingsError) -> Self {
+        let code = match &error {
+            PronunciationSettingsError::InvalidSettings => "invalid_pronunciation_settings",
+            PronunciationSettingsError::Conflict => "pronunciation_settings_conflict",
+            PronunciationSettingsError::Unexpected(_) => "unexpected_error",
         };
         Self {
             code,

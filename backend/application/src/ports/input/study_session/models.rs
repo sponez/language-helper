@@ -55,7 +55,17 @@ pub struct SessionAnswerResult {
     pub word: String,
     pub is_correct: bool,
     pub submitted_answers: Vec<String>,
+    pub pronunciation_reports: Vec<PronunciationAssessmentReport>,
     pub score_delta: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PronunciationAssessmentReport {
+    pub accuracy_score: u8,
+    pub fluency_score: Option<u8>,
+    pub completeness_score: Option<u8>,
+    pub recognized_text: Option<String>,
+    pub passed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,6 +86,10 @@ pub struct StudySession {
     pub current_card_index: usize,
     pub provided_answers: Vec<String>,
     pub completed_meaning_indices: Vec<usize>,
+    pub pronunciation_attempts: Vec<PronunciationAssessmentReport>,
+    pub pronunciation_passed: bool,
+    pub pronunciation_technical_failures: u8,
+    pub pronunciation_disable_required: bool,
     pub awaiting_continue: bool,
     pub current_set_failed: bool,
     pub results: Vec<SessionAnswerResult>,
@@ -119,6 +133,10 @@ pub struct StudySessionView {
     pub status: StudySessionStatus,
     pub pronunciation_check_enabled: bool,
     pub pronunciation_accuracy_threshold: u8,
+    pub pronunciation_required: bool,
+    pub pronunciation_attempts_used: u8,
+    pub pronunciation_technical_failures: u8,
+    pub pronunciation_disable_required: bool,
     pub awaiting_continue: bool,
     pub current_card: Option<CurrentCardView>,
     pub progress: StudySessionProgress,
@@ -146,7 +164,27 @@ pub enum SetOutcome {
 pub struct StudySessionTransition {
     pub session: StudySessionView,
     pub answer_feedback: Option<AnswerFeedback>,
+    pub pronunciation_feedback: Option<PronunciationFeedback>,
     pub set_outcome: Option<SetOutcome>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PronunciationFeedbackKind {
+    Passed,
+    Retry,
+    Failed,
+    TechnicalError,
+    DisableRequired,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PronunciationFeedback {
+    pub kind: PronunciationFeedbackKind,
+    pub report: Option<PronunciationAssessmentReport>,
+    pub attempt: u8,
+    pub threshold: u8,
+    pub technical_failures: u8,
+    pub message: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -169,6 +207,8 @@ pub enum StudySessionAction {
     StartMiniTest,
     SubmitWrittenAnswer { answer: String },
     ContinueAfterFeedback,
+    RegisterPronunciationCaptureFailure { message: String },
+    DisablePronunciation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -177,6 +217,14 @@ pub struct ApplyStudySessionActionCommand {
     pub session_id: SessionId,
     pub expected_version: u64,
     pub action: StudySessionAction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssessPronunciationCommand {
+    pub user_id: UserId,
+    pub session_id: SessionId,
+    pub expected_version: u64,
+    pub audio: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -198,6 +246,8 @@ pub enum StudySessionError {
     InvalidAction,
     #[error("study session was modified concurrently")]
     Conflict,
+    #[error("pronunciation assessment is not configured")]
+    PronunciationNotConfigured,
     #[error("study session operation failed: {0}")]
     Unexpected(String),
 }

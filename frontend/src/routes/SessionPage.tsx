@@ -13,8 +13,14 @@ import {
   Title,
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 
 import type {
   CardDirection,
@@ -24,6 +30,7 @@ import type {
   StudySessionTransition,
 } from '../api/language-helper-client'
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
+import { recordingToWav } from '../audio/recording'
 import { CardSpeechControls } from '../components/CardSpeechControls'
 import { useTranslations } from '../locales/TranslationProvider'
 import { ReadOnlyCard } from './CardsPage'
@@ -52,17 +59,31 @@ export function SessionPage({
   const [cardsPerSet, setCardsPerSet] = useState(5)
   const [pronunciation, setPronunciation] = useState(false)
   const [pronunciationAccuracy, setPronunciationAccuracy] = useState(75)
-  const [pronunciationDone, setPronunciationDone] = useState(false)
+  const [pronunciationFeedback, setPronunciationFeedback] =
+    useState<StudySessionTransition['pronunciationFeedback']>(null)
+  const [recording, setRecording] = useState(false)
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [answer, setAnswer] = useState('')
   const [feedback, setFeedback] =
     useState<StudySessionTransition['answerFeedback']>(null)
   const [setOutcome, setSetOutcome] =
     useState<StudySessionTransition['setOutcome']>(null)
   const [endOpened, endModal] = useDisclosure(false)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const recordingTimerRef = useRef<number | null>(null)
+  const recordingTimeoutRef = useRef<number | null>(null)
+  const discardRecordingRef = useRef(false)
+
+  const pronunciationSettings = useQuery({
+    queryKey: ['pronunciation-settings', username],
+    queryFn: () => client.getPronunciationSettings(username),
+    retry: false,
+  })
 
   const currentCardId = session?.currentCard?.id ?? session?.currentCard?.card?.id
   useEffect(() => {
-    setPronunciationDone(false)
+    setPronunciationFeedback(null)
     setFeedback(null)
     setAnswer('')
   }, [currentCardId])
@@ -87,9 +108,11 @@ export function SessionPage({
     mutationFn: ({
       action,
       answer,
+      message,
     }: {
       action: StudySessionAction
       answer?: string
+      message?: string
     }) =>
       client.applyStudySessionAction({
         username,
@@ -97,19 +120,41 @@ export function SessionPage({
         expectedVersion: session!.version,
         action,
         answer,
+        message,
       }),
     onSuccess: async (transition, variables) => {
       setSession(transition.session)
       setFeedback(transition.answerFeedback)
+      setPronunciationFeedback(transition.pronunciationFeedback)
       setSetOutcome(transition.setOutcome)
       setAnswer('')
       if (
         variables.action === 'continueAfterFeedback' ||
         variables.action === 'startMiniTest'
       ) {
-        setPronunciationDone(false)
+        setPronunciationFeedback(null)
       }
       if (transition.answerFeedback?.scoreDelta) {
+        await queryClient.invalidateQueries({
+          queryKey: ['cards', username, profileId],
+        })
+      }
+    },
+  })
+
+  const assessment = useMutation({
+    mutationFn: (audio: Uint8Array) =>
+      client.assessPronunciation({
+        username,
+        sessionId: session!.id,
+        expectedVersion: session!.version,
+        audio: Array.from(audio),
+      }),
+    onSuccess: async (transition) => {
+      setSession(transition.session)
+      setFeedback(transition.answerFeedback)
+      setPronunciationFeedback(transition.pronunciationFeedback)
+      if (transition.session.summary.scoreDelta !== session?.summary.scoreDelta) {
         await queryClient.invalidateQueries({
           queryKey: ['cards', username, profileId],
         })
@@ -140,6 +185,129 @@ export function SessionPage({
   const invalidRange =
     minScore !== null && maxScore !== null && minScore > maxScore
 
+  const clearRecordingTimers = useCallback(() => {
+    if (recordingTimerRef.current !== null) {
+      window.clearInterval(recordingTimerRef.current)
+      recordingTimerRef.current = null
+    }
+    if (recordingTimeoutRef.current !== null) {
+      window.clearTimeout(recordingTimeoutRef.current)
+      recordingTimeoutRef.current = null
+    }
+  }, [])
+
+  const releaseMicrophone = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+    recorderRef.current = null
+    clearRecordingTimers()
+    setRecording(false)
+  }, [clearRecordingTimers])
+
+  const stopRecording = useCallback(() => {
+    if (recorderRef.current?.state === 'recording') {
+      recorderRef.current.stop()
+    }
+  }, [])
+
+  const reportCaptureFailure = useCallback(
+    (error: unknown) => {
+      releaseMicrophone()
+      const message =
+        error instanceof Error
+          ? error.message
+          : t('sessions.microphoneError')
+      action.mutate({
+        action: 'registerPronunciationCaptureFailure',
+        message,
+      })
+    },
+    [action, releaseMicrophone, t],
+  )
+
+  const startRecording = useCallback(async () => {
+    if (recording || assessment.isPending || action.isPending) return
+    try {
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        throw new Error(t('sessions.microphoneUnsupported'))
+      }
+      discardRecordingRef.current = false
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      })
+      streamRef.current = stream
+      const preferredType = 'audio/webm;codecs=opus'
+      const recorder = MediaRecorder.isTypeSupported(preferredType)
+        ? new MediaRecorder(stream, { mimeType: preferredType })
+        : new MediaRecorder(stream)
+      recorderRef.current = recorder
+      const chunks: Blob[] = []
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data)
+      }
+      recorder.onerror = () => {
+        discardRecordingRef.current = true
+        reportCaptureFailure(new Error(t('sessions.microphoneError')))
+      }
+      recorder.onstop = async () => {
+        const discarded = discardRecordingRef.current
+        const mimeType = recorder.mimeType || 'audio/webm'
+        releaseMicrophone()
+        if (discarded) return
+        try {
+          const wav = await recordingToWav(
+            new Blob(chunks, { type: mimeType }),
+          )
+          assessment.mutate(wav)
+        } catch (error) {
+          reportCaptureFailure(error)
+        }
+      }
+      recorder.start()
+      setRecordingSeconds(0)
+      setRecording(true)
+      const startedAt = Date.now()
+      recordingTimerRef.current = window.setInterval(() => {
+        setRecordingSeconds((Date.now() - startedAt) / 1000)
+      }, 100)
+      recordingTimeoutRef.current = window.setTimeout(stopRecording, 10_000)
+    } catch (error) {
+      reportCaptureFailure(error)
+    }
+  }, [
+    action.isPending,
+    assessment,
+    recording,
+    releaseMicrophone,
+    reportCaptureFailure,
+    stopRecording,
+    t,
+  ])
+
+  useEffect(
+    () => () => {
+      discardRecordingRef.current = true
+      if (recorderRef.current?.state === 'recording') {
+        recorderRef.current.stop()
+      }
+      releaseMicrophone()
+    },
+    [releaseMicrophone],
+  )
+
+  useEffect(() => {
+    if (recorderRef.current?.state === 'recording') {
+      discardRecordingRef.current = true
+      recorderRef.current.stop()
+      releaseMicrophone()
+    }
+  }, [currentCardId, releaseMicrophone])
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
@@ -168,7 +336,14 @@ export function SessionPage({
         onBack()
         return
       }
-      if (!session || session.status !== 'active' || action.isPending) return
+      if (
+        !session ||
+        session.status !== 'active' ||
+        action.isPending ||
+        assessment.isPending
+      ) {
+        return
+      }
 
       const current = session.currentCard
       if (current?.kind === 'study') {
@@ -188,14 +363,23 @@ export function SessionPage({
       }
 
       if (event.key !== 'Enter') return
-      if (
+      if (current?.kind === 'test' && pronunciationFeedback && !feedback) {
+        event.preventDefault()
+        if (pronunciationFeedback.kind === 'failed') {
+          action.mutate({ action: 'continueAfterFeedback' })
+        } else if (pronunciationFeedback.kind === 'disableRequired') {
+          action.mutate({ action: 'disablePronunciation' })
+        } else {
+          setPronunciationFeedback(null)
+        }
+      } else if (
         current?.kind === 'test' &&
-        session.pronunciationCheckEnabled &&
-        !pronunciationDone &&
+        session.pronunciationRequired &&
         !feedback
       ) {
         event.preventDefault()
-        setPronunciationDone(true)
+        if (recording) stopRecording()
+        else void startRecording()
       } else if (feedback) {
         event.preventDefault()
         if (feedback.cardCompleted) {
@@ -210,12 +394,16 @@ export function SessionPage({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
     action,
+    assessment.isPending,
     endModal,
     endOpened,
     feedback,
     onBack,
-    pronunciationDone,
+    pronunciationFeedback,
+    recording,
     session,
+    startRecording,
+    stopRecording,
   ])
 
   if (!session) {
@@ -272,6 +460,16 @@ export function SessionPage({
         )}
         <Checkbox
           checked={pronunciation}
+          disabled={
+            pronunciationSettings.isLoading ||
+            !pronunciationSettings.data?.configured
+          }
+          description={
+            !pronunciationSettings.isLoading &&
+            !pronunciationSettings.data?.configured
+              ? t('sessions.pronunciationNotConfigured')
+              : undefined
+          }
           label={t('sessions.checkPronunciation')}
           onChange={(event) =>
             setPronunciation(event.currentTarget.checked)
@@ -344,8 +542,7 @@ export function SessionPage({
   const testCard = current?.kind === 'test' ? current : null
   const showPronunciation =
     testCard &&
-    session.pronunciationCheckEnabled &&
-    !pronunciationDone &&
+    (session.pronunciationRequired || pronunciationFeedback !== null) &&
     !feedback
 
   function submitAnswer(event: FormEvent) {
@@ -426,10 +623,92 @@ export function SessionPage({
               {t('sessions.requiredAccuracy')}:{' '}
               {session.pronunciationAccuracyThreshold}%
             </Text>
-            <Alert color="indigo">{t('sessions.pronunciationStub')}</Alert>
-            <Button onClick={() => setPronunciationDone(true)}>
-              {t('sessions.continue')}
-            </Button>
+            {pronunciationFeedback ? (
+              <Stack align="center" w="100%">
+                <Alert
+                  color={
+                    pronunciationFeedback.kind === 'passed'
+                      ? 'green'
+                      : pronunciationFeedback.kind === 'retry'
+                        ? 'orange'
+                        : 'red'
+                  }
+                  w="100%"
+                >
+                  {pronunciationFeedback.report ? (
+                    <Stack gap={4}>
+                      <Text fw={600}>
+                        {t('sessions.pronunciationScore')}:{' '}
+                        {pronunciationFeedback.report.accuracyScore}% /{' '}
+                        {pronunciationFeedback.threshold}%
+                      </Text>
+                      {pronunciationFeedback.report.recognizedText && (
+                        <Text size="sm">
+                          {t('sessions.recognizedAs')}:{' '}
+                          {pronunciationFeedback.report.recognizedText}
+                        </Text>
+                      )}
+                      <Text size="sm">
+                        {pronunciationFeedback.kind === 'passed'
+                          ? t('sessions.pronunciationPassed')
+                          : pronunciationFeedback.kind === 'failed'
+                            ? t('sessions.pronunciationFailed')
+                            : t('sessions.pronunciationRetry')}
+                      </Text>
+                    </Stack>
+                  ) : (
+                    <Text>
+                      {pronunciationFeedback.message ??
+                        t('sessions.pronunciationTechnicalError')}
+                    </Text>
+                  )}
+                </Alert>
+                <Button
+                  loading={action.isPending}
+                  onClick={() => {
+                    if (pronunciationFeedback.kind === 'failed') {
+                      action.mutate({ action: 'continueAfterFeedback' })
+                    } else if (
+                      pronunciationFeedback.kind === 'disableRequired'
+                    ) {
+                      action.mutate({ action: 'disablePronunciation' })
+                    } else {
+                      setPronunciationFeedback(null)
+                    }
+                  }}
+                >
+                  {pronunciationFeedback.kind === 'retry' ||
+                  pronunciationFeedback.kind === 'technicalError'
+                    ? t('sessions.tryAgain')
+                    : pronunciationFeedback.kind === 'disableRequired'
+                      ? t('sessions.disablePronunciation')
+                      : t('sessions.continue')}
+                </Button>
+              </Stack>
+            ) : (
+              <Stack align="center">
+                {recording && (
+                  <Text c="red" fw={600}>
+                    {t('sessions.recording')} {recordingSeconds.toFixed(1)}s
+                  </Text>
+                )}
+                <Button
+                  color={recording ? 'red' : 'blue'}
+                  loading={assessment.isPending}
+                  onClick={() => {
+                    if (recording) stopRecording()
+                    else void startRecording()
+                  }}
+                >
+                  {recording
+                    ? t('sessions.stopRecording')
+                    : t('sessions.startRecording')}
+                </Button>
+                <Text c="dimmed" size="xs">
+                  {t('sessions.recordingHint')}
+                </Text>
+              </Stack>
+            )}
           </Stack>
         </Paper>
       )}
@@ -496,6 +775,9 @@ export function SessionPage({
 
       {action.isError && (
         <Alert color="red">{action.error.message}</Alert>
+      )}
+      {assessment.isError && (
+        <Alert color="red">{assessment.error.message}</Alert>
       )}
       {(finish.isError || cancel.isError) && (
         <Alert color="red">
