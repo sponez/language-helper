@@ -605,7 +605,7 @@ mod tests {
     use super::StudySessionService;
 
     #[test]
-    fn written_answers_use_unicode_aware_legacy_similarity() {
+    fn written_answers_use_unicode_aware_similarity() {
         assert!(StudySessionService::similarity("Привет", " привет "));
         assert!(StudySessionService::similarity("hello", "helo"));
         assert!(!StudySessionService::similarity("hello", "goodbye"));

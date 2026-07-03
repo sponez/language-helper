@@ -1,22 +1,24 @@
-# Language Helper Backend
+# Language Helper backend
 
-Rust workspace containing the new hexagonal backend.
+Rust 2024 workspace containing the application backend and Tauri desktop
+shell.
 
-## Workspace crates
+## Crates
 
-- `application` — inbound and outbound ports plus use-case implementations.
-- `adapters` — concrete inbound and outbound adapters.
-- `bootstrap` — shared composition root exposed as `BootstrapBridge`.
+- `application` — input/output ports, domain-facing models, and use cases.
+- `adapters` — SQLite repositories and external AI/speech providers.
+- `bootstrap` — composition root exposed through `BootstrapBridge`.
+- `desktop` — Tauri state, IPC commands, and executable entry point.
 
-The old `api`, `core`, `persistence`, `gui`, and `app` crates remain in the
-repository as migration reference, but are no longer workspace members.
+Dependencies point inward: transports and adapters depend on application
+ports; application code does not depend on Tauri, SQLite, or provider SDKs.
 
 ## Commands
 
-```bash
+```powershell
 cargo check --workspace
 cargo test --workspace
+cargo build --release -p lh_desktop
 ```
 
-Future Tauri and HTTP adapters should construct `BootstrapBridge` and use its
-application ports without moving business logic into transport handlers.
+For a complete desktop build, run `npm run desktop:build` from `frontend`.

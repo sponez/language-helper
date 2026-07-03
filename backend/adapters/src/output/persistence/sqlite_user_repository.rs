@@ -28,9 +28,6 @@ pub enum SqliteUserRepositoryInitError {
 }
 
 /// SQLite implementation of the local user repository.
-///
-/// The schema intentionally matches the legacy `users` table so existing local
-/// databases can be opened by the new application.
 #[derive(Clone)]
 pub struct SqliteUserRepository {
     connection: Arc<Mutex<Connection>>,
@@ -214,7 +211,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn persists_a_user_in_the_legacy_compatible_schema() {
+    async fn persists_a_user_after_reopening_the_database() {
         let (repository, _directory, database_path) = repository();
         let user = LocalUser {
             id: UserId::new("persisted_user"),
