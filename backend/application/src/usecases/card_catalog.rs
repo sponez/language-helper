@@ -11,7 +11,8 @@ use crate::ports::{
         CardCatalogUsecase,
         models::{
             Card, CardCatalogError, CardChanges, CardPage, CreateCardsCommand, DeleteCardsCommand,
-            DeleteCardsResult, GetCardQuery, Meaning, NewCard, UpdateCardCommand, UsageExample,
+            DeleteCardsResult, GetCardQuery, Meaning, NewCard, PendingInverseCard,
+            PrepareInverseCardsQuery, SaveInverseCardsCommand, UpdateCardCommand, UsageExample,
             Word,
         },
     },
@@ -21,7 +22,6 @@ use crate::ports::{
 const MAX_WORD_LENGTH: usize = 200;
 const MAX_READING_LENGTH: usize = 200;
 const MAX_TEXT_LENGTH: usize = 1_000;
-const MAX_MEANINGS: usize = 10;
 const MAX_EXAMPLES: usize = 5;
 
 pub struct CardCatalogService {
@@ -101,7 +101,7 @@ impl CardCatalogService {
         word: Word,
         meanings: Vec<Meaning>,
     ) -> Result<(Word, Vec<Meaning>), CardCatalogError> {
-        if meanings.is_empty() || meanings.len() > MAX_MEANINGS {
+        if meanings.is_empty() {
             return Err(CardCatalogError::InvalidCard);
         }
         let word = Self::normalize_word(word)?;
@@ -137,6 +137,26 @@ impl CardCatalogService {
         card.word = word;
         card.meanings = meanings;
         Ok(card)
+    }
+
+    fn inverse_meaning(source_word: &str, inverse_word: &str, meaning: &Meaning) -> Meaning {
+        Meaning {
+            definition: if meaning.translated_definition.trim().is_empty() {
+                inverse_word.to_string()
+            } else {
+                meaning.translated_definition.clone()
+            },
+            translated_definition: meaning.definition.clone(),
+            word_translations: vec![source_word.to_string()],
+            examples: meaning
+                .examples
+                .iter()
+                .map(|example| UsageExample {
+                    sentence: example.translation.clone(),
+                    translation: example.sentence.clone(),
+                })
+                .collect(),
+        }
     }
 }
 
@@ -213,12 +233,125 @@ impl CardCatalogUsecase for CardCatalogService {
             .await
             .map_err(Self::map_repository_error)
     }
+
+    async fn prepare_inverse_cards(
+        &self,
+        query: PrepareInverseCardsQuery,
+    ) -> Result<Vec<PendingInverseCard>, CardCatalogError> {
+        if query.source_card_ids.is_empty() {
+            return Err(CardCatalogError::InvalidCard);
+        }
+
+        // Preserve the order in which translations appear in the source card.
+        let mut grouped: Vec<(
+            String,
+            crate::ports::input::card_catalog::models::CardDirection,
+            Vec<Meaning>,
+        )> = Vec::new();
+        for source_card_id in &query.source_card_ids {
+            let source = self
+                .repository
+                .find(&query.user_id, &query.profile_id, source_card_id)
+                .await
+                .map_err(Self::map_repository_error)?
+                .ok_or(CardCatalogError::NotFound)?;
+            let inverse_direction = match source.direction {
+                crate::ports::input::card_catalog::models::CardDirection::Straight => {
+                    crate::ports::input::card_catalog::models::CardDirection::Reverse
+                }
+                crate::ports::input::card_catalog::models::CardDirection::Reverse => {
+                    crate::ports::input::card_catalog::models::CardDirection::Straight
+                }
+            };
+            for meaning in &source.meanings {
+                for translation in &meaning.word_translations {
+                    let translation = translation.trim().to_string();
+                    let inverted = Self::inverse_meaning(&source.word.text, &translation, meaning);
+                    if let Some((_, _, meanings)) =
+                        grouped.iter_mut().find(|(word, _, _)| word == &translation)
+                    {
+                        meanings.push(inverted);
+                    } else {
+                        grouped.push((translation, inverse_direction, vec![inverted]));
+                    }
+                }
+            }
+        }
+
+        let created_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|error| CardCatalogError::Unexpected(error.to_string()))?
+            .as_millis() as i64;
+        let mut pending = Vec::with_capacity(grouped.len());
+        for (word, inverse_direction, meanings) in grouped {
+            if let Some(mut existing) = self
+                .repository
+                .find_by_word(&query.user_id, &query.profile_id, &word)
+                .await
+                .map_err(Self::map_repository_error)?
+            {
+                let expected_version = existing.version;
+                existing.meanings.extend(meanings);
+                pending.push(PendingInverseCard {
+                    card: existing,
+                    expected_version: Some(expected_version),
+                });
+            } else {
+                let card = Self::new_card(
+                    query.profile_id.clone(),
+                    NewCard {
+                        // If different source directions share a translation, the first
+                        // occurrence determines the new card direction.
+                        direction: inverse_direction,
+                        word: Word {
+                            text: word,
+                            readings: Vec::new(),
+                        },
+                        meanings,
+                    },
+                    created_at,
+                )?;
+                pending.push(PendingInverseCard {
+                    card,
+                    expected_version: None,
+                });
+            }
+        }
+        Ok(pending)
+    }
+
+    async fn save_inverse_cards(
+        &self,
+        command: SaveInverseCardsCommand,
+    ) -> Result<Vec<Card>, CardCatalogError> {
+        if command.cards.is_empty() {
+            return Err(CardCatalogError::InvalidCard);
+        }
+        let cards = command
+            .cards
+            .into_iter()
+            .map(|mut pending| {
+                if pending.card.profile_id != command.profile_id {
+                    return Err(CardCatalogError::NotFound);
+                }
+                let (word, meanings) =
+                    Self::normalize_parts(pending.card.word, pending.card.meanings)?;
+                pending.card.word = word;
+                pending.card.meanings = meanings;
+                Ok(pending)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        self.repository
+            .save_inverse_batch(&command.user_id, &command.profile_id, cards)
+            .await
+            .map_err(Self::map_repository_error)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::HashMap,
+        collections::{HashMap, HashSet},
         sync::{Arc, Mutex},
     };
 
@@ -250,12 +383,14 @@ mod tests {
             cards: Vec<Card>,
         ) -> Result<Vec<Card>, CardRepositoryError> {
             let mut stored = self.cards.lock().unwrap();
+            let mut batch_words = HashSet::new();
             for card in &cards {
-                if stored.values().any(|existing| {
-                    existing.profile_id == card.profile_id
-                        && existing.direction == card.direction
-                        && existing.word.text == card.word.text
-                }) {
+                if !batch_words.insert((card.profile_id.clone(), card.word.text.clone()))
+                    || stored.values().any(|existing| {
+                        existing.profile_id == card.profile_id
+                            && existing.word.text == card.word.text
+                    })
+                {
                     return Err(CardRepositoryError::AlreadyExists);
                 }
             }
@@ -293,6 +428,21 @@ mod tests {
                 .cloned())
         }
 
+        async fn find_by_word(
+            &self,
+            _user_id: &UserId,
+            profile_id: &ProfileId,
+            word: &str,
+        ) -> Result<Option<Card>, CardRepositoryError> {
+            Ok(self
+                .cards
+                .lock()
+                .unwrap()
+                .values()
+                .find(|card| &card.profile_id == profile_id && card.word.text == word)
+                .cloned())
+        }
+
         async fn update(
             &self,
             _user_id: &UserId,
@@ -309,6 +459,36 @@ mod tests {
             card.version += 1;
             cards.insert(card.id.clone(), card.clone());
             Ok(card)
+        }
+
+        async fn save_inverse_batch(
+            &self,
+            _user_id: &UserId,
+            _profile_id: &ProfileId,
+            pending: Vec<PendingInverseCard>,
+        ) -> Result<Vec<Card>, CardRepositoryError> {
+            let mut cards = self.cards.lock().unwrap();
+            let mut saved = Vec::new();
+            for pending in pending {
+                let mut card = pending.card;
+                if let Some(version) = pending.expected_version {
+                    if cards
+                        .get(&card.id)
+                        .is_none_or(|existing| existing.version != version)
+                    {
+                        return Err(CardRepositoryError::Conflict);
+                    }
+                    card.version = version + 1;
+                } else if cards
+                    .values()
+                    .any(|existing| existing.word.text == card.word.text)
+                {
+                    return Err(CardRepositoryError::AlreadyExists);
+                }
+                cards.insert(card.id.clone(), card.clone());
+                saved.push(card);
+            }
+            Ok(saved)
         }
 
         async fn list_summaries(
@@ -385,6 +565,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rejects_duplicate_words_inside_a_batch_without_saving_anything() {
+        let repository = Arc::new(InMemoryRepository::default());
+        let service = CardCatalogService::new(repository.clone());
+        let mut reverse = new_card("same");
+        reverse.direction = CardDirection::Reverse;
+        let result = service
+            .create_cards(CreateCardsCommand {
+                user_id: UserId::new("alice"),
+                profile_id: ProfileId::new("profile"),
+                cards: vec![new_card("same"), reverse],
+            })
+            .await;
+        assert_eq!(result, Err(CardCatalogError::AlreadyExists));
+        assert!(repository.cards.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
     async fn preserves_direction_and_detects_stale_updates() {
         let service = CardCatalogService::new(Arc::new(InMemoryRepository::default()));
         let card = service
@@ -436,5 +633,113 @@ mod tests {
                 .text,
             "updated"
         );
+    }
+
+    #[tokio::test]
+    async fn prepares_and_saves_new_and_merged_inverse_cards() {
+        let service = CardCatalogService::new(Arc::new(InMemoryRepository::default()));
+        let source = service
+            .create_cards(CreateCardsCommand {
+                user_id: UserId::new("alice"),
+                profile_id: ProfileId::new("profile"),
+                cards: vec![NewCard {
+                    direction: CardDirection::Straight,
+                    word: Word {
+                        text: "hello".to_string(),
+                        readings: vec!["həˈləʊ".to_string()],
+                    },
+                    meanings: vec![Meaning {
+                        definition: "a greeting".to_string(),
+                        translated_definition: String::new(),
+                        word_translations: vec!["привет".to_string(), "здравствуй".to_string()],
+                        examples: vec![UsageExample {
+                            sentence: "Hello!".to_string(),
+                            translation: "Привет!".to_string(),
+                        }],
+                    }],
+                }],
+            })
+            .await
+            .unwrap()
+            .remove(0);
+        let existing = service
+            .create_cards(CreateCardsCommand {
+                user_id: UserId::new("alice"),
+                profile_id: ProfileId::new("profile"),
+                cards: vec![NewCard {
+                    direction: CardDirection::Reverse,
+                    word: Word {
+                        text: "привет".to_string(),
+                        readings: vec!["existing reading".to_string()],
+                    },
+                    meanings: vec![Meaning {
+                        definition: "existing".to_string(),
+                        translated_definition: String::new(),
+                        word_translations: vec!["existing translation".to_string()],
+                        examples: vec![],
+                    }],
+                }],
+            })
+            .await
+            .unwrap()
+            .remove(0);
+        let second_source = service
+            .create_cards(CreateCardsCommand {
+                user_id: UserId::new("alice"),
+                profile_id: ProfileId::new("profile"),
+                cards: vec![NewCard {
+                    direction: CardDirection::Straight,
+                    word: Word {
+                        text: "hi".to_string(),
+                        readings: vec![],
+                    },
+                    meanings: vec![Meaning {
+                        definition: "another greeting".to_string(),
+                        translated_definition: "ещё одно приветствие".to_string(),
+                        word_translations: vec!["привет".to_string()],
+                        examples: vec![],
+                    }],
+                }],
+            })
+            .await
+            .unwrap()
+            .remove(0);
+
+        let pending = service
+            .prepare_inverse_cards(PrepareInverseCardsQuery {
+                user_id: UserId::new("alice"),
+                profile_id: ProfileId::new("profile"),
+                source_card_ids: vec![source.id, second_source.id],
+            })
+            .await
+            .unwrap();
+        assert_eq!(pending.len(), 2);
+        assert_eq!(pending[0].card.id, existing.id);
+        assert_eq!(pending[0].expected_version, Some(0));
+        assert_eq!(pending[0].card.word.readings, vec!["existing reading"]);
+        assert_eq!(pending[0].card.meanings.len(), 3);
+        assert_eq!(pending[0].card.meanings[1].definition, "привет");
+        assert_eq!(
+            pending[0].card.meanings[1].examples[0],
+            UsageExample {
+                sentence: "Привет!".to_string(),
+                translation: "Hello!".to_string(),
+            }
+        );
+        assert_eq!(pending[0].card.meanings[2].word_translations, vec!["hi"]);
+        assert_eq!(pending[1].expected_version, None);
+        assert_eq!(pending[1].card.word.text, "здравствуй");
+        assert!(pending[1].card.word.readings.is_empty());
+
+        let saved = service
+            .save_inverse_cards(SaveInverseCardsCommand {
+                user_id: UserId::new("alice"),
+                profile_id: ProfileId::new("profile"),
+                cards: pending,
+            })
+            .await
+            .unwrap();
+        assert_eq!(saved[0].version, 1);
+        assert_eq!(saved[1].version, 0);
     }
 }

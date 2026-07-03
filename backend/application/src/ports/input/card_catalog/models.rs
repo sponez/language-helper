@@ -112,6 +112,27 @@ pub struct CreateCardsCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrepareInverseCardsQuery {
+    pub user_id: UserId,
+    pub profile_id: ProfileId,
+    pub source_card_ids: Vec<CardId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingInverseCard {
+    pub card: Card,
+    /// `None` creates a card; `Some(version)` updates an existing card.
+    pub expected_version: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaveInverseCardsCommand {
+    pub user_id: UserId,
+    pub profile_id: ProfileId,
+    pub cards: Vec<PendingInverseCard>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeleteCardsCommand {
     pub user_id: UserId,
     pub profile_id: ProfileId,
@@ -201,7 +222,7 @@ pub struct CardSelectionQuery {
 pub enum CardCatalogError {
     #[error("card data is invalid")]
     InvalidCard,
-    #[error("a card with this word and direction already exists")]
+    #[error("a card with this word already exists")]
     AlreadyExists,
     #[error("card was not found")]
     NotFound,

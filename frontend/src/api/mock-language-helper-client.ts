@@ -1,6 +1,7 @@
 import type {
   BackendStatus,
   Card,
+  CardMeaning,
   CardPage,
   CreateCardsInput,
   CreateLanguageProfileInput,
@@ -10,6 +11,9 @@ import type {
   ProfileSettings,
   SaveProfileSettingsInput,
   ListCardsInput,
+  PendingInverseCard,
+  PrepareInverseCardsInput,
+  SaveInverseCardsInput,
   UpdateCardInput,
 } from './language-helper-client'
 
@@ -182,21 +186,21 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
     if (!cards) {
       throw new Error('Language profile was not found.')
     }
+    const batchWords = new Set<string>()
     const created = input.cards.map((card) => {
+      const word = card.word.trim()
       if (
-        cards.some(
-          (existing) =>
-            existing.direction === card.direction &&
-            existing.word === card.word.trim(),
-        )
+        batchWords.has(word) ||
+        cards.some((existing) => existing.word === word)
       ) {
-        throw new Error('A card with this word and direction already exists.')
+        throw new Error('A card with this word already exists.')
       }
+      batchWords.add(word)
       return {
         ...structuredClone(card),
         id: crypto.randomUUID(),
         profileId: input.profileId,
-        word: card.word.trim(),
+        word,
         streak: 0,
         createdAt: Date.now(),
         version: 0,
@@ -215,9 +219,17 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
     if (cards[index].version !== input.expectedVersion) {
       throw new Error('Card was modified concurrently.')
     }
+    if (
+      cards.some(
+        (card, candidateIndex) =>
+          candidateIndex !== index && card.word === input.word.trim(),
+      )
+    ) {
+      throw new Error('A card with this word already exists.')
+    }
     cards[index] = {
       ...cards[index],
-      word: input.word,
+      word: input.word.trim(),
       readings: structuredClone(input.readings),
       meanings: structuredClone(input.meanings),
       version: input.expectedVersion + 1,
@@ -235,5 +247,111 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
     const deleted = cards.length - retained.length
     this.cards.set(input.profileId, retained)
     return deleted
+  }
+
+  async prepareInverseCards(
+    input: PrepareInverseCardsInput,
+  ): Promise<PendingInverseCard[]> {
+    const cards = this.cards.get(input.profileId)
+    const sources = input.sourceCardIds.map((sourceCardId) =>
+      cards?.find((card) => card.id === sourceCardId),
+    )
+    if (!cards || sources.length === 0 || sources.some((source) => !source)) {
+      throw new Error('Card was not found.')
+    }
+
+    const grouped = new Map<
+      string,
+      { direction: Card['direction']; meanings: CardMeaning[] }
+    >()
+    for (const source of sources) {
+      if (!source) continue
+      for (const meaning of source.meanings) {
+        for (const rawTranslation of meaning.wordTranslations) {
+          const translation = rawTranslation.trim()
+          const inverse: CardMeaning = {
+            definition: meaning.translatedDefinition.trim() || translation,
+            translatedDefinition: meaning.definition,
+            wordTranslations: [source.word],
+            examples: meaning.examples.map((example) => ({
+              sentence: example.translation,
+              translation: example.sentence,
+            })),
+          }
+          const current = grouped.get(translation)
+          grouped.set(translation, {
+            direction:
+              current?.direction ??
+              (source.direction === 'straight' ? 'reverse' : 'straight'),
+            meanings: [...(current?.meanings ?? []), inverse],
+          })
+        }
+      }
+    }
+
+    return [...grouped].map(([word, generated]) => {
+      const existing = cards.find((card) => card.word === word)
+      if (existing) {
+        return {
+          card: {
+            ...structuredClone(existing),
+            meanings: [
+              ...structuredClone(existing.meanings),
+              ...generated.meanings,
+            ],
+          },
+          expectedVersion: existing.version,
+        }
+      }
+      return {
+        card: {
+          id: crypto.randomUUID(),
+          profileId: input.profileId,
+          direction: generated.direction,
+          word,
+          readings: [],
+          meanings: generated.meanings,
+          streak: 0,
+          createdAt: Date.now(),
+          version: 0,
+        },
+        expectedVersion: null,
+      }
+    })
+  }
+
+  async saveInverseCards(input: SaveInverseCardsInput): Promise<Card[]> {
+    const cards = this.cards.get(input.profileId)
+    if (!cards || input.cards.length === 0) {
+      throw new Error('No inverse cards to save.')
+    }
+    const next = structuredClone(cards)
+    const saved: Card[] = []
+    for (const pending of input.cards) {
+      const index = next.findIndex((card) => card.id === pending.card.id)
+      if (pending.expectedVersion === null) {
+        if (next.some((card) => card.word === pending.card.word.trim())) {
+          throw new Error('A card with this word already exists.')
+        }
+        const card = structuredClone(pending.card)
+        card.word = card.word.trim()
+        next.push(card)
+        saved.push(card)
+      } else {
+        if (
+          index < 0 ||
+          next[index].version !== pending.expectedVersion
+        ) {
+          throw new Error('Card was modified concurrently.')
+        }
+        const card = structuredClone(pending.card)
+        card.word = card.word.trim()
+        card.version = pending.expectedVersion + 1
+        next[index] = card
+        saved.push(card)
+      }
+    }
+    this.cards.set(input.profileId, next)
+    return structuredClone(saved)
   }
 }

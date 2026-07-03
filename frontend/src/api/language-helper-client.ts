@@ -119,6 +119,23 @@ export interface DeleteCardsInput {
   cardIds: string[]
 }
 
+export interface PendingInverseCard {
+  card: Card
+  expectedVersion: number | null
+}
+
+export interface PrepareInverseCardsInput {
+  username: string
+  profileId: string
+  sourceCardIds: string[]
+}
+
+export interface SaveInverseCardsInput {
+  username: string
+  profileId: string
+  cards: PendingInverseCard[]
+}
+
 /**
  * Transport-independent boundary between React and the application backend.
  *
@@ -145,4 +162,8 @@ export interface LanguageHelperClient {
   createCards(input: CreateCardsInput): Promise<Card[]>
   updateCard(input: UpdateCardInput): Promise<Card>
   deleteCards(input: DeleteCardsInput): Promise<number>
+  prepareInverseCards(
+    input: PrepareInverseCardsInput,
+  ): Promise<PendingInverseCard[]>
+  saveInverseCards(input: SaveInverseCardsInput): Promise<Card[]>
 }

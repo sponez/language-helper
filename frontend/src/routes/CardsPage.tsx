@@ -33,6 +33,7 @@ import type {
   CardMeaning,
   CardSortField,
   NewCardInput,
+  PendingInverseCard,
   SortDirection,
 } from '../api/language-helper-client'
 import { useTranslations } from '../locales/TranslationProvider'
@@ -45,7 +46,7 @@ interface CardsPageProps {
   onBack(): void
 }
 
-type Screen = 'list' | 'show' | 'add'
+type Screen = 'list' | 'show' | 'add' | 'inverse-review'
 type EditSection = 'word' | 'readings' | 'meanings' | null
 
 function emptyMeaning(): CardMeaning {
@@ -54,6 +55,15 @@ function emptyMeaning(): CardMeaning {
     translatedDefinition: '',
     wordTranslations: [''],
     examples: [],
+  }
+}
+
+function emptyCard(): NewCardInput {
+  return {
+    direction: 'straight',
+    word: '',
+    readings: [],
+    meanings: [emptyMeaning()],
   }
 }
 
@@ -313,6 +323,7 @@ export function CardsPage({
   const viewport = useRef<HTMLDivElement>(null)
   const [screen, setScreen] = useState<Screen>('list')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+  const [inverseCards, setInverseCards] = useState<PendingInverseCard[]>([])
   const [search, setSearch] = useState('')
   const [debouncedSearch] = useDebouncedValue(search, 250)
   const [direction, setDirection] = useState<CardDirection | null>(null)
@@ -404,6 +415,31 @@ export function CardsPage({
         onCancel={() => setScreen('list')}
         onCreated={async () => {
           resetFilters()
+          setScreen('list')
+          await queryClient.invalidateQueries({
+            queryKey: ['cards', username, profileId],
+          })
+        }}
+        onReview={async (pending) => {
+          resetFilters()
+          setInverseCards(pending)
+          setScreen('inverse-review')
+          await queryClient.invalidateQueries({
+            queryKey: ['cards', username, profileId],
+          })
+        }}
+      />
+    )
+  }
+
+  if (screen === 'inverse-review') {
+    return (
+      <InverseCardsReview
+        initialCards={inverseCards}
+        profileId={profileId}
+        username={username}
+        onDone={async () => {
+          setInverseCards([])
           setScreen('list')
           await queryClient.invalidateQueries({
             queryKey: ['cards', username, profileId],
@@ -935,37 +971,268 @@ function CardDetails({
   )
 }
 
+function InverseCardsReview({
+  username,
+  profileId,
+  initialCards,
+  onDone,
+}: {
+  username: string
+  profileId: string
+  initialCards: PendingInverseCard[]
+  onDone(): Promise<void>
+}) {
+  const client = useLanguageHelperClient()
+  const { t } = useTranslations()
+  const [pending, setPending] = useState(() => structuredClone(initialCards))
+  const [editing, setEditing] = useState<PendingInverseCard | null>(null)
+  const [submitted, setSubmitted] = useState(false)
+
+  const saveOne = useMutation({
+    mutationFn: (card: PendingInverseCard) =>
+      client.saveInverseCards({ username, profileId, cards: [card] }),
+    onSuccess: async (_, saved) => {
+      const remaining = pending.filter(
+        (candidate) => candidate.card.id !== saved.card.id,
+      )
+      setPending(remaining)
+      setEditing(null)
+      if (remaining.length === 0) await onDone()
+    },
+  })
+  const saveAll = useMutation({
+    mutationFn: () =>
+      client.saveInverseCards({ username, profileId, cards: pending }),
+    onSuccess: onDone,
+  })
+
+  const draft = editing?.card
+  const validationError = draft
+    ? validateCard({
+        direction: draft.direction,
+        word: draft.word,
+        readings: draft.readings,
+        meanings: draft.meanings,
+      })
+    : null
+
+  return (
+    <Stack className={classes.details} gap="md">
+      <Title order={2} ta="center">
+        {t('cards.inverseReviewTitle')}
+      </Title>
+      <Text c="dimmed" ta="center">
+        {t('cards.inverseReviewDescription')}
+      </Text>
+      <ScrollArea className={classes.inverseList} type="auto">
+        <Stack gap="xs" p="xs">
+          {pending.map((candidate) => (
+            <Button
+              key={candidate.card.id}
+              className={classes.inverseCardButton}
+              justify="space-between"
+              variant="default"
+              onClick={() => {
+                setSubmitted(false)
+                saveOne.reset()
+                setEditing(structuredClone(candidate))
+              }}
+            >
+              <span>{candidate.card.word}</span>
+              <Badge variant="light">
+                {candidate.expectedVersion === null
+                  ? t('cards.inverseCreated')
+                  : t('cards.inverseUpdated')}
+              </Badge>
+            </Button>
+          ))}
+        </Stack>
+      </ScrollArea>
+      {saveAll.isError && (
+        <Alert color="red" title={t('cards.inverseSaveError')}>
+          {saveAll.error.message}
+        </Alert>
+      )}
+      <Group justify="center">
+        <Button
+          loading={saveAll.isPending}
+          onClick={() => saveAll.mutate()}
+        >
+          {t('cards.saveWithoutReview')}
+        </Button>
+        <Button
+          disabled={saveAll.isPending}
+          variant="default"
+          onClick={() => void onDone()}
+        >
+          {t('cards.cancel')}
+        </Button>
+      </Group>
+
+      <Modal
+        opened={editing !== null}
+        size="lg"
+        title={t('cards.editInverseTitle')}
+        onClose={() => setEditing(null)}
+      >
+        {editing && draft && (
+          <Stack>
+            <Badge>{t(`cards.${draft.direction}`)}</Badge>
+            <TextInput
+              label={t('cards.word')}
+              value={draft.word}
+              onChange={(event) =>
+                setEditing({
+                  ...editing,
+                  card: { ...draft, word: event.currentTarget.value },
+                })
+              }
+            />
+            <Paper p="md" withBorder>
+              <StringListEditor
+                addLabel={t('cards.addReading')}
+                label={t('cards.readings')}
+                values={draft.readings}
+                onChange={(readings) =>
+                  setEditing({
+                    ...editing,
+                    card: { ...draft, readings },
+                  })
+                }
+              />
+            </Paper>
+            <MeaningsEditor
+              meanings={draft.meanings}
+              onChange={(meanings) =>
+                setEditing({
+                  ...editing,
+                  card: { ...draft, meanings },
+                })
+              }
+            />
+            {submitted && validationError && (
+              <Alert color="red">{t(validationError)}</Alert>
+            )}
+            {saveOne.isError && (
+              <Alert color="red" title={t('cards.inverseSaveError')}>
+                {saveOne.error.message}
+              </Alert>
+            )}
+            <Group justify="flex-end">
+              <Button
+                loading={saveOne.isPending}
+                onClick={() => {
+                  setSubmitted(true)
+                  if (!validationError) saveOne.mutate(editing)
+                }}
+              >
+                {t('cards.save')}
+              </Button>
+              <Button
+                disabled={saveOne.isPending}
+                variant="default"
+                onClick={() => setEditing(null)}
+              >
+                {t('cards.cancel')}
+              </Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
+    </Stack>
+  )
+}
+
 function AddCard({
   username,
   profileId,
   onCancel,
   onCreated,
+  onReview,
 }: {
   username: string
   profileId: string
   onCancel(): void
   onCreated(): Promise<void>
+  onReview(cards: PendingInverseCard[]): Promise<void>
 }) {
   const client = useLanguageHelperClient()
   const { t } = useTranslations()
-  const [direction, setDirection] = useState<CardDirection>('straight')
-  const [word, setWord] = useState('')
-  const [readings, setReadings] = useState<string[]>([])
-  const [meanings, setMeanings] = useState<CardMeaning[]>([emptyMeaning()])
+  const [drafts, setDrafts] = useState<NewCardInput[]>([emptyCard()])
+  const [activeIndex, setActiveIndex] = useState(0)
   const [submitted, setSubmitted] = useState(false)
+  const [createdCards, setCreatedCards] = useState<Card[] | null>(null)
 
   const create = useMutation({
-    mutationFn: (card: NewCardInput) =>
-      client.createCards({ username, profileId, cards: [card] }),
-    onSuccess: onCreated,
+    mutationFn: (cards: NewCardInput[]) =>
+      client.createCards({ username, profileId, cards }),
+    onSuccess: setCreatedCards,
   })
-  const draft: NewCardInput = { direction, word, readings, meanings }
-  const validationError = validateCard(draft)
+  const prepareInverse = useMutation({
+    mutationFn: (sourceCardIds: string[]) =>
+      client.prepareInverseCards({ username, profileId, sourceCardIds }),
+    onSuccess: onReview,
+  })
+
+  const draft = drafts[activeIndex]
+
+  function draftError(index: number) {
+    const validationError = validateCard(drafts[index])
+    if (validationError) return validationError
+    const word = drafts[index].word.trim()
+    if (
+      drafts.some(
+        (candidate, candidateIndex) =>
+          candidateIndex !== index && candidate.word.trim() === word,
+      )
+    ) {
+      return 'cards.duplicateDraft'
+    }
+    return null
+  }
+
+  function changeDraft(changes: Partial<NewCardInput>) {
+    setDrafts((current) =>
+      current.map((candidate, index) =>
+        index === activeIndex ? { ...candidate, ...changes } : candidate,
+      ),
+    )
+    create.reset()
+  }
+
+  function addDraft() {
+    if (draftError(activeIndex)) {
+      setSubmitted(true)
+      return
+    }
+    setDrafts((current) => [...current, emptyCard()])
+    setActiveIndex(drafts.length)
+    setSubmitted(false)
+  }
+
+  function removeDraft(index: number) {
+    if (drafts.length === 1) return
+    setDrafts((current) =>
+      current.filter((_, candidateIndex) => candidateIndex !== index),
+    )
+    setActiveIndex((current) => {
+      if (current > index) return current - 1
+      if (current === index) return Math.max(0, current - 1)
+      return current
+    })
+    setSubmitted(false)
+    create.reset()
+  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSubmitted(true)
-    if (!validationError) create.mutate(draft)
+    const invalidIndex = drafts.findIndex((_, index) => draftError(index))
+    if (invalidIndex >= 0) {
+      setActiveIndex(invalidIndex)
+      return
+    }
+    create.mutate(drafts)
   }
 
   return (
@@ -974,6 +1241,44 @@ function AddCard({
         <Title order={2} ta="center">
           {t('cards.addTitle')}
         </Title>
+        <Paper p="sm" withBorder>
+          <ScrollArea.Autosize mah={220} type="auto">
+            <Stack gap="xs">
+              {drafts.map((candidate, index) => (
+                <div key={index} className={classes.cardDraftRow}>
+                  <Button
+                    className={classes.cardDraftButton}
+                    color={draftError(index) && submitted ? 'red' : undefined}
+                    justify="space-between"
+                    type="button"
+                    variant={index === activeIndex ? 'light' : 'subtle'}
+                    onClick={() => {
+                      setActiveIndex(index)
+                      setSubmitted(false)
+                    }}
+                  >
+                    <span>
+                      {index + 1}.{' '}
+                      {candidate.word.trim() || t('cards.untitledDraft')}
+                    </span>
+                    <Badge variant="light">
+                      {t(`cards.${candidate.direction}`)}
+                    </Badge>
+                  </Button>
+                  <ActionIcon
+                    aria-label={t('cards.removeDraft')}
+                    color="red"
+                    disabled={drafts.length === 1}
+                    variant="subtle"
+                    onClick={() => removeDraft(index)}
+                  >
+                    ×
+                  </ActionIcon>
+                </div>
+              ))}
+            </Stack>
+          </ScrollArea.Autosize>
+        </Paper>
         <Select
           allowDeselect={false}
           data={[
@@ -981,27 +1286,32 @@ function AddCard({
             { value: 'reverse', label: t('cards.reverse') },
           ]}
           label={t('cards.direction')}
-          value={direction}
+          value={draft.direction}
           onChange={(value) =>
-            setDirection((value ?? 'straight') as CardDirection)
+            changeDraft({
+              direction: (value ?? 'straight') as CardDirection,
+            })
           }
         />
         <TextInput
           label={t('cards.word')}
-          value={word}
-          onChange={(event) => setWord(event.currentTarget.value)}
+          value={draft.word}
+          onChange={(event) => changeDraft({ word: event.currentTarget.value })}
         />
         <Paper p="md" withBorder>
           <StringListEditor
             addLabel={t('cards.addReading')}
             label={t('cards.readings')}
-            values={readings}
-            onChange={setReadings}
+            values={draft.readings}
+            onChange={(readings) => changeDraft({ readings })}
           />
         </Paper>
-        <MeaningsEditor meanings={meanings} onChange={setMeanings} />
-        {submitted && validationError && (
-          <Alert color="red">{t(validationError)}</Alert>
+        <MeaningsEditor
+          meanings={draft.meanings}
+          onChange={(meanings) => changeDraft({ meanings })}
+        />
+        {submitted && draftError(activeIndex) && (
+          <Alert color="red">{t(draftError(activeIndex)!)}</Alert>
         )}
         {create.isError && (
           <Alert color="red" title={t('cards.createError')}>
@@ -1009,20 +1319,64 @@ function AddCard({
           </Alert>
         )}
         <Group justify="center">
-          <Button loading={create.isPending} type="submit" w={140}>
-            {t('cards.create')}
+          <Button
+            disabled={Boolean(draftError(activeIndex)) || create.isPending}
+            type="button"
+            variant="light"
+            onClick={addDraft}
+          >
+            {t('cards.addAnother')}
+          </Button>
+          <Button loading={create.isPending} type="submit">
+            {t('cards.createCards')} ({drafts.length})
           </Button>
           <Button
             disabled={create.isPending}
             type="button"
             variant="default"
-            w={140}
             onClick={onCancel}
           >
             {t('cards.cancel')}
           </Button>
         </Group>
       </Stack>
+      <Modal
+        centered
+        closeOnClickOutside={false}
+        closeOnEscape={false}
+        opened={createdCards !== null}
+        title={t('cards.createInverseTitle')}
+        withCloseButton={false}
+        onClose={() => undefined}
+      >
+        <Stack>
+          <Text>{t('cards.createInverseDescription')}</Text>
+          {prepareInverse.isError && (
+            <Alert color="red" title={t('cards.inversePrepareError')}>
+              {prepareInverse.error.message}
+            </Alert>
+          )}
+          <Group justify="flex-end">
+            <Button
+              loading={prepareInverse.isPending}
+              onClick={() => {
+                if (createdCards) {
+                  prepareInverse.mutate(createdCards.map((card) => card.id))
+                }
+              }}
+            >
+              {t('cards.createInverse')}
+            </Button>
+            <Button
+              disabled={prepareInverse.isPending}
+              variant="default"
+              onClick={() => void onCreated()}
+            >
+              {t('cards.skipInverse')}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </form>
   )
 }

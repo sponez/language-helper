@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 
 use crate::ports::input::{
-    card_catalog::models::{Card, CardId, CardPage, CardSelectionQuery, ListCardsQuery},
+    card_catalog::models::{
+        Card, CardId, CardPage, CardSelectionQuery, ListCardsQuery, PendingInverseCard,
+    },
     language_profile::models::ProfileId,
     local_user::models::UserId,
 };
@@ -36,12 +38,27 @@ pub trait CardRepository: Send + Sync {
         card_id: &CardId,
     ) -> Result<Option<Card>, CardRepositoryError>;
 
+    async fn find_by_word(
+        &self,
+        user_id: &UserId,
+        profile_id: &ProfileId,
+        word: &str,
+    ) -> Result<Option<Card>, CardRepositoryError>;
+
     async fn update(
         &self,
         user_id: &UserId,
         card: Card,
         expected_version: u64,
     ) -> Result<Card, CardRepositoryError>;
+
+    /// Atomically inserts new inverse cards and updates existing ones.
+    async fn save_inverse_batch(
+        &self,
+        user_id: &UserId,
+        profile_id: &ProfileId,
+        cards: Vec<PendingInverseCard>,
+    ) -> Result<Vec<Card>, CardRepositoryError>;
 
     async fn list_summaries(&self, query: ListCardsQuery) -> Result<CardPage, CardRepositoryError>;
 

@@ -2,7 +2,8 @@ use async_trait::async_trait;
 
 use self::models::{
     Card, CardCatalogError, CardPage, CreateCardsCommand, DeleteCardsCommand, DeleteCardsResult,
-    GetCardQuery, ListCardsQuery, UpdateCardCommand,
+    GetCardQuery, ListCardsQuery, PendingInverseCard, PrepareInverseCardsQuery,
+    SaveInverseCardsCommand, UpdateCardCommand,
 };
 
 pub mod models;
@@ -25,4 +26,14 @@ pub trait CardCatalogUsecase: Send + Sync {
     async fn get_card(&self, query: GetCardQuery) -> Result<Card, CardCatalogError>;
 
     async fn update_card(&self, command: UpdateCardCommand) -> Result<Card, CardCatalogError>;
+
+    async fn prepare_inverse_cards(
+        &self,
+        query: PrepareInverseCardsQuery,
+    ) -> Result<Vec<PendingInverseCard>, CardCatalogError>;
+
+    async fn save_inverse_cards(
+        &self,
+        command: SaveInverseCardsCommand,
+    ) -> Result<Vec<Card>, CardCatalogError>;
 }

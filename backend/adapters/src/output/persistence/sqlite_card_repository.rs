@@ -8,8 +8,8 @@ use application::ports::{
     input::{
         card_catalog::models::{
             Card, CardDirection, CardId, CardListCursor, CardMastery, CardOrder, CardPage,
-            CardSelectionQuery, CardSortField, CardSummary, ListCardsQuery, Meaning, SortDirection,
-            UsageExample, Word,
+            CardSelectionQuery, CardSortField, CardSummary, ListCardsQuery, Meaning,
+            PendingInverseCard, SortDirection, UsageExample, Word,
         },
         language_profile::models::ProfileId,
         local_user::models::UserId,
@@ -17,7 +17,9 @@ use application::ports::{
     output::repository::card::{CardRepository, models::CardRepositoryError},
 };
 use async_trait::async_trait;
-use rusqlite::{Connection, ErrorCode, Transaction, params, params_from_iter, types::Value};
+use rusqlite::{
+    Connection, ErrorCode, OptionalExtension, Transaction, params, params_from_iter, types::Value,
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -72,7 +74,7 @@ impl SqliteCardRepository {
                     created_at INTEGER NOT NULL,
                     version INTEGER NOT NULL DEFAULT 0,
                     FOREIGN KEY (profile_id) REFERENCES language_profiles(id) ON DELETE CASCADE,
-                    UNIQUE (profile_id, direction, word)
+                    UNIQUE (profile_id, word)
                 );
 
                 CREATE TABLE IF NOT EXISTS card_readings (
@@ -268,6 +270,7 @@ impl SqliteCardRepository {
     }
 
     fn insert_card(transaction: &Transaction<'_>, card: &Card) -> Result<(), CardRepositoryError> {
+        Self::ensure_word_available(transaction, &card.profile_id, &card.word.text, None)?;
         transaction
             .execute(
                 "INSERT INTO cards (
@@ -288,6 +291,84 @@ impl SqliteCardRepository {
             )
             .map_err(Self::map_sqlite_error)?;
         Self::insert_children(transaction, card)
+    }
+
+    fn ensure_word_available(
+        connection: &Connection,
+        profile_id: &ProfileId,
+        word: &str,
+        excluded_card_id: Option<&CardId>,
+    ) -> Result<(), CardRepositoryError> {
+        let exists = match excluded_card_id {
+            Some(card_id) => connection.query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM cards
+                    WHERE profile_id = ?1 AND word = ?2 AND id <> ?3
+                )",
+                params![profile_id.as_str(), word, card_id.as_str()],
+                |row| row.get::<_, bool>(0),
+            ),
+            None => connection.query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM cards WHERE profile_id = ?1 AND word = ?2
+                )",
+                params![profile_id.as_str(), word],
+                |row| row.get::<_, bool>(0),
+            ),
+        }
+        .map_err(Self::map_sqlite_error)?;
+        if exists {
+            Err(CardRepositoryError::AlreadyExists)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn update_card_in_transaction(
+        transaction: &Transaction<'_>,
+        mut card: Card,
+        expected_version: u64,
+    ) -> Result<Card, CardRepositoryError> {
+        Self::ensure_word_available(
+            transaction,
+            &card.profile_id,
+            &card.word.text,
+            Some(&card.id),
+        )?;
+        let affected = transaction
+            .execute(
+                "UPDATE cards
+                 SET word = ?1, word_sort_key = ?2, search_text = ?3,
+                     version = version + 1
+                 WHERE id = ?4 AND profile_id = ?5 AND version = ?6",
+                params![
+                    card.word.text,
+                    card.word.text.to_lowercase(),
+                    Self::normalized_search_text(&card.word),
+                    card.id.as_str(),
+                    card.profile_id.as_str(),
+                    expected_version,
+                ],
+            )
+            .map_err(Self::map_sqlite_error)?;
+        if affected == 0 {
+            return Err(CardRepositoryError::Conflict);
+        }
+        transaction
+            .execute(
+                "DELETE FROM card_readings WHERE card_id = ?1",
+                params![card.id.as_str()],
+            )
+            .map_err(Self::map_sqlite_error)?;
+        transaction
+            .execute(
+                "DELETE FROM card_meanings WHERE card_id = ?1",
+                params![card.id.as_str()],
+            )
+            .map_err(Self::map_sqlite_error)?;
+        Self::insert_children(transaction, &card)?;
+        card.version = expected_version + 1;
+        Ok(card)
     }
 
     fn read_card(connection: &Connection, card_id: &CardId) -> Result<Card, CardRepositoryError> {
@@ -511,6 +592,38 @@ impl CardRepository for SqliteCardRepository {
         .map_err(Self::map_join_error)?
     }
 
+    async fn find_by_word(
+        &self,
+        user_id: &UserId,
+        profile_id: &ProfileId,
+        word: &str,
+    ) -> Result<Option<Card>, CardRepositoryError> {
+        let repository = self.clone();
+        let user_id = user_id.clone();
+        let profile_id = profile_id.clone();
+        let word = word.to_string();
+        tokio::task::spawn_blocking(move || {
+            let connection = repository.lock_connection()?;
+            if !Self::profile_belongs_to_user(&connection, &user_id, &profile_id)? {
+                return Err(CardRepositoryError::NotFound);
+            }
+            let card_id = connection
+                .query_row(
+                    "SELECT id FROM cards WHERE profile_id = ?1 AND word = ?2",
+                    params![profile_id.as_str(), word],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()
+                .map_err(Self::map_sqlite_error)?;
+            card_id
+                .map(CardId::new)
+                .map(|card_id| Self::read_card(&connection, &card_id))
+                .transpose()
+        })
+        .await
+        .map_err(Self::map_join_error)?
+    }
+
     async fn update(
         &self,
         user_id: &UserId,
@@ -525,41 +638,47 @@ impl CardRepository for SqliteCardRepository {
                 return Err(CardRepositoryError::NotFound);
             }
             let transaction = connection.transaction().map_err(Self::map_sqlite_error)?;
-            let affected = transaction
-                .execute(
-                    "UPDATE cards
-                     SET word = ?1, word_sort_key = ?2, search_text = ?3,
-                         version = version + 1
-                     WHERE id = ?4 AND profile_id = ?5 AND version = ?6",
-                    params![
-                        card.word.text,
-                        card.word.text.to_lowercase(),
-                        Self::normalized_search_text(&card.word),
-                        card.id.as_str(),
-                        card.profile_id.as_str(),
-                        expected_version,
-                    ],
-                )
-                .map_err(Self::map_sqlite_error)?;
-            if affected == 0 {
-                return Err(CardRepositoryError::Conflict);
-            }
-            transaction
-                .execute(
-                    "DELETE FROM card_readings WHERE card_id = ?1",
-                    params![card.id.as_str()],
-                )
-                .map_err(Self::map_sqlite_error)?;
-            transaction
-                .execute(
-                    "DELETE FROM card_meanings WHERE card_id = ?1",
-                    params![card.id.as_str()],
-                )
-                .map_err(Self::map_sqlite_error)?;
-            Self::insert_children(&transaction, &card)?;
+            card = Self::update_card_in_transaction(&transaction, card, expected_version)?;
             transaction.commit().map_err(Self::map_sqlite_error)?;
-            card.version = expected_version + 1;
             Ok(card)
+        })
+        .await
+        .map_err(Self::map_join_error)?
+    }
+
+    async fn save_inverse_batch(
+        &self,
+        user_id: &UserId,
+        profile_id: &ProfileId,
+        cards: Vec<PendingInverseCard>,
+    ) -> Result<Vec<Card>, CardRepositoryError> {
+        let repository = self.clone();
+        let user_id = user_id.clone();
+        let profile_id = profile_id.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut connection = repository.lock_connection()?;
+            if !Self::profile_belongs_to_user(&connection, &user_id, &profile_id)? {
+                return Err(CardRepositoryError::NotFound);
+            }
+            let transaction = connection.transaction().map_err(Self::map_sqlite_error)?;
+            let mut saved = Vec::with_capacity(cards.len());
+            for pending in cards {
+                if pending.card.profile_id != profile_id {
+                    return Err(CardRepositoryError::NotFound);
+                }
+                let card = match pending.expected_version {
+                    Some(version) => {
+                        Self::update_card_in_transaction(&transaction, pending.card, version)?
+                    }
+                    None => {
+                        Self::insert_card(&transaction, &pending.card)?;
+                        pending.card
+                    }
+                };
+                saved.push(card);
+            }
+            transaction.commit().map_err(Self::map_sqlite_error)?;
+            Ok(saved)
         })
         .await
         .map_err(Self::map_join_error)?
@@ -889,6 +1008,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn keeps_words_unique_across_directions() {
+        let (_directory, _database_path, repository) = setup().await;
+        repository
+            .insert_batch(
+                &UserId::new("alice"),
+                &ProfileId::new("profile"),
+                vec![card(
+                    "straight",
+                    "same",
+                    "reading",
+                    CardDirection::Straight,
+                    0,
+                    1,
+                )],
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            repository
+                .insert_batch(
+                    &UserId::new("alice"),
+                    &ProfileId::new("profile"),
+                    vec![card("reverse", "same", "", CardDirection::Reverse, 0, 2,)],
+                )
+                .await,
+            Err(CardRepositoryError::AlreadyExists)
+        );
+        assert_eq!(
+            repository
+                .find_by_word(&UserId::new("alice"), &ProfileId::new("profile"), "same",)
+                .await
+                .unwrap()
+                .unwrap()
+                .id,
+            CardId::new("straight")
+        );
+    }
+
+    #[tokio::test]
     async fn filters_sorts_and_paginates_with_stable_cursors() {
         let (_directory, _database_path, repository) = setup().await;
         let cards = vec![
@@ -953,10 +1111,31 @@ mod tests {
                 .insert_batch(
                     &UserId::new("alice"),
                     &ProfileId::new("profile"),
-                    vec![card("two", "word", "other", CardDirection::Straight, 0, 2,)],
+                    vec![
+                        card(
+                            "new-before-conflict",
+                            "new word",
+                            "new",
+                            CardDirection::Straight,
+                            0,
+                            2,
+                        ),
+                        card("two", "word", "other", CardDirection::Straight, 0, 3),
+                    ],
                 )
                 .await,
             Err(CardRepositoryError::AlreadyExists)
+        );
+        assert!(
+            repository
+                .find(
+                    &UserId::new("alice"),
+                    &ProfileId::new("profile"),
+                    &CardId::new("new-before-conflict"),
+                )
+                .await
+                .unwrap()
+                .is_none()
         );
         assert_eq!(
             repository

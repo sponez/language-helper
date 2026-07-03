@@ -4,7 +4,8 @@ use application::ports::input::{
         models::{
             Card, CardChanges, CardDirection, CardId, CardListCursor, CardMastery, CardSortField,
             CreateCardsCommand, DeleteCardsCommand, GetCardQuery, ListCardsQuery, Meaning, NewCard,
-            SortDirection, UpdateCardCommand, UsageExample, Word,
+            PendingInverseCard, PrepareInverseCardsQuery, SaveInverseCardsCommand, SortDirection,
+            UpdateCardCommand, UsageExample, Word,
         },
     },
     language_profile::models::ProfileId,
@@ -40,7 +41,7 @@ pub struct NewCardDto {
     meanings: Vec<MeaningDto>,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CardDto {
     id: String,
@@ -115,6 +116,29 @@ pub struct DeleteCardsDto {
     card_ids: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrepareInverseCardsDto {
+    username: String,
+    profile_id: String,
+    source_card_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingInverseCardDto {
+    card: CardDto,
+    expected_version: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveInverseCardsDto {
+    username: String,
+    profile_id: String,
+    cards: Vec<PendingInverseCardDto>,
+}
+
 fn parse_direction(value: &str) -> Result<CardDirection, CommandError> {
     match value {
         "straight" => Ok(CardDirection::Straight),
@@ -178,6 +202,22 @@ impl From<Card> for CardDto {
             version: card.version,
         }
     }
+}
+
+fn map_card(dto: CardDto) -> Result<Card, CommandError> {
+    Ok(Card {
+        id: CardId::new(dto.id),
+        profile_id: ProfileId::new(dto.profile_id),
+        direction: parse_direction(&dto.direction)?,
+        word: Word {
+            text: dto.word,
+            readings: dto.readings,
+        },
+        meanings: dto.meanings.into_iter().map(map_meaning).collect(),
+        streak: dto.streak,
+        created_at: dto.created_at,
+        version: dto.version,
+    })
 }
 
 async fn browse_cards(
@@ -380,6 +420,70 @@ pub async fn delete_cards(
     remove_cards(state.cards().as_ref(), command).await
 }
 
+async fn prepare_inverses(
+    usecase: &dyn CardCatalogUsecase,
+    query: PrepareInverseCardsDto,
+) -> Result<Vec<PendingInverseCardDto>, CommandError> {
+    usecase
+        .prepare_inverse_cards(PrepareInverseCardsQuery {
+            user_id: UserId::new(query.username),
+            profile_id: ProfileId::new(query.profile_id),
+            source_card_ids: query.source_card_ids.into_iter().map(CardId::new).collect(),
+        })
+        .await
+        .map(|cards| {
+            cards
+                .into_iter()
+                .map(|pending| PendingInverseCardDto {
+                    card: pending.card.into(),
+                    expected_version: pending.expected_version,
+                })
+                .collect()
+        })
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn prepare_inverse_cards(
+    state: State<'_, DesktopState>,
+    query: PrepareInverseCardsDto,
+) -> Result<Vec<PendingInverseCardDto>, CommandError> {
+    prepare_inverses(state.cards().as_ref(), query).await
+}
+
+async fn save_inverses(
+    usecase: &dyn CardCatalogUsecase,
+    command: SaveInverseCardsDto,
+) -> Result<Vec<CardDto>, CommandError> {
+    let cards = command
+        .cards
+        .into_iter()
+        .map(|pending| {
+            Ok(PendingInverseCard {
+                card: map_card(pending.card)?,
+                expected_version: pending.expected_version,
+            })
+        })
+        .collect::<Result<Vec<_>, CommandError>>()?;
+    usecase
+        .save_inverse_cards(SaveInverseCardsCommand {
+            user_id: UserId::new(command.username),
+            profile_id: ProfileId::new(command.profile_id),
+            cards,
+        })
+        .await
+        .map(|cards| cards.into_iter().map(Into::into).collect())
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn save_inverse_cards(
+    state: State<'_, DesktopState>,
+    command: SaveInverseCardsDto,
+) -> Result<Vec<CardDto>, CommandError> {
+    save_inverses(state.cards().as_ref(), command).await
+}
+
 #[cfg(test)]
 mod tests {
     use application::ports::input::{
@@ -432,17 +536,24 @@ mod tests {
             CreateCardsDto {
                 username: "alice".to_string(),
                 profile_id: profile.id.as_str().to_string(),
-                cards: vec![NewCardDto {
-                    direction: "straight".to_string(),
-                    word: "word".to_string(),
-                    readings: vec!["reading".to_string()],
-                    meanings: vec![meaning("definition")],
-                }],
+                cards: vec![
+                    NewCardDto {
+                        direction: "straight".to_string(),
+                        word: "word".to_string(),
+                        readings: vec!["reading".to_string()],
+                        meanings: vec![meaning("definition")],
+                    },
+                    NewCardDto {
+                        direction: "straight".to_string(),
+                        word: "second word".to_string(),
+                        readings: vec![],
+                        meanings: vec![meaning("second definition")],
+                    },
+                ],
             },
         )
         .await
-        .unwrap()
-        .remove(0);
+        .unwrap();
 
         let page = browse_cards(
             bridge.cards().as_ref(),
@@ -462,15 +573,41 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(page.items[0].word, "word");
+        assert_eq!(page.items.len(), 2);
+        assert!(page.items.iter().any(|card| card.word == "word"));
+
+        let pending = prepare_inverses(
+            bridge.cards().as_ref(),
+            PrepareInverseCardsDto {
+                username: "alice".to_string(),
+                profile_id: profile.id.as_str().to_string(),
+                source_card_ids: created.iter().map(|card| card.id.clone()).collect(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].card.word, "translation");
+        assert_eq!(pending[0].card.meanings.len(), 2);
+        let inverses = save_inverses(
+            bridge.cards().as_ref(),
+            SaveInverseCardsDto {
+                username: "alice".to_string(),
+                profile_id: profile.id.as_str().to_string(),
+                cards: pending,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(inverses[0].direction, "reverse");
 
         let updated = change_card(
             bridge.cards().as_ref(),
             UpdateCardDto {
                 username: "alice".to_string(),
                 profile_id: profile.id.as_str().to_string(),
-                card_id: created.id.clone(),
-                expected_version: created.version,
+                card_id: created[0].id.clone(),
+                expected_version: created[0].version,
                 word: "updated".to_string(),
                 readings: vec![],
                 meanings: vec![meaning("updated definition")],
@@ -486,7 +623,7 @@ mod tests {
             reopened.cards().as_ref(),
             "alice".to_string(),
             profile.id.as_str().to_string(),
-            created.id.clone(),
+            created[0].id.clone(),
         )
         .await
         .unwrap();
@@ -497,7 +634,7 @@ mod tests {
                 DeleteCardsDto {
                     username: "alice".to_string(),
                     profile_id: profile.id.as_str().to_string(),
-                    card_ids: vec![created.id],
+                    card_ids: vec![created[0].id.clone()],
                 },
             )
             .await

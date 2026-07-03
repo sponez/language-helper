@@ -12,6 +12,9 @@ import type {
   ProfileSettings,
   SaveProfileSettingsInput,
   ListCardsInput,
+  PendingInverseCard,
+  PrepareInverseCardsInput,
+  SaveInverseCardsInput,
   UpdateCardInput,
 } from './language-helper-client'
 
@@ -83,5 +86,17 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
 
   deleteCards(input: DeleteCardsInput): Promise<number> {
     return invoke<number>('delete_cards', { command: input })
+  }
+
+  prepareInverseCards(
+    input: PrepareInverseCardsInput,
+  ): Promise<PendingInverseCard[]> {
+    return invoke<PendingInverseCard[]>('prepare_inverse_cards', {
+      query: input,
+    })
+  }
+
+  saveInverseCards(input: SaveInverseCardsInput): Promise<Card[]> {
+    return invoke<Card[]>('save_inverse_cards', { command: input })
   }
 }
