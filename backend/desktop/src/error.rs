@@ -1,7 +1,7 @@
 use application::ports::input::{
     card_catalog::models::CardCatalogError, card_normalization::models::CardNormalizationError,
-    language_profile::models::LanguageProfileError, local_user::models::LocalUserError,
-    study_session::models::StudySessionError,
+    card_speech::models::CardSpeechError, language_profile::models::LanguageProfileError,
+    local_user::models::LocalUserError, study_session::models::StudySessionError,
 };
 use serde::Serialize;
 
@@ -9,6 +9,24 @@ use serde::Serialize;
 pub struct CommandError {
     code: &'static str,
     message: String,
+}
+
+impl From<CardSpeechError> for CommandError {
+    fn from(error: CardSpeechError) -> Self {
+        let code = match &error {
+            CardSpeechError::ProfileNotFound => "language_profile_not_found",
+            CardSpeechError::CardNotFound => "card_not_found",
+            CardSpeechError::NotConfigured => "ai_not_configured",
+            CardSpeechError::UnsupportedProvider => "speech_provider_unsupported",
+            CardSpeechError::InvalidResponse => "speech_invalid_response",
+            CardSpeechError::Provider(_) => "speech_provider_error",
+            CardSpeechError::Unexpected(_) => "unexpected_error",
+        };
+        Self {
+            code,
+            message: error.to_string(),
+        }
+    }
 }
 
 impl From<CardNormalizationError> for CommandError {

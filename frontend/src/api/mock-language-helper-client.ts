@@ -13,6 +13,7 @@ import type {
   ListCardsInput,
   PendingInverseCard,
   NormalizeCardInput,
+  GetCardSpeechInput,
   NewCardInput,
   PrepareInverseCardsInput,
   SaveInverseCardsInput,
@@ -189,6 +190,12 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       throw new Error('AI provider is not configured. Open Settings to configure it.')
     }
     return structuredClone(input.card)
+  }
+
+  async getCardSpeech(_input: GetCardSpeechInput): Promise<Blob> {
+    throw new Error(
+      'AI speech generation is available only through the desktop backend.',
+    )
   }
 
   async createCards(input: CreateCardsInput): Promise<Card[]> {

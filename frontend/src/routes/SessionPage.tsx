@@ -24,6 +24,7 @@ import type {
   StudySessionTransition,
 } from '../api/language-helper-client'
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
+import { CardSpeechControls } from '../components/CardSpeechControls'
 import { useTranslations } from '../locales/TranslationProvider'
 import { ReadOnlyCard } from './CardsPage'
 import classes from './SessionPage.module.css'
@@ -141,6 +142,13 @@ export function SessionPage({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key === 'Enter' &&
+        event.target instanceof HTMLElement &&
+        event.target.closest('button, a, input, textarea, select')
+      ) {
+        return
+      }
       if (event.key === 'Escape') {
         if (endOpened) return
         event.preventDefault()
@@ -375,7 +383,16 @@ export function SessionPage({
 
       {current?.kind === 'study' && current.card && (
         <>
-          <ReadOnlyCard card={current.card} />
+          <ReadOnlyCard
+            card={current.card}
+            wordActions={
+              <CardSpeechControls
+                cardId={current.card.id}
+                profileId={profileId}
+                username={username}
+              />
+            }
+          />
           <Group justify="center">
             <Button
               disabled={session.currentCardNumber <= 1}

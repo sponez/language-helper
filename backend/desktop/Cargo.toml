@@ -21,5 +21,6 @@ serde = { workspace = true, default-features = false }
 tauri = { version = "2", default-features = false, features = ["wry"] }
 
 [dev-dependencies]
+async-trait = { workspace = true, default-features = false }
 tempfile = { version = "3.8", default-features = false }
 tokio = { workspace = true, default-features = false }

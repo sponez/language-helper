@@ -20,6 +20,7 @@ import type {
   StudySessionMode,
 } from '../api/language-helper-client'
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
+import { speechModelName } from '../api/speech-models'
 import { useTranslations } from '../locales/TranslationProvider'
 import { CardsPage } from './CardsPage'
 import { SessionPage } from './SessionPage'
@@ -266,6 +267,11 @@ export function WorkspacePage() {
                     }))
                   }}
                 />
+                <Text c="dimmed" size="sm">
+                  {t('workspace.speechModel')}:{' '}
+                  {speechModelName(settings.provider) ??
+                    t('workspace.notConfigured')}
+                </Text>
               </Stack>
             </Paper>
             {loadedSettings.isError && (

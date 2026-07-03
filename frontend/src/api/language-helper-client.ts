@@ -103,6 +103,13 @@ export interface NormalizeCardInput {
   card: NewCardInput
 }
 
+export interface GetCardSpeechInput {
+  username: string
+  profileId: string
+  cardId: string
+  regenerate: boolean
+}
+
 export interface UpdateCardInput {
   username: string
   profileId: string
@@ -241,6 +248,7 @@ export interface LanguageHelperClient {
   getCard(username: string, profileId: string, cardId: string): Promise<Card>
   createCards(input: CreateCardsInput): Promise<Card[]>
   normalizeCard(input: NormalizeCardInput): Promise<NewCardInput>
+  getCardSpeech(input: GetCardSpeechInput): Promise<Blob>
   updateCard(input: UpdateCardInput): Promise<Card>
   deleteCards(input: DeleteCardsInput): Promise<number>
   prepareInverseCards(

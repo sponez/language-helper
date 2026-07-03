@@ -14,6 +14,7 @@ import type {
   ListCardsInput,
   PendingInverseCard,
   NormalizeCardInput,
+  GetCardSpeechInput,
   NewCardInput,
   PrepareInverseCardsInput,
   SaveInverseCardsInput,
@@ -26,8 +27,12 @@ import type {
 } from './language-helper-client'
 
 export class TauriLanguageHelperClient implements LanguageHelperClient {
-  getBackendStatus(): Promise<BackendStatus> {
-    return invoke<BackendStatus>('get_backend_status')
+  async getBackendStatus(): Promise<BackendStatus> {
+    return {
+      transport: 'tauri',
+      ready: true,
+      message: 'Desktop backend',
+    }
   }
 
   getUsernames(): Promise<string[]> {
@@ -87,6 +92,18 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
 
   normalizeCard(input: NormalizeCardInput): Promise<NewCardInput> {
     return invoke<NewCardInput>('normalize_card', { command: input })
+  }
+
+  async getCardSpeech(input: GetCardSpeechInput): Promise<Blob> {
+    const response = await invoke<ArrayBuffer | Uint8Array | number[]>(
+      'get_card_speech',
+      { request: input },
+    )
+    const bytes =
+      response instanceof ArrayBuffer
+        ? new Uint8Array(response)
+        : new Uint8Array(response)
+    return new Blob([bytes], { type: 'audio/wav' })
   }
 
   updateCard(input: UpdateCardInput): Promise<Card> {

@@ -27,6 +27,7 @@ import {
 } from '@tanstack/react-query'
 import {
   type FormEvent,
+  type ReactNode,
   useEffect,
   useMemo,
   useRef,
@@ -43,6 +44,7 @@ import type {
   PendingInverseCard,
   SortDirection,
 } from '../api/language-helper-client'
+import { CardSpeechControls } from '../components/CardSpeechControls'
 import { useTranslations } from '../locales/TranslationProvider'
 import classes from './CardsPage.module.css'
 
@@ -202,7 +204,13 @@ function ReadOnlyMeanings({ meanings }: { meanings: CardMeaning[] }) {
   )
 }
 
-export function ReadOnlyCard({ card }: { card: NewCardInput }) {
+export function ReadOnlyCard({
+  card,
+  wordActions,
+}: {
+  card: NewCardInput
+  wordActions?: ReactNode
+}) {
   const { t } = useTranslations()
 
   return (
@@ -215,6 +223,11 @@ export function ReadOnlyCard({ card }: { card: NewCardInput }) {
         <Text fw={600} mt="md" size="xl" ta="center">
           {card.word}
         </Text>
+        {wordActions && (
+          <Group justify="center" mt="md">
+            {wordActions}
+          </Group>
+        )}
       </Paper>
       <Paper p="lg" withBorder>
         <Title order={3}>{t('cards.readings')}</Title>
@@ -1037,7 +1050,9 @@ function CardDetails({
         else setEditSection(null)
       } else if (
         event.key === 'Enter' &&
-        editSection === null
+        editSection === null &&
+        !(event.target instanceof HTMLElement &&
+          event.target.closest('button, a, input, textarea, select'))
       ) {
         event.preventDefault()
         onBack()
@@ -1162,9 +1177,18 @@ function CardDetails({
             {editSection === 'word' && editActions}
           </Stack>
         ) : (
-          <Text fw={600} mt="md" size="xl" ta="center">
-            {current.word}
-          </Text>
+          <>
+            <Text fw={600} mt="md" size="xl" ta="center">
+              {current.word}
+            </Text>
+            <Group justify="center" mt="md">
+              <CardSpeechControls
+                cardId={current.id}
+                profileId={profileId}
+                username={username}
+              />
+            </Group>
+          </>
         )}
       </Paper>
 

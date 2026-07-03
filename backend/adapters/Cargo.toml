@@ -12,6 +12,8 @@ async-trait = { workspace = true, default-features = false }
 genai = { workspace = true, default-features = false, features = ["rustls-tls"] }
 serde = { workspace = true, default-features = false }
 serde_json = { workspace = true, default-features = false }
+reqwest = { workspace = true, default-features = false, features = ["json", "rustls-tls"] }
+base64 = { workspace = true, default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 tempfile = { version = "3.8", default-features = false }

@@ -41,6 +41,7 @@ pub fn run() {
             commands::cards::prepare_inverse_cards,
             commands::cards::save_inverse_cards,
             commands::cards::normalize_card,
+            commands::speech::get_card_speech,
             commands::sessions::create_study_session,
             commands::sessions::apply_study_session_action,
             commands::sessions::finish_study_session,

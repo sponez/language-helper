@@ -55,6 +55,7 @@ export const en = {
     apiKey: 'API key',
     apiKeyHint: 'Stored only on this device.',
     modelName: 'Model name',
+    speechModel: 'Speech model (fixed)',
     save: 'Save',
     saved: 'Settings saved.',
     loadSettingsError: 'Could not load profile settings.',
@@ -149,6 +150,16 @@ export const en = {
     aiNotConfigured:
       'AI is not configured. Add a provider, API key, and model in Settings.',
     aiSettingsLoading: 'Checking AI settings…',
+    playSpeech: 'Play pronunciation',
+    regenerateSpeech: 'Regenerate pronunciation',
+    aiGeneratedSpeech: 'AI-generated',
+    speechNotConfigured:
+      'AI speech is unavailable until a provider and API key are configured.',
+    speechSettingsLoading: 'Checking speech settings…',
+    speechGenerating: 'Generating pronunciation…',
+    speechDesktopOnly:
+      'AI speech generation is available only in the desktop application.',
+    speechPlaybackError: 'Could not play the generated audio.',
     catalogKeyboardHint:
       '↑↓ Select · Enter Open · Ctrl+Enter Add · Esc Back',
   },
