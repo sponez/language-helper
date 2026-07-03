@@ -78,32 +78,65 @@ impl TryFrom<CardPayload> for NormalizedCard {
             "reverse" => CardDirection::Reverse,
             _ => return Err(CardNormalizationError::InvalidResponse),
         };
-        if card.word.trim().is_empty() || card.meanings.is_empty() {
-            return Err(CardNormalizationError::InvalidResponse);
-        }
-        Ok(Self {
+        let normalized = Self {
             direction,
-            word: card.word,
-            readings: card.readings,
+            word: card.word.trim().to_string(),
+            readings: card
+                .readings
+                .into_iter()
+                .map(|reading| reading.trim().to_string())
+                .collect(),
             meanings: card
                 .meanings
                 .into_iter()
                 .map(|meaning| Meaning {
-                    definition: meaning.definition,
-                    translated_definition: meaning.translated_definition,
-                    word_translations: meaning.word_translations,
+                    definition: meaning.definition.trim().to_string(),
+                    translated_definition: meaning.translated_definition.trim().to_string(),
+                    word_translations: meaning
+                        .word_translations
+                        .into_iter()
+                        .map(|translation| translation.trim().to_string())
+                        .collect(),
                     examples: meaning
                         .examples
                         .into_iter()
                         .map(|example| UsageExample {
-                            sentence: example.sentence,
-                            translation: example.translation,
+                            sentence: example.sentence.trim().to_string(),
+                            translation: example.translation.trim().to_string(),
                         })
                         .collect(),
                 })
                 .collect(),
-        })
+        };
+        validate_normalized_card(&normalized)?;
+        Ok(normalized)
     }
+}
+
+fn validate_normalized_card(card: &NormalizedCard) -> Result<(), CardNormalizationError> {
+    let meanings_valid = (1..=4).contains(&card.meanings.len())
+        && card.meanings.iter().all(|meaning| {
+            !meaning.definition.is_empty()
+                && !meaning.translated_definition.is_empty()
+                && !meaning.word_translations.is_empty()
+                && meaning
+                    .word_translations
+                    .iter()
+                    .all(|translation| !translation.is_empty())
+                && meaning.examples.len() == 2
+                && meaning
+                    .examples
+                    .iter()
+                    .all(|example| !example.sentence.is_empty() && !example.translation.is_empty())
+        });
+    if card.word.is_empty()
+        || card.readings.is_empty()
+        || card.readings.iter().any(String::is_empty)
+        || !meanings_valid
+    {
+        return Err(CardNormalizationError::InvalidResponse);
+    }
+    Ok(())
 }
 
 pub struct GenAiCardNormalizer;
@@ -143,21 +176,27 @@ impl AiCardNormalizer for GenAiCardNormalizer {
             "required": ["direction", "word", "readings", "meanings"],
             "properties": {
                 "direction": { "type": "string", "enum": ["straight", "reverse"] },
-                "word": { "type": "string" },
-                "readings": { "type": "array", "items": { "type": "string" } },
-                "meanings": { "type": "array", "items": {
+                "word": { "type": "string", "minLength": 1 },
+                "readings": {
+                    "type": "array", "minItems": 1,
+                    "items": { "type": "string", "minLength": 1 }
+                },
+                "meanings": { "type": "array", "minItems": 1, "maxItems": 4, "items": {
                     "type": "object", "additionalProperties": false,
                     "required": ["definition", "translatedDefinition", "wordTranslations", "examples"],
                     "properties": {
-                        "definition": { "type": "string" },
-                        "translatedDefinition": { "type": "string" },
-                        "wordTranslations": { "type": "array", "items": { "type": "string" } },
-                        "examples": { "type": "array", "items": {
+                        "definition": { "type": "string", "minLength": 1 },
+                        "translatedDefinition": { "type": "string", "minLength": 1 },
+                        "wordTranslations": {
+                            "type": "array", "minItems": 1,
+                            "items": { "type": "string", "minLength": 1 }
+                        },
+                        "examples": { "type": "array", "minItems": 2, "maxItems": 2, "items": {
                             "type": "object", "additionalProperties": false,
                             "required": ["sentence", "translation"],
                             "properties": {
-                                "sentence": { "type": "string" },
-                                "translation": { "type": "string" }
+                                "sentence": { "type": "string", "minLength": 1 },
+                                "translation": { "type": "string", "minLength": 1 }
                             }
                         }}
                     }
@@ -179,5 +218,77 @@ impl AiCardNormalizer for GenAiCardNormalizer {
             .try_into()?;
         normalized.direction = direction;
         Ok(normalized)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_card(reading: &str) -> NormalizedCard {
+        NormalizedCard {
+            direction: CardDirection::Straight,
+            word: "word".to_string(),
+            readings: vec![reading.to_string()],
+            meanings: vec![Meaning {
+                definition: "definition".to_string(),
+                translated_definition: "translated definition".to_string(),
+                word_translations: vec!["translation".to_string()],
+                examples: vec![
+                    UsageExample {
+                        sentence: "First example.".to_string(),
+                        translation: "Первый пример.".to_string(),
+                    },
+                    UsageExample {
+                        sentence: "Second example.".to_string(),
+                        translation: "Второй пример.".to_string(),
+                    },
+                ],
+            }],
+        }
+    }
+
+    #[test]
+    fn accepts_supported_language_reading_payloads() {
+        for reading in ["/wɝd/", "сло́во", "ことば"] {
+            assert_eq!(validate_normalized_card(&valid_card(reading)), Ok(()));
+        }
+    }
+
+    #[test]
+    fn rejects_missing_or_incomplete_examples_and_readings() {
+        let mut card = valid_card("/wɝd/");
+        card.readings.clear();
+        assert_eq!(
+            validate_normalized_card(&card),
+            Err(CardNormalizationError::InvalidResponse)
+        );
+
+        for count in [0, 1, 3] {
+            let mut card = valid_card("/wɝd/");
+            let example = card.meanings[0].examples[0].clone();
+            card.meanings[0].examples = vec![example; count];
+            assert_eq!(
+                validate_normalized_card(&card),
+                Err(CardNormalizationError::InvalidResponse)
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_more_than_four_meanings_and_empty_required_fields() {
+        let mut card = valid_card("/wɝd/");
+        card.meanings = vec![card.meanings[0].clone(); 5];
+        assert_eq!(
+            validate_normalized_card(&card),
+            Err(CardNormalizationError::InvalidResponse)
+        );
+
+        let mut card = valid_card("/wɝd/");
+        card.meanings[0].translated_definition.clear();
+        assert_eq!(
+            validate_normalized_card(&card),
+            Err(CardNormalizationError::InvalidResponse)
+        );
     }
 }
