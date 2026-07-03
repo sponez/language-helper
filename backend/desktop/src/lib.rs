@@ -27,7 +27,8 @@ pub fn run() {
             commands::cards::update_card,
             commands::cards::delete_cards,
             commands::cards::prepare_inverse_cards,
-            commands::cards::save_inverse_cards
+            commands::cards::save_inverse_cards,
+            commands::cards::normalize_card
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Language Helper");

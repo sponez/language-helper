@@ -4,6 +4,7 @@ import {
   Badge,
   Button,
   Collapse,
+  Code,
   Group,
   Loader,
   Modal,
@@ -11,10 +12,12 @@ import {
   Paper,
   ScrollArea,
   Select,
+  SimpleGrid,
   Stack,
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from '@mantine/core'
 import { useDebouncedValue, useDisclosure } from '@mantine/hooks'
 import {
@@ -47,7 +50,7 @@ interface CardsPageProps {
 }
 
 type Screen = 'list' | 'show' | 'add' | 'inverse-review'
-type EditSection = 'word' | 'readings' | 'meanings' | null
+type EditSection = 'word' | 'readings' | 'meanings' | 'all' | null
 
 function emptyMeaning(): CardMeaning {
   return {
@@ -95,6 +98,99 @@ function validateCard(card: NewCardInput): string | null {
     return 'cards.exampleRequired'
   }
   return null
+}
+
+function AiNormalizeButton({
+  username,
+  profileId,
+  card,
+  onApply,
+}: {
+  username: string
+  profileId: string
+  card: NewCardInput
+  onApply(card: NewCardInput): void
+}) {
+  const client = useLanguageHelperClient()
+  const { t } = useTranslations()
+  const [proposed, setProposed] = useState<NewCardInput | null>(null)
+  const settings = useQuery({
+    queryKey: ['profile-settings', username, profileId],
+    queryFn: () => client.getProfileSettings(username, profileId),
+    retry: false,
+  })
+  const configured = Boolean(
+    settings.data?.provider &&
+      settings.data.apiKey?.trim() &&
+      settings.data.modelName?.trim(),
+  )
+  const disabled = !card.word.trim() || !configured || settings.isPending
+  const disabledHint = !card.word.trim()
+    ? t('cards.wordRequired')
+    : settings.isPending
+      ? t('cards.aiSettingsLoading')
+      : t('cards.aiNotConfigured')
+  const normalize = useMutation({
+    mutationFn: () => client.normalizeCard({ username, profileId, card }),
+    onSuccess: setProposed,
+  })
+
+  return (
+    <>
+      <Tooltip disabled={!disabled} label={disabledHint} multiline w={280}>
+        <span>
+          <Button
+            disabled={disabled}
+            loading={normalize.isPending}
+            size="xs"
+            variant="light"
+            onClick={() => normalize.mutate()}
+          >
+            ✦ {t('cards.normalizeWithAi')}
+          </Button>
+        </span>
+      </Tooltip>
+      {normalize.isError && (
+        <Alert color="red" title={t('cards.aiError')}>
+          {normalize.error.message}
+        </Alert>
+      )}
+      <Modal
+        centered
+        opened={proposed !== null}
+        size="xl"
+        title={t('cards.aiPreviewTitle')}
+        onClose={() => setProposed(null)}
+      >
+        <Stack>
+          <Text c="dimmed">{t('cards.aiPreviewDescription')}</Text>
+          <SimpleGrid cols={{ base: 1, md: 2 }}>
+            <Stack>
+              <Text fw={600}>{t('cards.aiBefore')}</Text>
+              <Code block>{JSON.stringify(card, null, 2)}</Code>
+            </Stack>
+            <Stack>
+              <Text fw={600}>{t('cards.aiAfter')}</Text>
+              <Code block>{JSON.stringify(proposed, null, 2)}</Code>
+            </Stack>
+          </SimpleGrid>
+          <Group justify="flex-end">
+            <Button
+              onClick={() => {
+                if (proposed) onApply(proposed)
+                setProposed(null)
+              }}
+            >
+              {t('cards.aiApply')}
+            </Button>
+            <Button variant="default" onClick={() => setProposed(null)}>
+              {t('cards.cancel')}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </>
+  )
 }
 
 function StringListEditor({
@@ -690,9 +786,15 @@ function CardDetails({
         profileId,
         cardId,
         expectedVersion: current.version,
-        word: editSection === 'word' ? word : current.word,
-        readings: editSection === 'readings' ? readings : current.readings,
-        meanings: editSection === 'meanings' ? meanings : current.meanings,
+        word: editSection === 'word' || editSection === 'all' ? word : current.word,
+        readings:
+          editSection === 'readings' || editSection === 'all'
+            ? readings
+            : current.readings,
+        meanings:
+          editSection === 'meanings' || editSection === 'all'
+            ? meanings
+            : current.meanings,
       }),
     onSuccess: async (updated) => {
       queryClient.setQueryData(['card', username, profileId, cardId], updated)
@@ -737,9 +839,18 @@ function CardDetails({
       ? null
       : validateCard({
           direction: current.direction,
-          word: editSection === 'word' ? word : current.word,
-          readings: editSection === 'readings' ? readings : current.readings,
-          meanings: editSection === 'meanings' ? meanings : current.meanings,
+          word:
+            editSection === 'word' || editSection === 'all'
+              ? word
+              : current.word,
+          readings:
+            editSection === 'readings' || editSection === 'all'
+              ? readings
+              : current.readings,
+          meanings:
+            editSection === 'meanings' || editSection === 'all'
+              ? meanings
+              : current.meanings,
         })
 
   const editActions = (
@@ -769,12 +880,28 @@ function CardDetails({
         <Button variant="subtle" onClick={onBack}>
           ← {t('cards.back')}
         </Button>
-        <Group>
-          <Badge>{t(`cards.${current.direction}`)}</Badge>
-          <Badge variant="light">
-            {t('cards.streak')}: {current.streak}
-          </Badge>
-        </Group>
+        <AiNormalizeButton
+          card={{
+            direction: current.direction,
+            word: current.word,
+            readings: current.readings,
+            meanings: current.meanings,
+          }}
+          profileId={profileId}
+          username={username}
+          onApply={(normalized) => {
+            setWord(normalized.word)
+            setReadings(normalized.readings)
+            setMeanings(normalized.meanings)
+            setEditSection('all')
+          }}
+        />
+      </Group>
+      <Group justify="center">
+        <Badge>{t(`cards.${current.direction}`)}</Badge>
+        <Badge variant="light">
+          {t('cards.streak')}: {current.streak}
+        </Badge>
       </Group>
       <Text c="dimmed" size="sm" ta="center">
         {t('cards.createdAt')}:{' '}
@@ -794,10 +921,10 @@ function CardDetails({
             </ActionIcon>
           )}
         </div>
-        {editSection === 'word' ? (
+        {editSection === 'word' || editSection === 'all' ? (
           <Stack mt="md">
             <TextInput value={word} onChange={(event) => setWord(event.currentTarget.value)} />
-            {editActions}
+            {editSection === 'word' && editActions}
           </Stack>
         ) : (
           <Text fw={600} mt="md" size="xl" ta="center">
@@ -819,7 +946,7 @@ function CardDetails({
             </ActionIcon>
           )}
         </div>
-        {editSection === 'readings' ? (
+        {editSection === 'readings' || editSection === 'all' ? (
           <Stack mt="md">
             <StringListEditor
               addLabel={t('cards.addReading')}
@@ -827,7 +954,7 @@ function CardDetails({
               values={readings}
               onChange={setReadings}
             />
-            {editActions}
+            {editSection === 'readings' && editActions}
           </Stack>
         ) : (
           <Text c={current.readings.length ? undefined : 'dimmed'} mt="md">
@@ -851,10 +978,10 @@ function CardDetails({
             </ActionIcon>
           )}
         </div>
-        {editSection === 'meanings' ? (
+        {editSection === 'meanings' || editSection === 'all' ? (
           <Stack mt="md">
             <MeaningsEditor meanings={meanings} onChange={setMeanings} />
-            {editActions}
+            {editSection === 'meanings' && editActions}
           </Stack>
         ) : (
           <Stack mt="md">
@@ -947,6 +1074,8 @@ function CardDetails({
           </Stack>
         )}
       </Paper>
+
+      {editSection === 'all' && editActions}
 
       {validationError && <Alert color="red">{t(validationError)}</Alert>}
       {update.isError && (
@@ -1077,7 +1206,31 @@ function InverseCardsReview({
       >
         {editing && draft && (
           <Stack>
-            <Badge>{t(`cards.${draft.direction}`)}</Badge>
+            <Group justify="space-between">
+              <Badge>{t(`cards.${draft.direction}`)}</Badge>
+              <AiNormalizeButton
+                card={{
+                  direction: draft.direction,
+                  word: draft.word,
+                  readings: draft.readings,
+                  meanings: draft.meanings,
+                }}
+                profileId={profileId}
+                username={username}
+                onApply={(normalized) =>
+                  setEditing({
+                    ...editing,
+                    card: {
+                      ...draft,
+                      direction: normalized.direction,
+                      word: normalized.word,
+                      readings: normalized.readings,
+                      meanings: normalized.meanings,
+                    },
+                  })
+                }
+              />
+            </Group>
             <TextInput
               label={t('cards.word')}
               value={draft.word}
@@ -1238,9 +1391,18 @@ function AddCard({
   return (
     <form className={classes.details} onSubmit={submit}>
       <Stack gap="md">
-        <Title order={2} ta="center">
-          {t('cards.addTitle')}
-        </Title>
+        <Group justify="space-between">
+          <div />
+          <Title order={2} ta="center">
+            {t('cards.addTitle')}
+          </Title>
+          <AiNormalizeButton
+            card={draft}
+            profileId={profileId}
+            username={username}
+            onApply={(normalized) => changeDraft(normalized)}
+          />
+        </Group>
         <Paper p="sm" withBorder>
           <ScrollArea.Autosize mah={220} type="auto">
             <Stack gap="xs">

@@ -13,6 +13,8 @@ import type {
   SaveProfileSettingsInput,
   ListCardsInput,
   PendingInverseCard,
+  NormalizeCardInput,
+  NewCardInput,
   PrepareInverseCardsInput,
   SaveInverseCardsInput,
   UpdateCardInput,
@@ -78,6 +80,10 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
 
   createCards(input: CreateCardsInput): Promise<Card[]> {
     return invoke<Card[]>('create_cards', { command: input })
+  }
+
+  normalizeCard(input: NormalizeCardInput): Promise<NewCardInput> {
+    return invoke<NewCardInput>('normalize_card', { command: input })
   }
 
   updateCard(input: UpdateCardInput): Promise<Card> {

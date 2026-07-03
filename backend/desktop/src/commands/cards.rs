@@ -8,6 +8,7 @@ use application::ports::input::{
             UpdateCardCommand, UsageExample, Word,
         },
     },
+    card_normalization::models::{CardNormalizationCommand, NormalizedCard},
     language_profile::models::ProfileId,
     local_user::models::UserId,
 };
@@ -32,13 +33,21 @@ pub struct MeaningDto {
     examples: Vec<UsageExampleDto>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct NewCardDto {
     direction: String,
     word: String,
     readings: Vec<String>,
     meanings: Vec<MeaningDto>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizeCardDto {
+    username: String,
+    profile_id: String,
+    card: NewCardDto,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -186,6 +195,34 @@ fn map_meaning_dto(meaning: Meaning) -> MeaningDto {
             })
             .collect(),
     }
+}
+
+#[tauri::command]
+pub async fn normalize_card(
+    state: State<'_, DesktopState>,
+    command: NormalizeCardDto,
+) -> Result<NewCardDto, CommandError> {
+    let card = command.card;
+    state
+        .card_normalization()
+        .normalize_card(CardNormalizationCommand {
+            user_id: UserId::new(command.username),
+            profile_id: ProfileId::new(command.profile_id),
+            card: NormalizedCard {
+                direction: parse_direction(&card.direction)?,
+                word: card.word,
+                readings: card.readings,
+                meanings: card.meanings.into_iter().map(map_meaning).collect(),
+            },
+        })
+        .await
+        .map(|card| NewCardDto {
+            direction: direction_name(card.direction).to_string(),
+            word: card.word,
+            readings: card.readings,
+            meanings: card.meanings.into_iter().map(map_meaning_dto).collect(),
+        })
+        .map_err(Into::into)
 }
 
 impl From<Card> for CardDto {

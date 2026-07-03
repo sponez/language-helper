@@ -103,6 +103,12 @@ export interface CreateCardsInput {
   cards: NewCardInput[]
 }
 
+export interface NormalizeCardInput {
+  username: string
+  profileId: string
+  card: NewCardInput
+}
+
 export interface UpdateCardInput {
   username: string
   profileId: string
@@ -160,6 +166,7 @@ export interface LanguageHelperClient {
   listCards(input: ListCardsInput): Promise<CardPage>
   getCard(username: string, profileId: string, cardId: string): Promise<Card>
   createCards(input: CreateCardsInput): Promise<Card[]>
+  normalizeCard(input: NormalizeCardInput): Promise<NewCardInput>
   updateCard(input: UpdateCardInput): Promise<Card>
   deleteCards(input: DeleteCardsInput): Promise<number>
   prepareInverseCards(

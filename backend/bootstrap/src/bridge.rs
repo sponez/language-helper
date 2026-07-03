@@ -1,15 +1,18 @@
 use std::sync::Arc;
 
+use adapters::output::GenAiCardNormalizer;
 use adapters::output::persistence::{
     SqliteCardRepository, SqliteCardRepositoryInitError, SqliteLanguageProfileRepository,
     SqliteLanguageProfileRepositoryInitError, SqliteUserRepository, SqliteUserRepositoryInitError,
 };
 use application::{
     ports::input::{
-        card_catalog::CardCatalogUsecase, language_profile::LanguageProfileUsecase,
-        local_user::LocalUserUsecase,
+        card_catalog::CardCatalogUsecase, card_normalization::CardNormalizationUsecase,
+        language_profile::LanguageProfileUsecase, local_user::LocalUserUsecase,
     },
-    usecases::{CardCatalogService, LanguageProfileService, LocalUserService},
+    usecases::{
+        CardCatalogService, CardNormalizationService, LanguageProfileService, LocalUserService,
+    },
 };
 use thiserror::Error;
 
@@ -31,6 +34,7 @@ pub struct BootstrapBridge {
     local_users: Arc<dyn LocalUserUsecase>,
     language_profiles: Arc<dyn LanguageProfileUsecase>,
     cards: Arc<dyn CardCatalogUsecase>,
+    card_normalization: Arc<dyn CardNormalizationUsecase>,
 }
 
 impl BootstrapBridge {
@@ -40,13 +44,21 @@ impl BootstrapBridge {
             Arc::new(SqliteLanguageProfileRepository::new(&config.database_path)?);
         let card_repository = Arc::new(SqliteCardRepository::new(&config.database_path)?);
         let local_users = Arc::new(LocalUserService::new(user_repository));
-        let language_profiles = Arc::new(LanguageProfileService::new(language_profile_repository));
+        let language_profiles = Arc::new(LanguageProfileService::new(Arc::clone(
+            &language_profile_repository,
+        )
+            as Arc<dyn application::ports::output::repository::LanguageProfileRepository>));
         let cards = Arc::new(CardCatalogService::new(card_repository));
+        let card_normalization = Arc::new(CardNormalizationService::new(
+            language_profile_repository,
+            Arc::new(GenAiCardNormalizer),
+        ));
 
         Ok(Self {
             local_users,
             language_profiles,
             cards,
+            card_normalization,
         })
     }
 
@@ -60,6 +72,10 @@ impl BootstrapBridge {
 
     pub fn cards(&self) -> Arc<dyn CardCatalogUsecase> {
         Arc::clone(&self.cards)
+    }
+
+    pub fn card_normalization(&self) -> Arc<dyn CardNormalizationUsecase> {
+        Arc::clone(&self.card_normalization)
     }
 }
 

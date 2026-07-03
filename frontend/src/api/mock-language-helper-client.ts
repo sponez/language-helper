@@ -12,6 +12,8 @@ import type {
   SaveProfileSettingsInput,
   ListCardsInput,
   PendingInverseCard,
+  NormalizeCardInput,
+  NewCardInput,
   PrepareInverseCardsInput,
   SaveInverseCardsInput,
   UpdateCardInput,
@@ -179,6 +181,14 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       throw new Error('Card was not found.')
     }
     return structuredClone(card)
+  }
+
+  async normalizeCard(input: NormalizeCardInput): Promise<NewCardInput> {
+    const settings = this.settings.get(input.profileId)
+    if (!settings?.provider || !settings.apiKey || !settings.modelName) {
+      throw new Error('AI provider is not configured. Open Settings to configure it.')
+    }
+    return structuredClone(input.card)
   }
 
   async createCards(input: CreateCardsInput): Promise<Card[]> {

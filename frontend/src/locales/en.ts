@@ -146,6 +146,17 @@ export const en = {
     definitionRequired: 'Every meaning needs a definition.',
     translationRequired: 'Every meaning needs at least one translation.',
     exampleRequired: 'Fill both fields of every example.',
+    normalizeWithAi: 'Normalize with AI',
+    aiPreviewTitle: 'AI normalization preview',
+    aiPreviewDescription:
+      'Review the proposed card. Apply copies it into the editor; nothing is saved yet.',
+    aiBefore: 'Current',
+    aiAfter: 'Proposed',
+    aiApply: 'Apply to editor',
+    aiError: 'Could not normalize the card.',
+    aiNotConfigured:
+      'AI is not configured. Add a provider, API key, and model in Settings.',
+    aiSettingsLoading: 'Checking AI settings…',
   },
   backend: {
     connected: 'Backend connection is ready.',
