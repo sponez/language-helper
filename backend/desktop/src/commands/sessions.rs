@@ -6,9 +6,10 @@ use application::ports::input::{
         StudySessionUsecase,
         models::{
             ApplyStudySessionActionCommand, AssessPronunciationCommand, CreateStudySessionCommand,
-            CurrentCardView, EndStudySessionCommand, PronunciationAssessmentReport,
-            PronunciationFeedbackKind, SessionId, SetOutcome, StudySessionAction, StudySessionMode,
-            StudySessionPhase, StudySessionStatus, StudySessionTransition, StudySessionView,
+            CurrentCardView, EndStudySessionCommand, GetStudySessionPreferencesQuery,
+            PronunciationAssessmentIssue, PronunciationAssessmentReport, PronunciationFeedbackKind,
+            SessionId, SetOutcome, StudySessionAction, StudySessionMode, StudySessionPhase,
+            StudySessionPreferences, StudySessionStatus, StudySessionTransition, StudySessionView,
         },
     },
 };
@@ -29,7 +30,31 @@ pub struct CreateStudySessionDto {
     max_score: Option<i32>,
     cards_per_set: Option<usize>,
     pronunciation_check_enabled: bool,
-    pronunciation_accuracy_threshold: u8,
+    pronunciation_score_threshold: u8,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudySessionPreferencesDto {
+    direction: Option<String>,
+    min_score: Option<i32>,
+    max_score: Option<i32>,
+    cards_per_set: Option<usize>,
+    pronunciation_check_enabled: bool,
+    pronunciation_score_threshold: u8,
+}
+
+impl From<StudySessionPreferences> for StudySessionPreferencesDto {
+    fn from(preferences: StudySessionPreferences) -> Self {
+        Self {
+            direction: preferences.direction.map(direction_name),
+            min_score: preferences.min_score,
+            max_score: preferences.max_score,
+            cards_per_set: preferences.cards_per_set,
+            pronunciation_check_enabled: preferences.pronunciation_check_enabled,
+            pronunciation_score_threshold: preferences.pronunciation_score_threshold,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -90,7 +115,7 @@ pub struct StudySessionDto {
     phase: String,
     status: String,
     pronunciation_check_enabled: bool,
-    pronunciation_accuracy_threshold: u8,
+    pronunciation_score_threshold: u8,
     pronunciation_required: bool,
     pronunciation_attempts_used: u8,
     pronunciation_technical_failures: u8,
@@ -128,21 +153,72 @@ pub struct StudySessionTransitionDto {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PronunciationReportDto {
-    accuracy_score: u8,
+    strict_score: u8,
+    weakest_phoneme_score: Option<u8>,
+    weakest_word_score: Option<u8>,
+    pronunciation_score: Option<u8>,
     fluency_score: Option<u8>,
     completeness_score: Option<u8>,
+    prosody_score: Option<u8>,
     recognized_text: Option<String>,
+    issues: Vec<PronunciationIssueDto>,
+    scoring_version: u8,
     passed: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PronunciationIssueDto {
+    kind: String,
+    word: String,
+    error_type: Option<String>,
+    expected: Option<String>,
+    detected: Option<String>,
 }
 
 impl From<PronunciationAssessmentReport> for PronunciationReportDto {
     fn from(report: PronunciationAssessmentReport) -> Self {
         Self {
-            accuracy_score: report.accuracy_score,
+            strict_score: report.strict_score,
+            weakest_phoneme_score: report.weakest_phoneme_score,
+            weakest_word_score: report.weakest_word_score,
+            pronunciation_score: report.pronunciation_score,
             fluency_score: report.fluency_score,
             completeness_score: report.completeness_score,
+            prosody_score: report.prosody_score,
             recognized_text: report.recognized_text,
+            issues: report
+                .issues
+                .into_iter()
+                .map(PronunciationIssueDto::from)
+                .collect(),
+            scoring_version: report.scoring_version,
             passed: report.passed,
+        }
+    }
+}
+
+impl From<PronunciationAssessmentIssue> for PronunciationIssueDto {
+    fn from(issue: PronunciationAssessmentIssue) -> Self {
+        match issue {
+            PronunciationAssessmentIssue::WordError { word, error_type } => Self {
+                kind: "wordError".to_string(),
+                word,
+                error_type: Some(error_type),
+                expected: None,
+                detected: None,
+            },
+            PronunciationAssessmentIssue::PhonemeSubstitution {
+                word,
+                expected,
+                detected,
+            } => Self {
+                kind: "phonemeSubstitution".to_string(),
+                word,
+                error_type: None,
+                expected: Some(expected),
+                detected: Some(detected),
+            },
         }
     }
 }
@@ -177,6 +253,17 @@ fn direction_name(direction: CardDirection) -> String {
         CardDirection::Reverse => "reverse",
     }
     .to_string()
+}
+
+fn parse_mode(value: &str) -> Result<StudySessionMode, CommandError> {
+    match value {
+        "learning" => Ok(StudySessionMode::Learning),
+        "test" => Ok(StudySessionMode::Test),
+        _ => Err(
+            application::ports::input::study_session::models::StudySessionError::InvalidSession
+                .into(),
+        ),
+    }
 }
 
 impl From<StudySessionView> for StudySessionDto {
@@ -230,7 +317,7 @@ impl From<StudySessionView> for StudySessionDto {
             }
             .to_string(),
             pronunciation_check_enabled: view.pronunciation_check_enabled,
-            pronunciation_accuracy_threshold: view.pronunciation_accuracy_threshold,
+            pronunciation_score_threshold: view.pronunciation_score_threshold,
             pronunciation_required: view.pronunciation_required,
             pronunciation_attempts_used: view.pronunciation_attempts_used,
             pronunciation_technical_failures: view.pronunciation_technical_failures,
@@ -297,15 +384,7 @@ async fn create(
     usecase: &dyn StudySessionUsecase,
     command: CreateStudySessionDto,
 ) -> Result<StudySessionDto, CommandError> {
-    let mode =
-        match command.mode.as_str() {
-            "learning" => StudySessionMode::Learning,
-            "test" => StudySessionMode::Test,
-            _ => return Err(
-                application::ports::input::study_session::models::StudySessionError::InvalidSession
-                    .into(),
-            ),
-        };
+    let mode = parse_mode(&command.mode)?;
     usecase
         .create_session(CreateStudySessionCommand {
             user_id: UserId::new(command.username),
@@ -316,7 +395,26 @@ async fn create(
             max_score: command.max_score,
             cards_per_set: command.cards_per_set,
             pronunciation_check_enabled: command.pronunciation_check_enabled,
-            pronunciation_accuracy_threshold: command.pronunciation_accuracy_threshold,
+            pronunciation_score_threshold: command.pronunciation_score_threshold,
+        })
+        .await
+        .map(Into::into)
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn get_study_session_preferences(
+    state: State<'_, DesktopState>,
+    username: String,
+    profile_id: String,
+    mode: String,
+) -> Result<StudySessionPreferencesDto, CommandError> {
+    state
+        .study_sessions()
+        .get_preferences(GetStudySessionPreferencesQuery {
+            user_id: UserId::new(username),
+            profile_id: ProfileId::new(profile_id),
+            mode: parse_mode(&mode)?,
         })
         .await
         .map(Into::into)
@@ -435,7 +533,8 @@ mod tests {
         language_profile::models::CreateLanguageProfileCommand,
         local_user::models::CreateLocalUserCommand,
         study_session::models::{
-            ApplyStudySessionActionCommand, CreateStudySessionCommand, StudySessionAction,
+            ApplyStudySessionActionCommand, CreateStudySessionCommand,
+            PronunciationAssessmentIssue, PronunciationAssessmentReport, StudySessionAction,
             StudySessionMode,
         },
     };
@@ -443,6 +542,32 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
+
+    #[test]
+    fn pronunciation_report_dto_keeps_strict_score_and_diagnostics() {
+        let dto = PronunciationReportDto::from(PronunciationAssessmentReport {
+            strict_score: 68,
+            weakest_phoneme_score: Some(89),
+            weakest_word_score: Some(89),
+            pronunciation_score: Some(87),
+            fluency_score: Some(100),
+            completeness_score: Some(100),
+            prosody_score: Some(69),
+            recognized_text: Some("think".to_string()),
+            issues: vec![PronunciationAssessmentIssue::PhonemeSubstitution {
+                word: "think".to_string(),
+                expected: "θ".to_string(),
+                detected: "t".to_string(),
+            }],
+            scoring_version: 3,
+            passed: false,
+        });
+
+        assert_eq!(dto.strict_score, 68);
+        assert_eq!(dto.issues[0].kind, "phonemeSubstitution");
+        assert_eq!(dto.issues[0].expected.as_deref(), Some("θ"));
+        assert_eq!(dto.issues[0].detected.as_deref(), Some("t"));
+    }
 
     async fn populated_bridge(path: &std::path::Path) -> (BootstrapBridge, String) {
         let bridge = BootstrapBridge::create(BootstrapConfig::new(path)).unwrap();
@@ -504,12 +629,12 @@ mod tests {
                 user_id: UserId::new("alice"),
                 profile_id: ProfileId::new(&profile_id),
                 mode: StudySessionMode::Test,
-                direction: None,
-                min_score: None,
-                max_score: None,
+                direction: Some(CardDirection::Straight),
+                min_score: Some(-3),
+                max_score: Some(7),
                 cards_per_set: None,
                 pronunciation_check_enabled: false,
-                pronunciation_accuracy_threshold: 75,
+                pronunciation_score_threshold: 82,
             })
             .await
             .unwrap();
@@ -543,6 +668,20 @@ mod tests {
         drop(bridge);
 
         let reopened = BootstrapBridge::create(BootstrapConfig::new(&path)).unwrap();
+        let preferences = reopened
+            .study_sessions()
+            .get_preferences(GetStudySessionPreferencesQuery {
+                user_id: UserId::new("alice"),
+                profile_id: ProfileId::new(&profile_id),
+                mode: StudySessionMode::Test,
+            })
+            .await
+            .unwrap();
+        assert_eq!(preferences.direction, Some(CardDirection::Straight));
+        assert_eq!(preferences.min_score, Some(-3));
+        assert_eq!(preferences.max_score, Some(7));
+        assert_eq!(preferences.cards_per_set, None);
+        assert_eq!(preferences.pronunciation_score_threshold, 82);
         let next = reopened
             .study_sessions()
             .create_session(CreateStudySessionCommand {
@@ -554,7 +693,7 @@ mod tests {
                 max_score: None,
                 cards_per_set: None,
                 pronunciation_check_enabled: false,
-                pronunciation_accuracy_threshold: 75,
+                pronunciation_score_threshold: 75,
             })
             .await
             .unwrap();
@@ -581,7 +720,7 @@ mod tests {
                 max_score: None,
                 cards_per_set: Some(1),
                 pronunciation_check_enabled: false,
-                pronunciation_accuracy_threshold: 75,
+                pronunciation_score_threshold: 75,
             })
             .await
             .unwrap();

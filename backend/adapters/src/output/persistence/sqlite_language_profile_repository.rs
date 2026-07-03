@@ -6,7 +6,7 @@ use std::{
 
 use application::ports::{
     input::{
-        language_profile::models::{AiProviderSettings, LanguageProfile, ProfileId},
+        language_profile::models::{LanguageProfile, ProfileId},
         local_user::models::UserId,
     },
     output::repository::language_profile::{
@@ -76,6 +76,12 @@ impl SqliteLanguageProfileRepository {
 
                 CREATE INDEX IF NOT EXISTS idx_language_profiles_user_id
                     ON language_profiles(user_id);
+
+                UPDATE language_profiles
+                SET ai_provider = NULL, ai_api_key = NULL, ai_model_name = NULL
+                WHERE ai_provider IS NOT NULL
+                   OR ai_api_key IS NOT NULL
+                   OR ai_model_name IS NOT NULL;
                 ",
             )
             .map_err(SqliteLanguageProfileRepositoryInitError::Initialize)?;
@@ -125,12 +131,7 @@ impl SqliteLanguageProfileRepository {
             name: row.get(2)?,
             source_language: row.get(3)?,
             target_language: row.get(4)?,
-            ai_settings: AiProviderSettings {
-                provider: row.get(5)?,
-                api_key: row.get(6)?,
-                model_name: row.get(7)?,
-            },
-            version: row.get(8)?,
+            version: row.get(5)?,
         })
     }
 }
@@ -148,18 +149,14 @@ impl LanguageProfileRepository for SqliteLanguageProfileRepository {
                 .lock_connection()?
                 .execute(
                     "INSERT INTO language_profiles (
-                        id, user_id, name, source_language, target_language,
-                        ai_provider, ai_api_key, ai_model_name, version
-                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                        id, user_id, name, source_language, target_language, version
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                     params![
                         stored.id.as_str(),
                         stored.owner_id.as_str(),
                         stored.name,
                         stored.source_language,
                         stored.target_language,
-                        stored.ai_settings.provider,
-                        stored.ai_settings.api_key,
-                        stored.ai_settings.model_name,
                         stored.version,
                     ],
                 )
@@ -182,8 +179,7 @@ impl LanguageProfileRepository for SqliteLanguageProfileRepository {
             repository
                 .lock_connection()?
                 .query_row(
-                    "SELECT id, user_id, name, source_language, target_language,
-                            ai_provider, ai_api_key, ai_model_name, version
+                    "SELECT id, user_id, name, source_language, target_language, version
                      FROM language_profiles
                      WHERE user_id = ?1 AND id = ?2",
                     params![user_id.as_str(), profile_id.as_str()],
@@ -206,8 +202,7 @@ impl LanguageProfileRepository for SqliteLanguageProfileRepository {
             let connection = repository.lock_connection()?;
             let mut statement = connection
                 .prepare(
-                    "SELECT id, user_id, name, source_language, target_language,
-                            ai_provider, ai_api_key, ai_model_name, version
+                    "SELECT id, user_id, name, source_language, target_language, version
                      FROM language_profiles
                      WHERE user_id = ?1
                      ORDER BY name ASC",
@@ -235,16 +230,12 @@ impl LanguageProfileRepository for SqliteLanguageProfileRepository {
                 .execute(
                     "UPDATE language_profiles
                      SET name = ?1, source_language = ?2, target_language = ?3,
-                         ai_provider = ?4, ai_api_key = ?5, ai_model_name = ?6,
                          version = version + 1
-                     WHERE user_id = ?7 AND id = ?8 AND version = ?9",
+                     WHERE user_id = ?4 AND id = ?5 AND version = ?6",
                     params![
                         profile.name,
                         profile.source_language,
                         profile.target_language,
-                        profile.ai_settings.provider,
-                        profile.ai_settings.api_key,
-                        profile.ai_settings.model_name,
                         profile.owner_id.as_str(),
                         profile.id.as_str(),
                         expected_version,
@@ -317,7 +308,6 @@ mod tests {
             name: "Japanese".to_string(),
             source_language: "en-US".to_string(),
             target_language: "ja-JP".to_string(),
-            ai_settings: AiProviderSettings::default(),
             version: 0,
         };
         repository.insert(profile.clone()).await.unwrap();

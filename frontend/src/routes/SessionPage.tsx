@@ -1,4 +1,5 @@
 import {
+  Accordion,
   Alert,
   Button,
   Checkbox,
@@ -58,7 +59,7 @@ export function SessionPage({
   const [maxScore, setMaxScore] = useState<number | null>(null)
   const [cardsPerSet, setCardsPerSet] = useState(5)
   const [pronunciation, setPronunciation] = useState(false)
-  const [pronunciationAccuracy, setPronunciationAccuracy] = useState(75)
+  const [pronunciationScore, setPronunciationScore] = useState(75)
   const [pronunciationFeedback, setPronunciationFeedback] =
     useState<StudySessionTransition['pronunciationFeedback']>(null)
   const [recording, setRecording] = useState(false)
@@ -75,11 +76,35 @@ export function SessionPage({
   const recordingTimeoutRef = useRef<number | null>(null)
   const discardRecordingRef = useRef(false)
 
+  const sessionPreferences = useQuery({
+    queryKey: ['study-session-preferences', username, profileId, mode],
+    queryFn: () =>
+      client.getStudySessionPreferences(username, profileId, mode),
+    retry: false,
+  })
+
   const pronunciationSettings = useQuery({
     queryKey: ['pronunciation-settings', username],
     queryFn: () => client.getPronunciationSettings(username),
     retry: false,
   })
+
+  useEffect(() => {
+    const preferences = sessionPreferences.data
+    if (!preferences) return
+    setDirection(preferences.direction)
+    setMinScore(preferences.minScore)
+    setMaxScore(preferences.maxScore)
+    setCardsPerSet(preferences.cardsPerSet ?? 5)
+    setPronunciation(
+      preferences.pronunciationCheckEnabled &&
+        Boolean(pronunciationSettings.data?.configured),
+    )
+    setPronunciationScore(preferences.pronunciationScoreThreshold)
+  }, [
+    pronunciationSettings.data?.configured,
+    sessionPreferences.data,
+  ])
 
   const currentCardId = session?.currentCard?.id ?? session?.currentCard?.card?.id
   useEffect(() => {
@@ -99,7 +124,7 @@ export function SessionPage({
         maxScore,
         cardsPerSet: mode === 'learning' ? cardsPerSet : null,
         pronunciationCheckEnabled: pronunciation,
-        pronunciationAccuracyThreshold: pronunciationAccuracy,
+        pronunciationScoreThreshold: pronunciationScore,
       }),
     onSuccess: setSession,
   })
@@ -310,6 +335,24 @@ export function SessionPage({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (endOpened) {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          endModal.close()
+        } else if (
+          event.key === 'Enter' &&
+          !finish.isPending &&
+          !cancel.isPending
+        ) {
+          event.preventDefault()
+          event.stopPropagation()
+          endModal.close()
+          if (mode === 'test') finish.mutate()
+          else cancel.mutate()
+        }
+        return
+      }
       if (
         event.key === 'Enter' &&
         event.target instanceof HTMLElement &&
@@ -318,7 +361,6 @@ export function SessionPage({
         return
       }
       if (event.key === 'Escape') {
-        if (endOpened) return
         event.preventDefault()
         if (!session || session.status === 'completed') onBack()
         else endModal.open()
@@ -395,9 +437,12 @@ export function SessionPage({
   }, [
     action,
     assessment.isPending,
+    cancel,
     endModal,
     endOpened,
     feedback,
+    finish,
+    mode,
     onBack,
     pronunciationFeedback,
     recording,
@@ -433,6 +478,7 @@ export function SessionPage({
           <NumberInput
             allowDecimal={false}
             label={t('cards.minScore')}
+            placeholder={t('sessions.noMinimum')}
             value={minScore ?? ''}
             onChange={(value) =>
               setMinScore(typeof value === 'number' ? value : null)
@@ -441,6 +487,7 @@ export function SessionPage({
           <NumberInput
             allowDecimal={false}
             label={t('cards.maxScore')}
+            placeholder={t('sessions.noMaximum')}
             value={maxScore ?? ''}
             onChange={(value) =>
               setMaxScore(typeof value === 'number' ? value : null)
@@ -478,13 +525,14 @@ export function SessionPage({
         <NumberInput
           allowDecimal={false}
           allowNegative={false}
+          description={t('sessions.pronunciationScoreDescription')}
           disabled={!pronunciation}
-          label={t('sessions.pronunciationAccuracy')}
+          label={t('sessions.pronunciationScoreThreshold')}
           max={100}
           min={1}
           suffix="%"
-          value={pronunciationAccuracy}
-          onChange={(value) => setPronunciationAccuracy(Number(value) || 75)}
+          value={pronunciationScore}
+          onChange={(value) => setPronunciationScore(Number(value) || 75)}
         />
         {invalidRange && (
           <Alert color="red">{t('sessions.invalidScoreRange')}</Alert>
@@ -494,9 +542,12 @@ export function SessionPage({
             {start.error.message}
           </Alert>
         )}
+        {sessionPreferences.isError && (
+          <Alert color="red">{sessionPreferences.error.message}</Alert>
+        )}
         <Group justify="center">
           <Button
-            disabled={invalidRange}
+            disabled={invalidRange || sessionPreferences.isPending}
             loading={start.isPending}
             w={150}
             onClick={() => start.mutate()}
@@ -618,10 +669,9 @@ export function SessionPage({
           <Stack align="center">
             <Title order={2}>{t('sessions.sayThisWord')}</Title>
             <Title order={1}>{testCard.prompt}</Title>
-            <Text>{testCard.readings.join(', ')}</Text>
             <Text c="dimmed">
-              {t('sessions.requiredAccuracy')}:{' '}
-              {session.pronunciationAccuracyThreshold}%
+              {t('sessions.requiredPronunciationScore')}:{' '}
+              {session.pronunciationScoreThreshold}%
             </Text>
             {pronunciationFeedback ? (
               <Stack align="center" w="100%">
@@ -639,15 +689,93 @@ export function SessionPage({
                     <Stack gap={4}>
                       <Text fw={600}>
                         {t('sessions.pronunciationScore')}:{' '}
-                        {pronunciationFeedback.report.accuracyScore}% /{' '}
+                        {pronunciationFeedback.report.strictScore}% /{' '}
                         {pronunciationFeedback.threshold}%
                       </Text>
+                      {pronunciationFeedback.report.weakestWordScore !==
+                        null && (
+                        <Text size="sm">
+                          {t('sessions.weakestWordScore')}:{' '}
+                          {pronunciationFeedback.report.weakestWordScore}%
+                        </Text>
+                      )}
+                      {pronunciationFeedback.report.weakestPhonemeScore !==
+                        null && (
+                        <Text size="sm">
+                          {t('sessions.weakestPhonemeScore')}:{' '}
+                          {pronunciationFeedback.report.weakestPhonemeScore}%
+                        </Text>
+                      )}
                       {pronunciationFeedback.report.recognizedText && (
                         <Text size="sm">
                           {t('sessions.recognizedAs')}:{' '}
                           {pronunciationFeedback.report.recognizedText}
                         </Text>
                       )}
+                      {pronunciationFeedback.report.issues.map(
+                        (issue, index) => (
+                          <Text c="red" key={`${issue.kind}-${index}`} size="sm">
+                            {issue.kind === 'phonemeSubstitution'
+                              ? `${t('sessions.expectedPhoneme')} /${issue.expected}/, ${t('sessions.detectedPhoneme')} /${issue.detected}/ (${issue.word}).`
+                              : `${issue.word}: ${t('sessions.azureWordError')} ${issue.errorType}.`}
+                          </Text>
+                        ),
+                      )}
+                      <Accordion mt="xs" variant="contained">
+                        <Accordion.Item value="azure-details">
+                          <Accordion.Control>
+                            {t('sessions.azureDetails')}
+                          </Accordion.Control>
+                          <Accordion.Panel>
+                            <Stack gap={2}>
+                              {pronunciationFeedback.report
+                                .pronunciationScore !== null && (
+                                <Text size="xs">
+                                  PronScore:{' '}
+                                  {
+                                    pronunciationFeedback.report
+                                      .pronunciationScore
+                                  }
+                                  %
+                                </Text>
+                              )}
+                              {pronunciationFeedback.report.fluencyScore !==
+                                null && (
+                                <Text size="xs">
+                                  Fluency:{' '}
+                                  {
+                                    pronunciationFeedback.report
+                                      .fluencyScore
+                                  }
+                                  %
+                                </Text>
+                              )}
+                              {pronunciationFeedback.report
+                                .completenessScore !== null && (
+                                <Text size="xs">
+                                  Completeness:{' '}
+                                  {
+                                    pronunciationFeedback.report
+                                      .completenessScore
+                                  }
+                                  %
+                                </Text>
+                              )}
+                              {pronunciationFeedback.report.prosodyScore !==
+                                null && (
+                                <Text size="xs">
+                                  Prosody:{' '}
+                                  {pronunciationFeedback.report.prosodyScore}%
+                                </Text>
+                              )}
+                              <Text c="dimmed" size="xs">
+                                {t('sessions.scoringVersion')}:{' '}
+                                {pronunciationFeedback.report.scoringVersion}
+                              </Text>
+                            </Stack>
+                          </Accordion.Panel>
+                        </Accordion.Item>
+                      </Accordion>
                       <Text size="sm">
                         {pronunciationFeedback.kind === 'passed'
                           ? t('sessions.pronunciationPassed')

@@ -22,6 +22,18 @@ async fn add_user(
         .map_err(CommandError::from)
 }
 
+async fn remove_user(
+    usecase: &dyn LocalUserUsecase,
+    username: String,
+) -> Result<bool, CommandError> {
+    usecase
+        .delete_user(application::ports::input::local_user::models::UserId::new(
+            username,
+        ))
+        .await
+        .map_err(Into::into)
+}
+
 #[tauri::command]
 pub async fn get_usernames(state: State<'_, DesktopState>) -> Result<Vec<String>, CommandError> {
     list_usernames(state.local_users().as_ref()).await
@@ -33,6 +45,14 @@ pub async fn create_user(
     username: String,
 ) -> Result<String, CommandError> {
     add_user(state.local_users().as_ref(), username).await
+}
+
+#[tauri::command]
+pub async fn delete_user(
+    state: State<'_, DesktopState>,
+    username: String,
+) -> Result<bool, CommandError> {
+    remove_user(state.local_users().as_ref(), username).await
 }
 
 #[cfg(test)]
@@ -66,5 +86,24 @@ mod tests {
                 .unwrap(),
             vec!["user.name"]
         );
+    }
+
+    #[tokio::test]
+    async fn command_deletes_a_local_user() {
+        let directory = TempDir::new().unwrap();
+        let bridge =
+            BootstrapBridge::create(BootstrapConfig::new(directory.path().join("users.db")))
+                .unwrap();
+        let usecase = bridge.local_users();
+        add_user(usecase.as_ref(), "alice".to_string())
+            .await
+            .unwrap();
+
+        assert!(
+            remove_user(usecase.as_ref(), "alice".to_string())
+                .await
+                .unwrap()
+        );
+        assert!(list_usernames(usecase.as_ref()).await.unwrap().is_empty());
     }
 }

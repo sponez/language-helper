@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 
 use crate::ports::input::{
+    ai_settings::models::AiProviderSettings,
     card_normalization::models::{CardNormalizationError, NormalizedCard},
-    language_profile::models::AiProviderSettings,
 };
 
 #[derive(Debug, Clone)]

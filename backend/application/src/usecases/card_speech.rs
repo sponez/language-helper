@@ -13,7 +13,9 @@ use crate::ports::{
     },
     output::{
         SpeechSynthesizer,
-        repository::{CardRepository, LanguageProfileRepository, SpeechAudioRepository},
+        repository::{
+            AiSettingsRepository, CardRepository, LanguageProfileRepository, SpeechAudioRepository,
+        },
         speech_synthesizer::models::{SpeechSynthesisError, SpeechSynthesisRequest},
     },
 };
@@ -22,6 +24,7 @@ const PROMPT_VERSION: &str = "card-speech-v1";
 
 pub struct CardSpeechService {
     profiles: Arc<dyn LanguageProfileRepository>,
+    ai_settings: Arc<dyn AiSettingsRepository>,
     cards: Arc<dyn CardRepository>,
     audio: Arc<dyn SpeechAudioRepository>,
     synthesizer: Arc<dyn SpeechSynthesizer>,
@@ -30,12 +33,14 @@ pub struct CardSpeechService {
 impl CardSpeechService {
     pub fn new(
         profiles: Arc<dyn LanguageProfileRepository>,
+        ai_settings: Arc<dyn AiSettingsRepository>,
         cards: Arc<dyn CardRepository>,
         audio: Arc<dyn SpeechAudioRepository>,
         synthesizer: Arc<dyn SpeechSynthesizer>,
     ) -> Self {
         Self {
             profiles,
+            ai_settings,
             cards,
             audio,
             synthesizer,
@@ -158,13 +163,17 @@ impl CardSpeechUsecase for CardSpeechService {
             .map_err(|error| CardSpeechError::Unexpected(error.to_string()))?
             .ok_or(CardSpeechError::CardNotFound)?;
 
-        let provider = profile
+        let settings = self
             .ai_settings
+            .find(&command.user_id)
+            .await
+            .map_err(|error| CardSpeechError::Unexpected(error.to_string()))?
+            .ok_or(CardSpeechError::NotConfigured)?;
+        let provider = settings
             .provider
             .filter(|value| !value.trim().is_empty())
             .ok_or(CardSpeechError::NotConfigured)?;
-        let api_key = profile
-            .ai_settings
+        let api_key = settings
             .api_key
             .filter(|value| !value.trim().is_empty())
             .ok_or(CardSpeechError::NotConfigured)?;
@@ -240,16 +249,17 @@ mod tests {
     use super::*;
     use crate::ports::{
         input::{
+            ai_settings::models::AiSettings,
             card_catalog::models::{
                 CardId, CardPage, CardSelectionQuery, ListCardsQuery, Meaning, PendingInverseCard,
                 Word,
             },
-            language_profile::models::{AiProviderSettings, LanguageProfile, ProfileId},
+            language_profile::models::{LanguageProfile, ProfileId},
             local_user::models::UserId,
         },
         output::{
             repository::{
-                card::models::CardRepositoryError,
+                ai_settings::models::AiSettingsRepositoryError, card::models::CardRepositoryError,
                 language_profile::models::LanguageProfileRepositoryError,
                 speech_audio::models::SpeechAudioRepositoryError,
             },
@@ -275,6 +285,26 @@ mod tests {
             score: 0,
             created_at: 0,
             version: 0,
+        }
+    }
+
+    struct FakeAiSettings(AiSettings);
+
+    #[async_trait]
+    impl AiSettingsRepository for FakeAiSettings {
+        async fn find(
+            &self,
+            user_id: &UserId,
+        ) -> Result<Option<AiSettings>, AiSettingsRepositoryError> {
+            Ok((self.0.owner_id == *user_id).then(|| self.0.clone()))
+        }
+
+        async fn upsert(
+            &self,
+            _settings: AiSettings,
+            _expected_version: u64,
+        ) -> Result<AiSettings, AiSettingsRepositoryError> {
+            unimplemented!()
         }
     }
 
@@ -476,12 +506,14 @@ mod tests {
                 name: "Japanese".to_string(),
                 source_language: "en-US".to_string(),
                 target_language: "ja-JP".to_string(),
-                ai_settings: AiProviderSettings {
-                    provider: Some("gemini".to_string()),
-                    api_key: Some("secret".to_string()),
-                    model_name: None,
-                },
                 version: 0,
+            })),
+            Arc::new(FakeAiSettings(AiSettings {
+                owner_id: UserId::new("user"),
+                provider: Some("gemini".to_string()),
+                api_key: Some("secret".to_string()),
+                model_name: None,
+                version: 1,
             })),
             Arc::new(FakeCards(card(CardDirection::Straight))),
             audio,

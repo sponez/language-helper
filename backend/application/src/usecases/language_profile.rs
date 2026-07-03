@@ -19,7 +19,6 @@ use crate::ports::{
 
 const MAX_PROFILE_NAME_LENGTH: usize = 50;
 const SUPPORTED_LANGUAGES: [&str; 3] = ["en-US", "ru-RU", "ja-JP"];
-const SUPPORTED_AI_PROVIDERS: [&str; 2] = ["openai", "gemini"];
 
 pub struct LanguageProfileService {
     repository: Arc<dyn LanguageProfileRepository>,
@@ -79,22 +78,6 @@ impl LanguageProfileService {
         if let Some(target_language) = changes.target_language {
             profile.target_language = target_language;
         }
-        if let Some(mut ai_settings) = changes.ai_settings {
-            if ai_settings
-                .provider
-                .as_deref()
-                .is_some_and(|provider| !SUPPORTED_AI_PROVIDERS.contains(&provider))
-            {
-                return Err(LanguageProfileError::InvalidProfile);
-            }
-            ai_settings.model_name = ai_settings
-                .model_name
-                .map(|value| value.trim().to_string())
-                .filter(|value| !value.is_empty());
-            ai_settings.api_key = ai_settings.api_key.filter(|value| !value.is_empty());
-            profile.ai_settings = ai_settings;
-        }
-
         Self::validate_languages(&profile.source_language, &profile.target_language)?;
         Ok(profile)
     }
@@ -127,7 +110,6 @@ impl LanguageProfileUsecase for LanguageProfileService {
                 name,
                 source_language: command.source_language,
                 target_language: command.target_language,
-                ai_settings: Default::default(),
                 version: 0,
             })
             .await

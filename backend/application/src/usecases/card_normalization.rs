@@ -11,23 +11,27 @@ use crate::ports::{
         },
     },
     output::{
-        AiCardNormalizer, ai_card_normalizer::AiNormalizationRequest,
-        repository::LanguageProfileRepository,
+        AiCardNormalizer,
+        ai_card_normalizer::AiNormalizationRequest,
+        repository::{AiSettingsRepository, LanguageProfileRepository},
     },
 };
 
 pub struct CardNormalizationService {
     profiles: Arc<dyn LanguageProfileRepository>,
+    ai_settings: Arc<dyn AiSettingsRepository>,
     normalizer: Arc<dyn AiCardNormalizer>,
 }
 
 impl CardNormalizationService {
     pub fn new(
         profiles: Arc<dyn LanguageProfileRepository>,
+        ai_settings: Arc<dyn AiSettingsRepository>,
         normalizer: Arc<dyn AiCardNormalizer>,
     ) -> Self {
         Self {
             profiles,
+            ai_settings,
             normalizer,
         }
     }
@@ -138,7 +142,13 @@ impl CardNormalizationUsecase for CardNormalizationService {
             .await
             .map_err(|error| CardNormalizationError::Unexpected(error.to_string()))?
             .ok_or(CardNormalizationError::ProfileNotFound)?;
-        let settings = profile.ai_settings;
+        let settings = self
+            .ai_settings
+            .find(&command.user_id)
+            .await
+            .map_err(|error| CardNormalizationError::Unexpected(error.to_string()))?
+            .ok_or(CardNormalizationError::NotConfigured)?
+            .provider_settings();
         if settings.provider.is_none()
             || settings.api_key.as_deref().is_none_or(str::is_empty)
             || settings.model_name.as_deref().is_none_or(str::is_empty)

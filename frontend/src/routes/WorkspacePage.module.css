@@ -15,14 +15,19 @@
   margin: 8vh auto 0;
 }
 
+.settings {
+  width: min(720px, 100%);
+  margin: 0 auto;
+}
+
+.settingsBack {
+  align-self: flex-start;
+}
+
 .menuItemSelected {
   outline: 2px solid var(--mantine-color-indigo-5);
   outline-offset: 1px;
-  background: color-mix(
-    in srgb,
-    var(--mantine-color-indigo-8) 32%,
-    transparent
-  );
+  background: var(--mantine-primary-color-light);
 }
 
 .settingsGrid {
@@ -31,7 +36,7 @@
 
 .settingsBlock {
   height: 100%;
-  background: var(--mantine-color-dark-7);
+  background: var(--mantine-color-default);
 }
 
 @media (max-width: 48em) {

@@ -61,11 +61,30 @@ pub struct SessionAnswerResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PronunciationAssessmentReport {
-    pub accuracy_score: u8,
+    pub strict_score: u8,
+    pub weakest_phoneme_score: Option<u8>,
+    pub weakest_word_score: Option<u8>,
+    pub pronunciation_score: Option<u8>,
     pub fluency_score: Option<u8>,
     pub completeness_score: Option<u8>,
+    pub prosody_score: Option<u8>,
     pub recognized_text: Option<String>,
+    pub issues: Vec<PronunciationAssessmentIssue>,
+    pub scoring_version: u8,
     pub passed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PronunciationAssessmentIssue {
+    WordError {
+        word: String,
+        error_type: String,
+    },
+    PhonemeSubstitution {
+        word: String,
+        expected: String,
+        detected: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,7 +97,7 @@ pub struct StudySession {
     pub status: StudySessionStatus,
     pub filter: SessionFilter,
     pub pronunciation_check_enabled: bool,
-    pub pronunciation_accuracy_threshold: u8,
+    pub pronunciation_score_threshold: u8,
     pub cards_per_set: usize,
     pub card_ids: Vec<CardId>,
     pub test_order: Vec<CardId>,
@@ -132,7 +151,7 @@ pub struct StudySessionView {
     pub phase: StudySessionPhase,
     pub status: StudySessionStatus,
     pub pronunciation_check_enabled: bool,
-    pub pronunciation_accuracy_threshold: u8,
+    pub pronunciation_score_threshold: u8,
     pub pronunciation_required: bool,
     pub pronunciation_attempts_used: u8,
     pub pronunciation_technical_failures: u8,
@@ -197,7 +216,41 @@ pub struct CreateStudySessionCommand {
     pub max_score: Option<i32>,
     pub cards_per_set: Option<usize>,
     pub pronunciation_check_enabled: bool,
-    pub pronunciation_accuracy_threshold: u8,
+    pub pronunciation_score_threshold: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GetStudySessionPreferencesQuery {
+    pub user_id: UserId,
+    pub profile_id: ProfileId,
+    pub mode: StudySessionMode,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StudySessionPreferences {
+    pub profile_id: ProfileId,
+    pub mode: StudySessionMode,
+    pub direction: Option<CardDirection>,
+    pub min_score: Option<i32>,
+    pub max_score: Option<i32>,
+    pub cards_per_set: Option<usize>,
+    pub pronunciation_check_enabled: bool,
+    pub pronunciation_score_threshold: u8,
+}
+
+impl StudySessionPreferences {
+    pub fn defaults(profile_id: ProfileId, mode: StudySessionMode) -> Self {
+        Self {
+            profile_id,
+            mode,
+            direction: None,
+            min_score: None,
+            max_score: None,
+            cards_per_set: (mode == StudySessionMode::Learning).then_some(5),
+            pronunciation_check_enabled: false,
+            pronunciation_score_threshold: 75,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

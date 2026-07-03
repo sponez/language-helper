@@ -260,8 +260,8 @@ function AiNormalizeButton({
   const { t } = useTranslations()
   const [proposed, setProposed] = useState<NewCardInput | null>(null)
   const settings = useQuery({
-    queryKey: ['profile-settings', username, profileId],
-    queryFn: () => client.getAiSettings(username, profileId),
+    queryKey: ['ai-settings', username],
+    queryFn: () => client.getAiSettings(username),
     retry: false,
   })
   const configured = Boolean(
@@ -567,6 +567,7 @@ export function CardsPage({
   const [screen, setScreen] = useState<Screen>('list')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [cursorCardId, setCursorCardId] = useState<string | null>(null)
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null)
   const [inverseCards, setInverseCards] = useState<PendingInverseCard[]>([])
   const [search, setSearch] = useState('')
   const [debouncedSearch] = useDebouncedValue(search, 250)
@@ -650,7 +651,25 @@ export function CardsPage({
     if (screen !== 'list') return
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (deleteOpened || hasOpenDialog()) return
+      if (deleteOpened) {
+        if (event.key === 'Escape' && !removeCard.isPending) {
+          event.preventDefault()
+          event.stopPropagation()
+          deleteModal.close()
+          setDeleteTarget(null)
+          removeCard.reset()
+        } else if (
+          event.key === 'Enter' &&
+          deleteTarget &&
+          !removeCard.isPending
+        ) {
+          event.preventDefault()
+          event.stopPropagation()
+          removeCard.mutate(deleteTarget.id)
+        }
+        return
+      }
+      if (hasOpenDialog()) return
 
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -667,6 +686,16 @@ export function CardsPage({
       const currentIndex = summaries.findIndex(
         (card) => card.id === cursorCardId,
       )
+      if (event.key === 'Delete') {
+        const targetId = hoveredCardId ?? cursorCardId
+        const target = summaries.find((card) => card.id === targetId)
+        if (target) {
+          event.preventDefault()
+          setDeleteTarget({ id: target.id, word: target.word })
+          deleteModal.open()
+        }
+        return
+      }
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         if (summaries.length === 0) return
         event.preventDefault()
@@ -695,7 +724,17 @@ export function CardsPage({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [cursorCardId, deleteOpened, onBack, screen, summaries])
+  }, [
+    cursorCardId,
+    deleteModal,
+    deleteOpened,
+    deleteTarget,
+    hoveredCardId,
+    onBack,
+    removeCard,
+    screen,
+    summaries,
+  ])
 
   function resetFilters() {
     setSearch('')
@@ -891,6 +930,12 @@ export function CardsPage({
                   }}
                   withBorder
                   onClick={() => setCursorCardId(card.id)}
+                  onMouseEnter={() => setHoveredCardId(card.id)}
+                  onMouseLeave={() =>
+                    setHoveredCardId((current) =>
+                      current === card.id ? null : current,
+                    )
+                  }
                 >
                   <Badge variant="light">
                     {t(`cards.${card.direction}`)}
@@ -953,7 +998,13 @@ export function CardsPage({
         centered
         opened={deleteOpened}
         title={t('cards.deleteTitle')}
-        onClose={deleteModal.close}
+        onClose={() => {
+          if (!removeCard.isPending) {
+            deleteModal.close()
+            setDeleteTarget(null)
+            removeCard.reset()
+          }
+        }}
       >
         <Stack>
           <Text>
@@ -972,7 +1023,15 @@ export function CardsPage({
             >
               {t('cards.delete')}
             </Button>
-            <Button variant="default" onClick={deleteModal.close}>
+            <Button
+              disabled={removeCard.isPending}
+              variant="default"
+              onClick={() => {
+                deleteModal.close()
+                setDeleteTarget(null)
+                removeCard.reset()
+              }}
+            >
               {t('cards.cancel')}
             </Button>
           </Group>

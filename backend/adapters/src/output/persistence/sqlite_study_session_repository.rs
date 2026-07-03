@@ -10,8 +10,9 @@ use application::ports::{
         language_profile::models::ProfileId,
         local_user::models::UserId,
         study_session::models::{
-            PronunciationAssessmentReport, SessionAnswerResult, SessionFilter, SessionId,
-            StudySession, StudySessionMode, StudySessionPhase, StudySessionStatus,
+            PronunciationAssessmentIssue, PronunciationAssessmentReport, SessionAnswerResult,
+            SessionFilter, SessionId, StudySession, StudySessionMode, StudySessionPhase,
+            StudySessionPreferences, StudySessionStatus,
         },
     },
     output::repository::study_session::{
@@ -60,11 +61,40 @@ struct StoredResult {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredPronunciationReport {
-    accuracy_score: u8,
+    #[serde(default)]
+    strict_score: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    accuracy_score: Option<u8>,
+    #[serde(default)]
+    weakest_phoneme_score: Option<u8>,
+    #[serde(default)]
+    weakest_word_score: Option<u8>,
+    #[serde(default)]
+    pronunciation_score: Option<u8>,
     fluency_score: Option<u8>,
     completeness_score: Option<u8>,
+    #[serde(default)]
+    prosody_score: Option<u8>,
     recognized_text: Option<String>,
+    #[serde(default)]
+    issues: Vec<StoredPronunciationIssue>,
+    #[serde(default)]
+    scoring_version: Option<u8>,
     passed: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum StoredPronunciationIssue {
+    WordError {
+        word: String,
+        error_type: String,
+    },
+    PhonemeSubstitution {
+        word: String,
+        expected: String,
+        detected: String,
+    },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -80,7 +110,8 @@ struct StoredSession {
     min_score: Option<i32>,
     max_score: Option<i32>,
     pronunciation_check_enabled: bool,
-    pronunciation_accuracy_threshold: u8,
+    #[serde(alias = "pronunciationAccuracyThreshold")]
+    pronunciation_score_threshold: u8,
     cards_per_set: usize,
     card_ids: Vec<String>,
     test_order: Vec<String>,
@@ -129,7 +160,7 @@ impl StoredSession {
             min_score: session.filter.min_score,
             max_score: session.filter.max_score,
             pronunciation_check_enabled: session.pronunciation_check_enabled,
-            pronunciation_accuracy_threshold: session.pronunciation_accuracy_threshold,
+            pronunciation_score_threshold: session.pronunciation_score_threshold,
             cards_per_set: session.cards_per_set,
             card_ids: session
                 .card_ids
@@ -205,7 +236,7 @@ impl StoredSession {
                 max_score: self.max_score,
             },
             pronunciation_check_enabled: self.pronunciation_check_enabled,
-            pronunciation_accuracy_threshold: self.pronunciation_accuracy_threshold,
+            pronunciation_score_threshold: self.pronunciation_score_threshold,
             cards_per_set: self.cards_per_set,
             card_ids: self.card_ids.into_iter().map(CardId::new).collect(),
             test_order: self.test_order.into_iter().map(CardId::new).collect(),
@@ -247,21 +278,79 @@ impl StoredSession {
 impl StoredPronunciationReport {
     fn from_domain(report: &PronunciationAssessmentReport) -> Self {
         Self {
-            accuracy_score: report.accuracy_score,
+            strict_score: Some(report.strict_score),
+            accuracy_score: None,
+            weakest_phoneme_score: report.weakest_phoneme_score,
+            weakest_word_score: report.weakest_word_score,
+            pronunciation_score: report.pronunciation_score,
             fluency_score: report.fluency_score,
             completeness_score: report.completeness_score,
+            prosody_score: report.prosody_score,
             recognized_text: report.recognized_text.clone(),
+            issues: report
+                .issues
+                .iter()
+                .map(StoredPronunciationIssue::from_domain)
+                .collect(),
+            scoring_version: Some(report.scoring_version),
             passed: report.passed,
         }
     }
 
     fn into_domain(self) -> PronunciationAssessmentReport {
         PronunciationAssessmentReport {
-            accuracy_score: self.accuracy_score,
+            strict_score: self.strict_score.or(self.accuracy_score).unwrap_or(0),
+            weakest_phoneme_score: self.weakest_phoneme_score,
+            weakest_word_score: self.weakest_word_score,
+            pronunciation_score: self.pronunciation_score,
             fluency_score: self.fluency_score,
             completeness_score: self.completeness_score,
+            prosody_score: self.prosody_score,
             recognized_text: self.recognized_text,
+            issues: self
+                .issues
+                .into_iter()
+                .map(StoredPronunciationIssue::into_domain)
+                .collect(),
+            scoring_version: self.scoring_version.unwrap_or(1),
             passed: self.passed,
+        }
+    }
+}
+
+impl StoredPronunciationIssue {
+    fn from_domain(issue: &PronunciationAssessmentIssue) -> Self {
+        match issue {
+            PronunciationAssessmentIssue::WordError { word, error_type } => Self::WordError {
+                word: word.clone(),
+                error_type: error_type.clone(),
+            },
+            PronunciationAssessmentIssue::PhonemeSubstitution {
+                word,
+                expected,
+                detected,
+            } => Self::PhonemeSubstitution {
+                word: word.clone(),
+                expected: expected.clone(),
+                detected: detected.clone(),
+            },
+        }
+    }
+
+    fn into_domain(self) -> PronunciationAssessmentIssue {
+        match self {
+            Self::WordError { word, error_type } => {
+                PronunciationAssessmentIssue::WordError { word, error_type }
+            }
+            Self::PhonemeSubstitution {
+                word,
+                expected,
+                detected,
+            } => PronunciationAssessmentIssue::PhonemeSubstitution {
+                word,
+                expected,
+                detected,
+            },
         }
     }
 }
@@ -271,6 +360,20 @@ fn status_name(status: StudySessionStatus) -> &'static str {
         StudySessionStatus::Active => "active",
         StudySessionStatus::Completed => "completed",
         StudySessionStatus::Cancelled => "cancelled",
+    }
+}
+
+fn mode_name(mode: StudySessionMode) -> &'static str {
+    match mode {
+        StudySessionMode::Learning => "learning",
+        StudySessionMode::Test => "test",
+    }
+}
+
+fn direction_name(direction: CardDirection) -> &'static str {
+    match direction {
+        CardDirection::Straight => "straight",
+        CardDirection::Reverse => "reverse",
     }
 }
 
@@ -327,6 +430,21 @@ impl SqliteStudySessionRepository {
 
                 CREATE INDEX IF NOT EXISTS idx_test_history_profile_sequence
                     ON test_selection_history(profile_id, sequence DESC);
+
+                CREATE TABLE IF NOT EXISTS study_session_preferences (
+                    user_id TEXT NOT NULL,
+                    profile_id TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    direction TEXT,
+                    min_score INTEGER,
+                    max_score INTEGER,
+                    cards_per_set INTEGER,
+                    pronunciation_check_enabled INTEGER NOT NULL,
+                    pronunciation_score_threshold INTEGER NOT NULL,
+                    PRIMARY KEY (profile_id, mode),
+                    FOREIGN KEY (user_id) REFERENCES users(username) ON DELETE CASCADE,
+                    FOREIGN KEY (profile_id) REFERENCES language_profiles(id) ON DELETE CASCADE
+                );
 
                 DELETE FROM study_sessions WHERE status = 'active';
                 ",
@@ -422,6 +540,35 @@ impl StudySessionRepository for SqliteStudySessionRepository {
                 &request.session.profile_id,
                 request.selected_test_card.as_ref(),
             )?;
+            let preferences = request.preferences;
+            transaction
+                .execute(
+                    "INSERT INTO study_session_preferences (
+                        user_id, profile_id, mode, direction, min_score, max_score,
+                        cards_per_set, pronunciation_check_enabled,
+                        pronunciation_score_threshold
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                     ON CONFLICT(profile_id, mode) DO UPDATE SET
+                        user_id = excluded.user_id,
+                        direction = excluded.direction,
+                        min_score = excluded.min_score,
+                        max_score = excluded.max_score,
+                        cards_per_set = excluded.cards_per_set,
+                        pronunciation_check_enabled = excluded.pronunciation_check_enabled,
+                        pronunciation_score_threshold = excluded.pronunciation_score_threshold",
+                    params![
+                        request.session.owner_id.as_str(),
+                        preferences.profile_id.as_str(),
+                        mode_name(preferences.mode),
+                        preferences.direction.map(direction_name),
+                        preferences.min_score,
+                        preferences.max_score,
+                        preferences.cards_per_set,
+                        preferences.pronunciation_check_enabled,
+                        preferences.pronunciation_score_threshold,
+                    ],
+                )
+                .map_err(Self::map_error)?;
             transaction.commit().map_err(Self::map_error)?;
             Ok(request.session)
         })
@@ -449,6 +596,50 @@ impl StudySessionRepository for SqliteStudySessionRepository {
                 .map_err(Self::map_error)?
                 .map(Self::decode)
                 .transpose()
+        })
+        .await
+        .map_err(Self::map_join)?
+    }
+
+    async fn find_preferences(
+        &self,
+        user_id: &UserId,
+        profile_id: &ProfileId,
+        mode: StudySessionMode,
+    ) -> Result<Option<StudySessionPreferences>, StudySessionRepositoryError> {
+        let repository = self.clone();
+        let user_id = user_id.clone();
+        let profile_id = profile_id.clone();
+        tokio::task::spawn_blocking(move || {
+            repository
+                .lock()?
+                .query_row(
+                    "SELECT direction, min_score, max_score, cards_per_set,
+                            pronunciation_check_enabled, pronunciation_score_threshold
+                     FROM study_session_preferences
+                     WHERE user_id = ?1 AND profile_id = ?2 AND mode = ?3",
+                    params![user_id.as_str(), profile_id.as_str(), mode_name(mode),],
+                    |row| {
+                        let direction = match row.get::<_, Option<String>>(0)?.as_deref() {
+                            None => None,
+                            Some("straight") => Some(CardDirection::Straight),
+                            Some("reverse") => Some(CardDirection::Reverse),
+                            Some(_) => return Err(rusqlite::Error::InvalidQuery),
+                        };
+                        Ok(StudySessionPreferences {
+                            profile_id: profile_id.clone(),
+                            mode,
+                            direction,
+                            min_score: row.get(1)?,
+                            max_score: row.get(2)?,
+                            cards_per_set: row.get(3)?,
+                            pronunciation_check_enabled: row.get(4)?,
+                            pronunciation_score_threshold: row.get(5)?,
+                        })
+                    },
+                )
+                .optional()
+                .map_err(Self::map_error)
         })
         .await
         .map_err(Self::map_join)?
@@ -568,5 +759,55 @@ impl StudySessionRepository for SqliteStudySessionRepository {
             selected_test_card: None,
         })
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decodes_sessions_and_reports_written_before_strict_scoring() {
+        let json = r#"{
+            "id":"session-1",
+            "ownerId":"alice",
+            "profileId":"profile-1",
+            "mode":"test",
+            "phase":"test",
+            "status":"cancelled",
+            "direction":null,
+            "minScore":null,
+            "maxScore":null,
+            "pronunciationCheckEnabled":true,
+            "pronunciationAccuracyThreshold":75,
+            "cardsPerSet":1,
+            "cardIds":[],
+            "testOrder":[],
+            "currentSetIndex":0,
+            "currentCardIndex":0,
+            "providedAnswers":[],
+            "completedMeaningIndices":[],
+            "pronunciationAttempts":[{
+                "accuracyScore":87,
+                "fluencyScore":91,
+                "completenessScore":100,
+                "recognizedText":"hello",
+                "passed":true
+            }],
+            "pronunciationPassed":true,
+            "pronunciationTechnicalFailures":0,
+            "pronunciationDisableRequired":false,
+            "awaitingContinue":false,
+            "currentSetFailed":false,
+            "results":[],
+            "version":1
+        }"#;
+
+        let session = SqliteStudySessionRepository::decode(json.to_string()).unwrap();
+
+        assert_eq!(session.pronunciation_score_threshold, 75);
+        assert_eq!(session.pronunciation_attempts[0].strict_score, 87);
+        assert_eq!(session.pronunciation_attempts[0].scoring_version, 1);
+        assert!(session.pronunciation_attempts[0].issues.is_empty());
     }
 }

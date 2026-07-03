@@ -215,7 +215,7 @@ mod tests {
         input::{
             card_catalog::models::{Card, CardDirection, CardId, Meaning, Word},
             card_speech::models::SpeechAudio,
-            language_profile::models::{AiProviderSettings, LanguageProfile, ProfileId},
+            language_profile::models::{LanguageProfile, ProfileId},
             local_user::models::{LocalUser, UserId},
         },
         output::repository::{
@@ -253,7 +253,6 @@ mod tests {
                 name: "Japanese".to_string(),
                 source_language: "en-US".to_string(),
                 target_language: "ja-JP".to_string(),
-                ai_settings: AiProviderSettings::default(),
                 version: 0,
             })
             .await

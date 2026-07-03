@@ -2,13 +2,19 @@ use async_trait::async_trait;
 
 use self::models::{
     ApplyStudySessionActionCommand, AssessPronunciationCommand, CreateStudySessionCommand,
-    EndStudySessionCommand, StudySessionError, StudySessionTransition, StudySessionView,
+    EndStudySessionCommand, GetStudySessionPreferencesQuery, StudySessionError,
+    StudySessionPreferences, StudySessionTransition, StudySessionView,
 };
 
 pub mod models;
 
 #[async_trait]
 pub trait StudySessionUsecase: Send + Sync {
+    async fn get_preferences(
+        &self,
+        query: GetStudySessionPreferencesQuery,
+    ) -> Result<StudySessionPreferences, StudySessionError>;
+
     async fn create_session(
         &self,
         command: CreateStudySessionCommand,

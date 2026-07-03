@@ -3,7 +3,7 @@ use thiserror::Error;
 use crate::ports::input::{
     card_catalog::models::CardId,
     local_user::models::UserId,
-    study_session::models::{SessionId, StudySession, StudySessionStatus},
+    study_session::models::{SessionId, StudySession, StudySessionPreferences, StudySessionStatus},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,6 +16,7 @@ pub struct CardProgressUpdate {
 pub struct StoreSessionRequest {
     pub session: StudySession,
     pub selected_test_card: Option<CardId>,
+    pub preferences: StudySessionPreferences,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

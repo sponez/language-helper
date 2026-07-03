@@ -4,7 +4,7 @@ use crate::ports::input::{
     card_catalog::models::CardId,
     language_profile::models::ProfileId,
     local_user::models::UserId,
-    study_session::models::{SessionId, StudySession},
+    study_session::models::{SessionId, StudySession, StudySessionMode, StudySessionPreferences},
 };
 
 use self::models::{
@@ -25,6 +25,13 @@ pub trait StudySessionRepository: Send + Sync {
         user_id: &UserId,
         session_id: &SessionId,
     ) -> Result<Option<StudySession>, StudySessionRepositoryError>;
+
+    async fn find_preferences(
+        &self,
+        user_id: &UserId,
+        profile_id: &ProfileId,
+        mode: StudySessionMode,
+    ) -> Result<Option<StudySessionPreferences>, StudySessionRepositoryError>;
 
     async fn recent_test_cards(
         &self,

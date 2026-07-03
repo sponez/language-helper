@@ -31,8 +31,8 @@ export function CardSpeechControls({
   const objectUrlRef = useRef<string | null>(null)
   const [playbackError, setPlaybackError] = useState<string | null>(null)
   const settings = useQuery({
-    queryKey: ['profile-settings', username, profileId],
-    queryFn: () => client.getAiSettings(username, profileId),
+    queryKey: ['ai-settings', username],
+    queryFn: () => client.getAiSettings(username),
     retry: false,
   })
   const backend = useQuery({

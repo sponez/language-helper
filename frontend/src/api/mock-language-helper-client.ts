@@ -23,6 +23,8 @@ import type {
   EndStudySessionInput,
   StudySession,
   StudySessionTransition,
+  StudySessionPreferences,
+  StudySessionMode,
   PronunciationSettings,
   SavePronunciationSettingsInput,
   AssessPronunciationInput,
@@ -46,6 +48,7 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
   private readonly cards = new Map<string, Card[]>()
   private readonly sessions = new Map<string, MockSessionState>()
   private readonly testHistory = new Map<string, string[]>()
+  private readonly sessionPreferences = new Map<string, StudySessionPreferences>()
 
   async getBackendStatus(): Promise<BackendStatus> {
     return {
@@ -66,7 +69,29 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
 
     this.usernames.push(username)
     this.profiles.set(username, [])
+    this.settings.set(username, {
+      version: 0,
+      provider: null,
+      apiKey: null,
+      modelName: null,
+    })
     return username
+  }
+
+  async deleteUser(username: string): Promise<boolean> {
+    const index = this.usernames.indexOf(username)
+    if (index < 0) return false
+    this.usernames.splice(index, 1)
+    for (const profile of this.profiles.get(username) ?? []) {
+      this.cards.delete(profile.id)
+      this.testHistory.delete(profile.id)
+      for (const mode of ['learning', 'test'] as const) {
+        this.sessionPreferences.delete(`${profile.id}:${mode}`)
+      }
+    }
+    this.profiles.delete(username)
+    this.settings.delete(username)
+    return true
   }
 
   async getLanguageProfiles(username: string): Promise<LanguageProfile[]> {
@@ -91,31 +116,37 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       targetLanguage: input.targetLanguage,
     }
     profiles.push(profile)
-    this.settings.set(profile.id, {
-      version: 0,
-      provider: null,
-      apiKey: null,
-      modelName: null,
-    })
     this.cards.set(profile.id, [])
     return profile
   }
 
-  async getAiSettings(
-    _username: string,
+  async deleteLanguageProfile(
+    username: string,
     profileId: string,
-  ): Promise<AiSettings> {
-    const settings = this.settings.get(profileId)
+  ): Promise<boolean> {
+    const profiles = this.profiles.get(username)
+    const index = profiles?.findIndex((profile) => profile.id === profileId) ?? -1
+    if (!profiles || index < 0) return false
+    profiles.splice(index, 1)
+    this.cards.delete(profileId)
+    this.testHistory.delete(profileId)
+    this.sessionPreferences.delete(`${profileId}:learning`)
+    this.sessionPreferences.delete(`${profileId}:test`)
+    return true
+  }
+
+  async getAiSettings(username: string): Promise<AiSettings> {
+    const settings = this.settings.get(username)
     if (!settings) {
-      throw new Error('Profile settings were not found.')
+      throw new Error('User settings were not found.')
     }
     return { ...settings }
   }
 
   async saveAiSettings(input: SaveAiSettingsInput): Promise<AiSettings> {
-    const current = this.settings.get(input.profileId)
+    const current = this.settings.get(input.username)
     if (!current) {
-      throw new Error('Profile settings were not found.')
+      throw new Error('User settings were not found.')
     }
     if (current.version !== input.version) {
       throw new Error('Profile settings were changed concurrently.')
@@ -127,7 +158,7 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       apiKey: input.apiKey,
       modelName: input.modelName,
     }
-    this.settings.set(input.profileId, saved)
+    this.settings.set(input.username, saved)
     return { ...saved }
   }
 
@@ -471,7 +502,7 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       phase: input.mode === 'learning' ? 'study' : 'test',
       status: 'active',
       pronunciationCheckEnabled: input.pronunciationCheckEnabled,
-      pronunciationAccuracyThreshold: input.pronunciationAccuracyThreshold,
+      pronunciationScoreThreshold: input.pronunciationScoreThreshold,
       pronunciationRequired: false,
       pronunciationAttemptsUsed: 0,
       pronunciationTechnicalFailures: 0,
@@ -497,7 +528,32 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       setFailed: false,
     }
     this.sessions.set(id, state)
+    this.sessionPreferences.set(`${input.profileId}:${input.mode}`, {
+      direction: input.direction,
+      minScore: input.minScore,
+      maxScore: input.maxScore,
+      cardsPerSet: input.mode === 'learning' ? input.cardsPerSet : null,
+      pronunciationCheckEnabled: input.pronunciationCheckEnabled,
+      pronunciationScoreThreshold: input.pronunciationScoreThreshold,
+    })
     return this.refreshView(state)
+  }
+
+  async getStudySessionPreferences(
+    _username: string,
+    profileId: string,
+    mode: StudySessionMode,
+  ): Promise<StudySessionPreferences> {
+    return structuredClone(
+      this.sessionPreferences.get(`${profileId}:${mode}`) ?? {
+        direction: null,
+        minScore: null,
+        maxScore: null,
+        cardsPerSet: mode === 'learning' ? 5 : null,
+        pronunciationCheckEnabled: false,
+        pronunciationScoreThreshold: 75,
+      },
+    )
   }
 
   async applyStudySessionAction(

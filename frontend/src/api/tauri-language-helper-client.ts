@@ -24,6 +24,8 @@ import type {
   EndStudySessionInput,
   StudySession,
   StudySessionTransition,
+  StudySessionPreferences,
+  StudySessionMode,
   PronunciationSettings,
   SavePronunciationSettingsInput,
   AssessPronunciationInput,
@@ -46,6 +48,10 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
     return invoke<string>('create_user', { username })
   }
 
+  deleteUser(username: string): Promise<boolean> {
+    return invoke<boolean>('delete_user', { username })
+  }
+
   getLanguageProfiles(username: string): Promise<LanguageProfile[]> {
     return invoke<LanguageProfile[]>('list_language_profiles', { username })
   }
@@ -61,14 +67,18 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
     })
   }
 
-  getAiSettings(
+  deleteLanguageProfile(
     username: string,
     profileId: string,
-  ): Promise<AiSettings> {
-    return invoke<AiSettings>('get_ai_settings', {
+  ): Promise<boolean> {
+    return invoke<boolean>('delete_language_profile', {
       username,
       profileId,
     })
+  }
+
+  getAiSettings(username: string): Promise<AiSettings> {
+    return invoke<AiSettings>('get_ai_settings', { username })
   }
 
   saveAiSettings(input: SaveAiSettingsInput): Promise<AiSettings> {
@@ -141,6 +151,18 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
 
   saveInverseCards(input: SaveInverseCardsInput): Promise<Card[]> {
     return invoke<Card[]>('save_inverse_cards', { command: input })
+  }
+
+  getStudySessionPreferences(
+    username: string,
+    profileId: string,
+    mode: StudySessionMode,
+  ): Promise<StudySessionPreferences> {
+    return invoke<StudySessionPreferences>('get_study_session_preferences', {
+      username,
+      profileId,
+      mode,
+    })
   }
 
   createStudySession(input: CreateStudySessionInput): Promise<StudySession> {

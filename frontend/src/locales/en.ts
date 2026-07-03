@@ -21,6 +21,11 @@ export const en = {
     loadingUsers: 'Loading users…',
     loadError: 'Could not load users.',
     createError: 'Could not create the user.',
+    deleteUser: 'Delete user',
+    deleteUserTitle: 'Delete local user?',
+    deleteUserDescription:
+      'This permanently deletes the user and all profiles, cards, audio, and session history for',
+    deleteUserMissing: 'The selected user no longer exists.',
     selectProfile: 'Select a language profile',
     noProfiles: 'No profiles yet',
     addProfile: 'Add language profile',
@@ -39,7 +44,7 @@ export const en = {
     createProfileError: 'Could not create the language profile.',
     continue: 'Continue',
     keyboardHint:
-      '↓ Open · ↑↓ Select · → Add · ← List · Enter Confirm',
+      '↓ Open · ↑↓ Select · → Add · ← List · Enter Confirm · Delete User',
   },
   workspace: {
     cards: 'Cards',
@@ -58,8 +63,8 @@ export const en = {
     speechModel: 'Speech model (fixed)',
     save: 'Save',
     saved: 'Settings saved.',
-    loadSettingsError: 'Could not load profile settings.',
-    saveSettingsError: 'Could not save profile settings.',
+    loadSettingsError: 'Could not load user AI settings.',
+    saveSettingsError: 'Could not save user AI settings.',
     notConfigured: 'Not configured',
     menuKeyboardHint: '↑↓ Select · Enter Open · Esc Back',
     azureSpeech: 'Azure Speech',
@@ -68,6 +73,14 @@ export const en = {
     azureEndpoint: 'Speech resource endpoint',
     azureSubscriptionKey: 'Subscription key',
     saveAzureSpeech: 'Save Azure Speech settings',
+    dangerZone: 'Danger zone',
+    deleteProfile: 'Delete profile',
+    deleteProfileTitle: 'Delete language profile?',
+    deleteProfileDescription:
+      'This permanently deletes the profile and all of its cards:',
+    deleteProfileHint:
+      'Deleting this profile also removes its cards, generated audio, and session history.',
+    profileDeleteMissing: 'The selected profile no longer exists.',
   },
   cards: {
     title: 'Cards',
@@ -167,14 +180,18 @@ export const en = {
       'AI speech generation is available only in the desktop application.',
     speechPlaybackError: 'Could not play the generated audio.',
     catalogKeyboardHint:
-      '↑↓ Select · Enter Open · Ctrl+Enter Add · Esc Back',
+      '↑↓ Select · Enter Open · Delete Remove · Ctrl+Enter Add · Esc Back',
   },
   sessions: {
     testSetup: 'Start a test',
     learnSetup: 'Start learning',
     cardsPerSet: 'Cards per study set',
+    noMinimum: 'No minimum',
+    noMaximum: 'No maximum',
     checkPronunciation: 'Check pronunciation before written answers',
-    pronunciationAccuracy: 'Required pronunciation accuracy',
+    pronunciationScoreThreshold: 'Required pronunciation score',
+    pronunciationScoreDescription:
+      'The weakest sounds must reach this score. Clear sound substitutions and omitted words always fail.',
     invalidScoreRange: 'Minimum score cannot exceed maximum score.',
     startError: 'Could not start the session.',
     start: 'Start',
@@ -193,7 +210,7 @@ export const en = {
     next: 'Next',
     startMiniTest: 'Start mini-test',
     sayThisWord: 'Say this word',
-    requiredAccuracy: 'Required accuracy',
+    requiredPronunciationScore: 'Required pronunciation score',
     pronunciationNotConfigured:
       'Configure Azure Speech in Settings to enable this option.',
     startRecording: 'Start recording',
@@ -203,7 +220,14 @@ export const en = {
     microphoneError: 'Could not record audio from the microphone.',
     microphoneUnsupported:
       'Microphone recording is not supported in this environment.',
-    pronunciationScore: 'Accuracy score',
+    pronunciationScore: 'Strict pronunciation score',
+    weakestWordScore: 'Weakest word score',
+    weakestPhonemeScore: 'Weakest sound',
+    expectedPhoneme: 'Expected',
+    detectedPhoneme: 'but Azure considered more likely',
+    azureWordError: 'Azure reported',
+    azureDetails: 'Azure details',
+    scoringVersion: 'Scoring version',
     recognizedAs: 'Recognized as',
     pronunciationPassed: 'Pronunciation accepted. Continue to the written answer.',
     pronunciationRetry: 'Try saying the word once more.',

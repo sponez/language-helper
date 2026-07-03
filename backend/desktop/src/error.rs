@@ -1,7 +1,8 @@
 use application::ports::input::{
-    card_catalog::models::CardCatalogError, card_normalization::models::CardNormalizationError,
-    card_speech::models::CardSpeechError, language_profile::models::LanguageProfileError,
-    local_user::models::LocalUserError, pronunciation_settings::models::PronunciationSettingsError,
+    ai_settings::models::AiSettingsError, card_catalog::models::CardCatalogError,
+    card_normalization::models::CardNormalizationError, card_speech::models::CardSpeechError,
+    language_profile::models::LanguageProfileError, local_user::models::LocalUserError,
+    pronunciation_settings::models::PronunciationSettingsError,
     study_session::models::StudySessionError,
 };
 use serde::Serialize;
@@ -22,6 +23,20 @@ impl From<CardSpeechError> for CommandError {
             CardSpeechError::InvalidResponse => "speech_invalid_response",
             CardSpeechError::Provider(_) => "speech_provider_error",
             CardSpeechError::Unexpected(_) => "unexpected_error",
+        };
+        Self {
+            code,
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<AiSettingsError> for CommandError {
+    fn from(error: AiSettingsError) -> Self {
+        let code = match &error {
+            AiSettingsError::InvalidSettings => "invalid_ai_settings",
+            AiSettingsError::Conflict => "ai_settings_conflict",
+            AiSettingsError::Unexpected(_) => "unexpected_error",
         };
         Self {
             code,

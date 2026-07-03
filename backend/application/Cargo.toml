@@ -11,4 +11,6 @@ strsim = { workspace = true, default-features = false }
 sha2 = { workspace = true, default-features = false }
 
 [dev-dependencies]
+serde = { workspace = true, default-features = false }
+serde_json = { workspace = true, default-features = false }
 tokio = { workspace = true, default-features = false }

@@ -27,7 +27,6 @@ export interface AiSettings {
 
 export interface SaveAiSettingsInput extends AiSettings {
   username: string
-  profileId: string
 }
 
 export interface PronunciationSettings {
@@ -178,7 +177,16 @@ export interface CreateStudySessionInput {
   maxScore: number | null
   cardsPerSet: number | null
   pronunciationCheckEnabled: boolean
-  pronunciationAccuracyThreshold: number
+  pronunciationScoreThreshold: number
+}
+
+export interface StudySessionPreferences {
+  direction: CardDirection | null
+  minScore: number | null
+  maxScore: number | null
+  cardsPerSet: number | null
+  pronunciationCheckEnabled: boolean
+  pronunciationScoreThreshold: number
 }
 
 export interface ApplyStudySessionActionInput {
@@ -221,7 +229,7 @@ export interface StudySession {
   phase: StudySessionPhase
   status: StudySessionStatus
   pronunciationCheckEnabled: boolean
-  pronunciationAccuracyThreshold: number
+  pronunciationScoreThreshold: number
   pronunciationRequired: boolean
   pronunciationAttemptsUsed: number
   pronunciationTechnicalFailures: number
@@ -258,10 +266,22 @@ export interface StudySessionTransition {
       | 'technicalError'
       | 'disableRequired'
     report: {
-      accuracyScore: number
+      strictScore: number
+      weakestPhonemeScore: number | null
+      weakestWordScore: number | null
+      pronunciationScore: number | null
       fluencyScore: number | null
       completenessScore: number | null
+      prosodyScore: number | null
       recognizedText: string | null
+      issues: Array<{
+        kind: 'wordError' | 'phonemeSubstitution'
+        word: string
+        errorType: string | null
+        expected: string | null
+        detected: string | null
+      }>
+      scoringVersion: number
       passed: boolean
     } | null
     attempt: number
@@ -282,14 +302,13 @@ export interface LanguageHelperClient {
   getBackendStatus(): Promise<BackendStatus>
   getUsernames(): Promise<string[]>
   createUser(username: string): Promise<string>
+  deleteUser(username: string): Promise<boolean>
   getLanguageProfiles(username: string): Promise<LanguageProfile[]>
   createLanguageProfile(
     input: CreateLanguageProfileInput,
   ): Promise<LanguageProfile>
-  getAiSettings(
-    username: string,
-    profileId: string,
-  ): Promise<AiSettings>
+  deleteLanguageProfile(username: string, profileId: string): Promise<boolean>
+  getAiSettings(username: string): Promise<AiSettings>
   saveAiSettings(input: SaveAiSettingsInput): Promise<AiSettings>
   getPronunciationSettings(username: string): Promise<PronunciationSettings>
   savePronunciationSettings(
@@ -306,6 +325,11 @@ export interface LanguageHelperClient {
     input: PrepareInverseCardsInput,
   ): Promise<PendingInverseCard[]>
   saveInverseCards(input: SaveInverseCardsInput): Promise<Card[]>
+  getStudySessionPreferences(
+    username: string,
+    profileId: string,
+    mode: StudySessionMode,
+  ): Promise<StudySessionPreferences>
   createStudySession(input: CreateStudySessionInput): Promise<StudySession>
   applyStudySessionAction(
     input: ApplyStudySessionActionInput,

@@ -7,6 +7,7 @@ use std::{
 use async_trait::async_trait;
 use uuid::Uuid;
 
+use super::pronunciation_scoring::score_pronunciation;
 use crate::ports::{
     input::{
         card_catalog::models::{Card, CardOrder, CardSelectionQuery},
@@ -15,9 +16,10 @@ use crate::ports::{
             models::{
                 AnswerFeedback, ApplyStudySessionActionCommand, AssessPronunciationCommand,
                 CreateStudySessionCommand, CurrentCardView, EndStudySessionCommand,
-                PronunciationAssessmentReport, PronunciationFeedback, PronunciationFeedbackKind,
-                SessionAnswerResult, SessionFilter, SetOutcome, StudySession, StudySessionAction,
-                StudySessionError, StudySessionMode, StudySessionPhase, StudySessionProgress,
+                GetStudySessionPreferencesQuery, PronunciationAssessmentReport,
+                PronunciationFeedback, PronunciationFeedbackKind, SessionAnswerResult,
+                SessionFilter, SetOutcome, StudySession, StudySessionAction, StudySessionError,
+                StudySessionMode, StudySessionPhase, StudySessionPreferences, StudySessionProgress,
                 StudySessionStatus, StudySessionSummary, StudySessionTransition, StudySessionView,
             },
         },
@@ -125,7 +127,7 @@ impl StudySessionService {
             .min_score
             .zip(command.max_score)
             .is_some_and(|(minimum, maximum)| minimum > maximum)
-            || !(1..=100).contains(&command.pronunciation_accuracy_threshold)
+            || !(1..=100).contains(&command.pronunciation_score_threshold)
             || match command.mode {
                 StudySessionMode::Learning => !matches!(command.cards_per_set, Some(1..=100)),
                 StudySessionMode::Test => command.cards_per_set.is_some(),
@@ -264,7 +266,7 @@ impl StudySessionService {
             phase: session.phase,
             status: session.status,
             pronunciation_check_enabled: session.pronunciation_check_enabled,
-            pronunciation_accuracy_threshold: session.pronunciation_accuracy_threshold,
+            pronunciation_score_threshold: session.pronunciation_score_threshold,
             pronunciation_required: session.status == StudySessionStatus::Active
                 && session.phase == StudySessionPhase::Test
                 && session.pronunciation_check_enabled
@@ -496,7 +498,7 @@ impl StudySessionService {
         PronunciationFeedback {
             kind,
             attempt: session.pronunciation_attempts.len() as u8,
-            threshold: session.pronunciation_accuracy_threshold,
+            threshold: session.pronunciation_score_threshold,
             technical_failures: session.pronunciation_technical_failures,
             report,
             message,
@@ -606,7 +608,7 @@ impl StudySessionService {
                 subscription_key: settings
                     .subscription_key
                     .expect("configured subscription key"),
-                locale,
+                locale: locale.clone(),
                 reference_text,
                 audio,
             })
@@ -630,13 +632,7 @@ impl StudySessionService {
         };
         session.pronunciation_technical_failures = 0;
         session.pronunciation_disable_required = false;
-        let report = PronunciationAssessmentReport {
-            passed: report.accuracy_score >= session.pronunciation_accuracy_threshold,
-            accuracy_score: report.accuracy_score,
-            fluency_score: report.fluency_score,
-            completeness_score: report.completeness_score,
-            recognized_text: report.recognized_text,
-        };
+        let report = score_pronunciation(&locale, session.pronunciation_score_threshold, report);
         session.pronunciation_attempts.push(report.clone());
         let mut progress = Vec::new();
         let kind = if report.passed {
@@ -705,6 +701,30 @@ impl StudySessionService {
 
 #[async_trait]
 impl StudySessionUsecase for StudySessionService {
+    async fn get_preferences(
+        &self,
+        query: GetStudySessionPreferencesQuery,
+    ) -> Result<StudySessionPreferences, StudySessionError> {
+        if self
+            .profiles
+            .find(&query.user_id, &query.profile_id)
+            .await
+            .map_err(Self::map_profile_error)?
+            .is_none()
+        {
+            return Err(StudySessionError::NotFound);
+        }
+        self.sessions
+            .find_preferences(&query.user_id, &query.profile_id, query.mode)
+            .await
+            .map_err(Self::map_session_error)
+            .map(|preferences| {
+                preferences.unwrap_or_else(|| {
+                    StudySessionPreferences::defaults(query.profile_id, query.mode)
+                })
+            })
+    }
+
     async fn create_session(
         &self,
         command: CreateStudySessionCommand,
@@ -739,7 +759,7 @@ impl StudySessionUsecase for StudySessionService {
                 max_score: command.max_score,
             },
             pronunciation_check_enabled: command.pronunciation_check_enabled,
-            pronunciation_accuracy_threshold: command.pronunciation_accuracy_threshold,
+            pronunciation_score_threshold: command.pronunciation_score_threshold,
             cards_per_set: command.cards_per_set.unwrap_or(1),
             card_ids: Vec::new(),
             test_order: Vec::new(),
@@ -781,6 +801,17 @@ impl StudySessionUsecase for StudySessionService {
         let session = self
             .sessions
             .insert(StoreSessionRequest {
+                preferences: StudySessionPreferences {
+                    profile_id: session.profile_id.clone(),
+                    mode: session.mode,
+                    direction: session.filter.direction,
+                    min_score: session.filter.min_score,
+                    max_score: session.filter.max_score,
+                    cards_per_set: (session.mode == StudySessionMode::Learning)
+                        .then_some(session.cards_per_set),
+                    pronunciation_check_enabled: session.pronunciation_check_enabled,
+                    pronunciation_score_threshold: session.pronunciation_score_threshold,
+                },
                 session,
                 selected_test_card: selected,
             })

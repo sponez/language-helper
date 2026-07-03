@@ -31,13 +31,6 @@ impl From<&str> for ProfileId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct AiProviderSettings {
-    pub provider: Option<String>,
-    pub api_key: Option<String>,
-    pub model_name: Option<String>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LanguageProfile {
     pub id: ProfileId,
@@ -45,7 +38,6 @@ pub struct LanguageProfile {
     pub name: String,
     pub source_language: String,
     pub target_language: String,
-    pub ai_settings: AiProviderSettings,
     pub version: u64,
 }
 
@@ -81,7 +73,6 @@ pub struct LanguageProfileChanges {
     pub name: Option<String>,
     pub source_language: Option<String>,
     pub target_language: Option<String>,
-    pub ai_settings: Option<AiProviderSettings>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

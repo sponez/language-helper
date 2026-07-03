@@ -85,6 +85,7 @@ export function HomePage() {
   const { colorScheme, setColorScheme } = useMantineColorScheme()
   const [userModalOpened, userModal] = useDisclosure(false)
   const [profileModalOpened, profileModal] = useDisclosure(false)
+  const [deleteUserOpened, deleteUserModal] = useDisclosure(false)
   const [activePicker, setActivePicker] = useState<ActivePicker>('user')
   const [activeControl, setActiveControl] = useState<ActiveControl>('select')
   const [openedPicker, setOpenedPicker] = useState<ActivePicker | null>(null)
@@ -147,6 +148,28 @@ export function HomePage() {
           state: { username: selectedUser, profile: createdProfile },
         })
       }
+    },
+  })
+
+  const deleteUser = useMutation({
+    mutationFn: async () => {
+      const deleted = await client.deleteUser(selectedUser!)
+      if (!deleted) throw new Error(t('home.deleteUserMissing'))
+    },
+    onSuccess: async () => {
+      const deletedUsername = selectedUser
+      deleteUserModal.close()
+      setSelectedUser(null)
+      setSelectedProfile(null)
+      setOpenedPicker(null)
+      setActivePicker('user')
+      setActiveControl('select')
+      if (deletedUsername) {
+        queryClient.removeQueries({
+          queryKey: ['language-profiles', deletedUsername],
+        })
+      }
+      await queryClient.invalidateQueries({ queryKey: ['users'] })
     },
   })
 
@@ -258,7 +281,30 @@ export function HomePage() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (deleteUserOpened) {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          deleteUserModal.close()
+        } else if (event.key === 'Enter' && !deleteUser.isPending) {
+          event.preventDefault()
+          event.stopPropagation()
+          deleteUser.mutate()
+        }
+        return
+      }
       if (userModalOpened || profileModalOpened) return
+
+      if (
+        event.key === 'Delete' &&
+        selectedUser &&
+        openedPicker === null
+      ) {
+        event.preventDefault()
+        event.stopPropagation()
+        deleteUserModal.open()
+        return
+      }
 
       if (event.key === 'Tab') {
         event.preventDefault()
@@ -321,6 +367,9 @@ export function HomePage() {
   }, [
     activeControl,
     activePicker,
+    deleteUser,
+    deleteUserModal,
+    deleteUserOpened,
     openedPicker,
     profileModal,
     profileModalOpened,
@@ -427,6 +476,20 @@ export function HomePage() {
               +
             </Text>
           </ActionIcon>
+          <ActionIcon
+            aria-label={t('home.deleteUser')}
+            color="red"
+            disabled={!selectedUser}
+            size={36}
+            tabIndex={-1}
+            variant="subtle"
+            onClick={() => {
+              setOpenedPicker(null)
+              deleteUserModal.open()
+            }}
+          >
+            🗑
+          </ActionIcon>
         </Group>
 
         <Group
@@ -513,6 +576,41 @@ export function HomePage() {
           {profiles.error.message}
         </Alert>
       )}
+
+      <Modal
+        centered
+        closeOnClickOutside={!deleteUser.isPending}
+        closeOnEscape={!deleteUser.isPending}
+        opened={deleteUserOpened}
+        title={t('home.deleteUserTitle')}
+        onClose={deleteUserModal.close}
+      >
+        <Stack>
+          <Text>
+            {t('home.deleteUserDescription')}{' '}
+            <strong>{selectedUser}</strong>?
+          </Text>
+          {deleteUser.isError && (
+            <Alert color="red">{deleteUser.error.message}</Alert>
+          )}
+          <Group justify="flex-end">
+            <Button
+              color="red"
+              loading={deleteUser.isPending}
+              onClick={() => deleteUser.mutate()}
+            >
+              {t('home.deleteUser')}
+            </Button>
+            <Button
+              disabled={deleteUser.isPending}
+              variant="default"
+              onClick={deleteUserModal.close}
+            >
+              {t('home.cancel')}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Modal
         centered

@@ -3,7 +3,9 @@ use std::time::Duration;
 use application::ports::output::{
     PronunciationAssessor,
     pronunciation_assessor::models::{
-        PronunciationAssessmentError, PronunciationAssessmentReport, PronunciationAssessmentRequest,
+        PronunciationAssessmentError, PronunciationAssessmentReport,
+        PronunciationAssessmentRequest, PronunciationPhonemeAssessment,
+        PronunciationPhonemeCandidate, PronunciationWordAssessment,
     },
 };
 use async_trait::async_trait;
@@ -28,6 +30,12 @@ struct AssessmentHeader<'a> {
     granularity: &'static str,
     dimension: &'static str,
     enable_miscue: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    enable_prosody_assessment: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    phoneme_alphabet: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    n_best_phoneme_count: Option<u8>,
 }
 
 #[derive(Deserialize)]
@@ -42,10 +50,39 @@ struct AzureResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct AzureBest {
-    accuracy_score: Option<f64>,
+    pron_score: Option<f64>,
     fluency_score: Option<f64>,
     completeness_score: Option<f64>,
+    prosody_score: Option<f64>,
     display: Option<String>,
+    #[serde(default)]
+    words: Vec<AzureWord>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AzureWord {
+    word: Option<String>,
+    accuracy_score: Option<f64>,
+    error_type: Option<String>,
+    #[serde(default)]
+    phonemes: Vec<AzurePhoneme>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AzurePhoneme {
+    phoneme: Option<String>,
+    accuracy_score: Option<f64>,
+    #[serde(default)]
+    n_best_phonemes: Vec<AzurePhonemeCandidate>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct AzurePhonemeCandidate {
+    phoneme: Option<String>,
+    score: Option<f64>,
 }
 
 impl AzurePronunciationAssessor {
@@ -125,15 +162,20 @@ impl PronunciationAssessor for AzurePronunciationAssessor {
         request: PronunciationAssessmentRequest,
     ) -> Result<PronunciationAssessmentReport, PronunciationAssessmentError> {
         Self::validate_wav(&request.audio)?;
+        let is_english = request.locale == "en-US";
+        let configuration = AssessmentHeader {
+            reference_text: &request.reference_text,
+            grading_system: "HundredMark",
+            granularity: "Phoneme",
+            dimension: "Comprehensive",
+            enable_miscue: true,
+            enable_prosody_assessment: is_english.then_some(true),
+            phoneme_alphabet: is_english.then_some("IPA"),
+            n_best_phoneme_count: is_english.then_some(5),
+        };
         let header = STANDARD.encode(
-            serde_json::to_vec(&AssessmentHeader {
-                reference_text: &request.reference_text,
-                grading_system: "HundredMark",
-                granularity: "Word",
-                dimension: "Comprehensive",
-                enable_miscue: true,
-            })
-            .map_err(|_| PronunciationAssessmentError::InvalidResponse)?,
+            serde_json::to_vec(&configuration)
+                .map_err(|_| PronunciationAssessmentError::InvalidResponse)?,
         );
         let endpoint = format!(
             "{}/stt/speech/recognition/conversation/cognitiveservices/v1",
@@ -166,17 +208,22 @@ impl PronunciationAssessor for AzurePronunciationAssessor {
                 response.status()
             )));
         }
-        let response: AzureResponse = serde_json::from_slice(&Self::bounded_body(response).await?)
+        let response: serde_json::Value =
+            serde_json::from_slice(&Self::bounded_body(response).await?)
+                .map_err(|_| PronunciationAssessmentError::InvalidResponse)?;
+        let response: AzureResponse = serde_json::from_value(response)
             .map_err(|_| PronunciationAssessmentError::InvalidResponse)?;
         if matches!(
             response.recognition_status.as_str(),
             "NoMatch" | "InitialSilenceTimeout" | "BabbleTimeout"
         ) {
             return Ok(PronunciationAssessmentReport {
-                accuracy_score: 0,
+                pronunciation_score: Some(0),
                 fluency_score: None,
-                completeness_score: None,
+                completeness_score: 0,
+                prosody_score: None,
                 recognized_text: response.display_text,
+                words: Vec::new(),
             });
         }
         if response.recognition_status != "Success" {
@@ -189,12 +236,52 @@ impl PronunciationAssessor for AzurePronunciationAssessor {
             .into_iter()
             .next()
             .ok_or(PronunciationAssessmentError::InvalidResponse)?;
+        let words = best
+            .words
+            .into_iter()
+            .map(|word| {
+                let phonemes = word
+                    .phonemes
+                    .into_iter()
+                    .map(|phoneme| {
+                        let candidates = phoneme
+                            .n_best_phonemes
+                            .into_iter()
+                            .filter_map(|candidate| {
+                                Some(PronunciationPhonemeCandidate {
+                                    phoneme: candidate.phoneme?,
+                                    score: Self::score(candidate.score)?,
+                                })
+                            })
+                            .collect();
+                        Ok(PronunciationPhonemeAssessment {
+                            phoneme: phoneme.phoneme.filter(|value| !value.trim().is_empty()),
+                            accuracy_score: Self::score(phoneme.accuracy_score)
+                                .ok_or(PronunciationAssessmentError::InvalidResponse)?,
+                            candidates,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, PronunciationAssessmentError>>()?;
+                Ok(PronunciationWordAssessment {
+                    word: word.word.unwrap_or_default(),
+                    accuracy_score: Self::score(word.accuracy_score)
+                        .ok_or(PronunciationAssessmentError::InvalidResponse)?,
+                    error_type: word.error_type,
+                    phonemes,
+                })
+            })
+            .collect::<Result<Vec<_>, PronunciationAssessmentError>>()?;
+        if words.is_empty() || words.iter().any(|word| word.phonemes.is_empty()) {
+            return Err(PronunciationAssessmentError::InvalidResponse);
+        }
         Ok(PronunciationAssessmentReport {
-            accuracy_score: Self::score(best.accuracy_score)
-                .ok_or(PronunciationAssessmentError::InvalidResponse)?,
+            pronunciation_score: Self::score(best.pron_score),
             fluency_score: Self::score(best.fluency_score),
-            completeness_score: Self::score(best.completeness_score),
+            completeness_score: Self::score(best.completeness_score)
+                .ok_or(PronunciationAssessmentError::InvalidResponse)?,
+            prosody_score: Self::score(best.prosody_score),
             recognized_text: best.display.or(response.display_text),
+            words,
         })
     }
 }
@@ -283,7 +370,7 @@ mod tests {
                 }
             }
             sender.send(request).unwrap();
-            let body = br#"{"RecognitionStatus":"Success","DisplayText":"hello","NBest":[{"AccuracyScore":87.4,"FluencyScore":91.0,"CompletenessScore":100.0,"Display":"hello"}]}"#;
+            let body = br#"{"RecognitionStatus":"Success","DisplayText":"hello","NBest":[{"AccuracyScore":87.4,"PronScore":84.2,"FluencyScore":91.0,"CompletenessScore":100.0,"ProsodyScore":72.0,"Display":"hello","Words":[{"Word":"hello","AccuracyScore":87.4,"ErrorType":"None","Phonemes":[{"Phoneme":"h","AccuracyScore":76.0,"NBestPhonemes":[{"Phoneme":"h","Score":90.0},{"Phoneme":"f","Score":30.0}]}]}]}]}"#;
             write!(
                 stream,
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
@@ -302,8 +389,13 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(result.accuracy_score, 87);
+        assert_eq!(result.pronunciation_score, Some(84));
         assert_eq!(result.fluency_score, Some(91));
+        assert_eq!(result.completeness_score, 100);
+        assert_eq!(result.prosody_score, Some(72));
+        assert_eq!(result.words.len(), 1);
+        assert_eq!(result.words[0].phonemes[0].phoneme.as_deref(), Some("h"));
+        assert_eq!(result.words[0].phonemes[0].candidates[0].score, 90);
         let request = String::from_utf8_lossy(&receiver.recv().unwrap()).to_string();
         assert!(request.contains("language=en-US&format=detailed"));
         assert!(request.contains("ocp-apim-subscription-key: test-key"));

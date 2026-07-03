@@ -2,6 +2,7 @@ import {
   Alert,
   Button,
   Group,
+  Modal,
   Paper,
   PasswordInput,
   Select,
@@ -10,6 +11,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core'
+import { useDisclosure } from '@mantine/hooks'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
@@ -72,11 +74,12 @@ export function WorkspacePage() {
     DEFAULT_PRONUNCIATION_SETTINGS,
   )
   const [pronunciationSaved, setPronunciationSaved] = useState(false)
+  const [deleteProfileOpened, deleteProfileModal] = useDisclosure(false)
 
   const loadedSettings = useQuery({
-    queryKey: ['ai-settings', context?.username, context?.profile.id],
-    queryFn: () => client.getAiSettings(context!.username, context!.profile.id),
-    enabled: Boolean(context?.username && context?.profile.id),
+    queryKey: ['ai-settings', context?.username],
+    queryFn: () => client.getAiSettings(context!.username),
+    enabled: Boolean(context?.username),
     retry: false,
   })
 
@@ -84,7 +87,6 @@ export function WorkspacePage() {
     mutationFn: () =>
       client.saveAiSettings({
         username: context!.username,
-        profileId: context!.profile.id,
         ...settings,
         apiKey: settings.apiKey?.trim() || null,
         modelName: settings.modelName?.trim() || null,
@@ -92,6 +94,7 @@ export function WorkspacePage() {
     onSuccess: (result) => {
       setSettings(result)
       setSaved(true)
+      queryClient.setQueryData(['ai-settings', context!.username], result)
     },
   })
 
@@ -118,6 +121,23 @@ export function WorkspacePage() {
         ['pronunciation-settings', context!.username],
         result,
       )
+    },
+  })
+
+  const deleteProfile = useMutation({
+    mutationFn: async () => {
+      const deleted = await client.deleteLanguageProfile(
+        context!.username,
+        context!.profile.id,
+      )
+      if (!deleted) throw new Error(t('workspace.profileDeleteMissing'))
+    },
+    onSuccess: async () => {
+      deleteProfileModal.close()
+      await queryClient.invalidateQueries({
+        queryKey: ['language-profiles', context!.username],
+      })
+      void navigate('/', { replace: true })
     },
   })
 
@@ -161,6 +181,7 @@ export function WorkspacePage() {
         }
       } else if (view === 'settings') {
         if (event.key === 'Escape') {
+          if (deleteProfileOpened) return
           event.preventDefault()
           setSaved(false)
           setPronunciationSaved(false)
@@ -173,7 +194,14 @@ export function WorkspacePage() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [menuCursor, navigate, save, savePronunciation, view])
+  }, [
+    deleteProfileOpened,
+    menuCursor,
+    navigate,
+    save,
+    savePronunciation,
+    view,
+  ])
 
   if (!context?.username || !context.profile) {
     return <Navigate replace to="/" />
@@ -269,7 +297,14 @@ export function WorkspacePage() {
         )}
 
         {view === 'settings' && (
-          <Stack className={classes.menu} gap="md">
+          <Stack className={classes.settings} gap="md">
+            <Button
+              className={classes.settingsBack}
+              variant="subtle"
+              onClick={closeSettings}
+            >
+              ← {t('workspace.back')}
+            </Button>
             <Paper className={classes.settingsBlock} p="xl" withBorder>
               <Stack>
                 <Title order={3}>{t('workspace.aiSettings')}</Title>
@@ -321,6 +356,23 @@ export function WorkspacePage() {
                   {speechModelName(settings.provider) ??
                     t('workspace.notConfigured')}
                 </Text>
+                {loadedSettings.isError && (
+                  <Alert color="red" title={t('workspace.loadSettingsError')}>
+                    {loadedSettings.error.message}
+                  </Alert>
+                )}
+                {save.isError && (
+                  <Alert color="red" title={t('workspace.saveSettingsError')}>
+                    {save.error.message}
+                  </Alert>
+                )}
+                {saved && <Alert color="green">{t('workspace.saved')}</Alert>}
+                <Button
+                  loading={save.isPending}
+                  onClick={() => save.mutate()}
+                >
+                  {t('workspace.save')}
+                </Button>
               </Stack>
             </Paper>
             <Paper className={classes.settingsBlock} p="xl" withBorder>
@@ -375,29 +427,53 @@ export function WorkspacePage() {
                 </Button>
               </Stack>
             </Paper>
-            {loadedSettings.isError && (
-              <Alert color="red" title={t('workspace.loadSettingsError')}>
-                {loadedSettings.error.message}
-              </Alert>
-            )}
-            {save.isError && (
-              <Alert color="red" title={t('workspace.saveSettingsError')}>
-                {save.error.message}
-              </Alert>
-            )}
-            {saved && <Alert color="green">{t('workspace.saved')}</Alert>}
-            <Group justify="center">
-              <Button
-                loading={save.isPending}
-                w={140}
-                onClick={() => save.mutate()}
-              >
-                {t('workspace.save')}
-              </Button>
-              <Button variant="default" w={140} onClick={closeSettings}>
-                {t('workspace.back')}
-              </Button>
-            </Group>
+            <Paper className={classes.settingsBlock} p="xl" withBorder>
+              <Stack>
+                <Title order={3}>{t('workspace.dangerZone')}</Title>
+                <Text c="dimmed" size="sm">
+                  {t('workspace.deleteProfileHint')}
+                </Text>
+                <Button
+                  color="red"
+                  variant="light"
+                  onClick={deleteProfileModal.open}
+                >
+                  {t('workspace.deleteProfile')}
+                </Button>
+              </Stack>
+            </Paper>
+            <Modal
+              centered
+              opened={deleteProfileOpened}
+              title={t('workspace.deleteProfileTitle')}
+              onClose={deleteProfileModal.close}
+            >
+              <Stack>
+                <Text>
+                  {t('workspace.deleteProfileDescription')}{' '}
+                  <strong>{context.profile.name}</strong>?
+                </Text>
+                {deleteProfile.isError && (
+                  <Alert color="red">{deleteProfile.error.message}</Alert>
+                )}
+                <Group justify="flex-end">
+                  <Button
+                    color="red"
+                    loading={deleteProfile.isPending}
+                    onClick={() => deleteProfile.mutate()}
+                  >
+                    {t('workspace.deleteProfile')}
+                  </Button>
+                  <Button
+                    disabled={deleteProfile.isPending}
+                    variant="default"
+                    onClick={deleteProfileModal.close}
+                  >
+                    {t('cards.cancel')}
+                  </Button>
+                </Group>
+              </Stack>
+            </Modal>
           </Stack>
         )}
       </Stack>

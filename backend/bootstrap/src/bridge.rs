@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use adapters::output::persistence::{
-    SqliteCardRepository, SqliteCardRepositoryInitError, SqliteLanguageProfileRepository,
+    SqliteAiSettingsRepository, SqliteAiSettingsRepositoryInitError, SqliteCardRepository,
+    SqliteCardRepositoryInitError, SqliteLanguageProfileRepository,
     SqliteLanguageProfileRepositoryInitError, SqlitePronunciationSettingsRepository,
     SqlitePronunciationSettingsRepositoryInitError, SqliteSpeechAudioRepository,
     SqliteSpeechAudioRepositoryInitError, SqliteStudySessionRepository,
@@ -10,14 +11,15 @@ use adapters::output::persistence::{
 use adapters::output::{AiSpeechSynthesizer, AzurePronunciationAssessor, GenAiCardNormalizer};
 use application::{
     ports::input::{
-        card_catalog::CardCatalogUsecase, card_normalization::CardNormalizationUsecase,
-        card_speech::CardSpeechUsecase, language_profile::LanguageProfileUsecase,
-        local_user::LocalUserUsecase, pronunciation_settings::PronunciationSettingsUsecase,
-        study_session::StudySessionUsecase,
+        ai_settings::AiSettingsUsecase, card_catalog::CardCatalogUsecase,
+        card_normalization::CardNormalizationUsecase, card_speech::CardSpeechUsecase,
+        language_profile::LanguageProfileUsecase, local_user::LocalUserUsecase,
+        pronunciation_settings::PronunciationSettingsUsecase, study_session::StudySessionUsecase,
     },
     usecases::{
-        CardCatalogService, CardNormalizationService, CardSpeechService, LanguageProfileService,
-        LocalUserService, PronunciationSettingsService, StudySessionService,
+        AiSettingsService, CardCatalogService, CardNormalizationService, CardSpeechService,
+        LanguageProfileService, LocalUserService, PronunciationSettingsService,
+        StudySessionService,
     },
 };
 use thiserror::Error;
@@ -38,6 +40,8 @@ pub enum BootstrapError {
     SpeechAudioRepository(#[from] SqliteSpeechAudioRepositoryInitError),
     #[error("failed to initialize the pronunciation settings repository: {0}")]
     PronunciationSettingsRepository(#[from] SqlitePronunciationSettingsRepositoryInitError),
+    #[error("failed to initialize the AI settings repository: {0}")]
+    AiSettingsRepository(#[from] SqliteAiSettingsRepositoryInitError),
 }
 
 /// Ready-to-use application ports shared by inbound adapters.
@@ -48,6 +52,7 @@ pub struct BootstrapBridge {
     cards: Arc<dyn CardCatalogUsecase>,
     card_normalization: Arc<dyn CardNormalizationUsecase>,
     card_speech: Arc<dyn CardSpeechUsecase>,
+    ai_settings: Arc<dyn AiSettingsUsecase>,
     pronunciation_settings: Arc<dyn PronunciationSettingsUsecase>,
     study_sessions: Arc<dyn StudySessionUsecase>,
 }
@@ -65,6 +70,8 @@ impl BootstrapBridge {
         let pronunciation_settings_repository = Arc::new(
             SqlitePronunciationSettingsRepository::new(&config.database_path)?,
         );
+        let ai_settings_repository =
+            Arc::new(SqliteAiSettingsRepository::new(&config.database_path)?);
         let local_users = Arc::new(LocalUserService::new(user_repository));
         let language_profiles = Arc::new(LanguageProfileService::new(Arc::clone(
             &language_profile_repository,
@@ -85,13 +92,18 @@ impl BootstrapBridge {
         let pronunciation_settings = Arc::new(PronunciationSettingsService::new(
             pronunciation_settings_repository,
         ));
+        let ai_settings = Arc::new(AiSettingsService::new(Arc::clone(&ai_settings_repository)
+            as Arc<dyn application::ports::output::repository::AiSettingsRepository>));
         let card_normalization = Arc::new(CardNormalizationService::new(
             Arc::clone(&language_profile_repository)
                 as Arc<dyn application::ports::output::repository::LanguageProfileRepository>,
+            Arc::clone(&ai_settings_repository)
+                as Arc<dyn application::ports::output::repository::AiSettingsRepository>,
             Arc::new(GenAiCardNormalizer),
         ));
         let card_speech = Arc::new(CardSpeechService::new(
             language_profile_repository,
+            ai_settings_repository,
             card_repository,
             speech_audio_repository,
             Arc::new(AiSpeechSynthesizer::default()),
@@ -103,6 +115,7 @@ impl BootstrapBridge {
             cards,
             card_normalization,
             card_speech,
+            ai_settings,
             pronunciation_settings,
             study_sessions,
         })
@@ -126,6 +139,10 @@ impl BootstrapBridge {
 
     pub fn card_speech(&self) -> Arc<dyn CardSpeechUsecase> {
         Arc::clone(&self.card_speech)
+    }
+
+    pub fn ai_settings(&self) -> Arc<dyn AiSettingsUsecase> {
+        Arc::clone(&self.ai_settings)
     }
 
     pub fn pronunciation_settings(&self) -> Arc<dyn PronunciationSettingsUsecase> {

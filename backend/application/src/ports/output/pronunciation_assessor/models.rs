@@ -11,10 +11,33 @@ pub struct PronunciationAssessmentRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PronunciationAssessmentReport {
-    pub accuracy_score: u8,
+    pub pronunciation_score: Option<u8>,
     pub fluency_score: Option<u8>,
-    pub completeness_score: Option<u8>,
+    pub completeness_score: u8,
+    pub prosody_score: Option<u8>,
     pub recognized_text: Option<String>,
+    pub words: Vec<PronunciationWordAssessment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PronunciationWordAssessment {
+    pub word: String,
+    pub accuracy_score: u8,
+    pub error_type: Option<String>,
+    pub phonemes: Vec<PronunciationPhonemeAssessment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PronunciationPhonemeAssessment {
+    pub phoneme: Option<String>,
+    pub accuracy_score: u8,
+    pub candidates: Vec<PronunciationPhonemeCandidate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PronunciationPhonemeCandidate {
+    pub phoneme: String,
+    pub score: u8,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
