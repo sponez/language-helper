@@ -139,6 +139,77 @@ export function SessionPage({
   const invalidRange =
     minScore !== null && maxScore !== null && minScore > maxScore
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (endOpened) return
+        event.preventDefault()
+        if (!session || session.status === 'completed') onBack()
+        else endModal.open()
+        return
+      }
+      if (
+        event.key !== 'Enter' &&
+        event.key !== 'ArrowLeft' &&
+        event.key !== 'ArrowRight'
+      ) {
+        return
+      }
+      if (event.key === 'Enter' && session?.status === 'completed') {
+        event.preventDefault()
+        onBack()
+        return
+      }
+      if (!session || session.status !== 'active' || action.isPending) return
+
+      const current = session.currentCard
+      if (current?.kind === 'study') {
+        if (event.key === 'ArrowLeft') {
+          event.preventDefault()
+          if (session.currentCardNumber > 1) {
+            action.mutate({ action: 'previousStudyCard' })
+          }
+        } else if (event.key === 'ArrowRight') {
+          event.preventDefault()
+          action.mutate({ action: 'nextStudyCard' })
+        } else {
+          event.preventDefault()
+          action.mutate({ action: 'startMiniTest' })
+        }
+        return
+      }
+
+      if (event.key !== 'Enter') return
+      if (
+        current?.kind === 'test' &&
+        session.pronunciationCheckEnabled &&
+        !pronunciationDone &&
+        !feedback
+      ) {
+        event.preventDefault()
+        setPronunciationDone(true)
+      } else if (feedback) {
+        event.preventDefault()
+        if (feedback.cardCompleted) {
+          action.mutate({ action: 'continueAfterFeedback' })
+        } else {
+          setFeedback(null)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    action,
+    endModal,
+    endOpened,
+    feedback,
+    onBack,
+    pronunciationDone,
+    session,
+  ])
+
   if (!session) {
     return (
       <Stack className={classes.setup} gap="md">
@@ -254,6 +325,9 @@ export function SessionPage({
           </Stack>
         </Paper>
         <Button onClick={onBack}>{t('sessions.backToMenu')}</Button>
+        <Text c="dimmed" size="xs">
+          {t('sessions.completeKeyboardHint')}
+        </Text>
       </Stack>
     )
   }

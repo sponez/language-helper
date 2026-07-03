@@ -13,7 +13,7 @@ import {
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
@@ -41,6 +41,9 @@ type ProfileNameError =
   | 'home.profileNameRequired'
   | 'home.profileNameTooLong'
   | 'home.profileNameInvalid'
+
+type ActivePicker = 'user' | 'profile'
+type ActiveControl = 'select' | 'add'
 
 function validateUsername(username: string): UsernameError | null {
   const normalizedUsername = username.trim()
@@ -82,6 +85,13 @@ export function HomePage() {
   const { colorScheme, setColorScheme } = useMantineColorScheme()
   const [userModalOpened, userModal] = useDisclosure(false)
   const [profileModalOpened, profileModal] = useDisclosure(false)
+  const [activePicker, setActivePicker] = useState<ActivePicker>('user')
+  const [activeControl, setActiveControl] = useState<ActiveControl>('select')
+  const [openedPicker, setOpenedPicker] = useState<ActivePicker | null>(null)
+  const userSelect = useRef<HTMLInputElement>(null)
+  const profileSelect = useRef<HTMLInputElement>(null)
+  const addUserButton = useRef<HTMLButtonElement>(null)
+  const addProfileButton = useRef<HTMLButtonElement>(null)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null)
   const [username, setUsername] = useState('')
@@ -109,6 +119,10 @@ export function HomePage() {
     onSuccess: async (createdUsername) => {
       await queryClient.invalidateQueries({ queryKey: ['users'] })
       setSelectedUser(createdUsername)
+      setSelectedProfile(null)
+      setOpenedPicker(null)
+      setActivePicker('profile')
+      setActiveControl('select')
       setUsername('')
       setSubmitted(false)
       userModal.close()
@@ -128,6 +142,11 @@ export function HomePage() {
       setTargetLanguage(null)
       setProfileSubmitted(false)
       profileModal.close()
+      if (selectedUser) {
+        void navigate('/workspace', {
+          state: { username: selectedUser, profile: createdProfile },
+        })
+      }
     },
   })
 
@@ -191,6 +210,127 @@ export function HomePage() {
     createUser.mutate(username.trim())
   }
 
+  function openWorkspace(profileId = selectedProfile) {
+    const profile = profiles.data?.find((item) => item.id === profileId)
+    if (selectedUser && profile) {
+      void navigate('/workspace', {
+        state: { username: selectedUser, profile },
+      })
+    }
+  }
+
+  function confirmUser(user: string) {
+    selectUser(user)
+    setOpenedPicker(null)
+    setActivePicker('profile')
+    setActiveControl('select')
+  }
+
+  function confirmProfile(profileId: string) {
+    setSelectedProfile(profileId)
+    setOpenedPicker(null)
+    openWorkspace(profileId)
+  }
+
+  useEffect(() => {
+    if (
+      activePicker !== 'profile' ||
+      !selectedUser ||
+      profiles.isFetching ||
+      profiles.isError ||
+      userModalOpened ||
+      profileModalOpened
+    ) {
+      return
+    }
+
+    profileSelect.current?.focus()
+    setActiveControl('select')
+    setOpenedPicker('profile')
+  }, [
+    activePicker,
+    profileModalOpened,
+    profiles.isError,
+    profiles.isFetching,
+    selectedUser,
+    userModalOpened,
+  ])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (userModalOpened || profileModalOpened) return
+
+      if (event.key === 'Tab') {
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
+
+      if (
+        event.key === 'ArrowRight' &&
+        openedPicker === activePicker &&
+        activeControl === 'select'
+      ) {
+        event.preventDefault()
+        event.stopPropagation()
+        setOpenedPicker(null)
+        setActiveControl('add')
+        const button =
+          activePicker === 'user'
+            ? addUserButton.current
+            : addProfileButton.current
+        requestAnimationFrame(() => button?.focus())
+        return
+      }
+
+      if (event.key === 'ArrowLeft' && activeControl === 'add') {
+        event.preventDefault()
+        event.stopPropagation()
+        setActiveControl('select')
+        const select =
+          activePicker === 'user' ? userSelect.current : profileSelect.current
+        select?.focus()
+        setOpenedPicker(activePicker)
+        return
+      }
+
+      if (
+        event.key === 'ArrowDown' &&
+        openedPicker === null &&
+        activeControl === 'select'
+      ) {
+        const target = event.target
+        if (
+          target instanceof HTMLInputElement &&
+          target !== userSelect.current &&
+          target !== profileSelect.current
+        ) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        const select =
+          activePicker === 'user' ? userSelect.current : profileSelect.current
+        select?.focus()
+        setOpenedPicker(activePicker)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [
+    activeControl,
+    activePicker,
+    openedPicker,
+    profileModal,
+    profileModalOpened,
+    profiles.isError,
+    profiles.isFetching,
+    selectedUser,
+    userModal,
+    userModalOpened,
+  ])
+
   const userOptions = (users.data ?? []).map((user) => ({
     value: user,
     label: user,
@@ -214,6 +354,7 @@ export function HomePage() {
             { value: 'dark', label: 'Dark' },
             { value: 'light', label: 'Light' },
           ]}
+          tabIndex={-1}
           value={colorScheme === 'auto' ? 'dark' : colorScheme}
           onChange={(value) => {
             if (value === 'dark' || value === 'light') {
@@ -226,17 +367,27 @@ export function HomePage() {
           allowDeselect={false}
           className={classes.settingSelect}
           data={['English']}
-          value="English"
           disabled
+          tabIndex={-1}
+          value="English"
         />
       </Group>
 
       <Stack className={classes.pickers} gap={10}>
-        <Group className={classes.pickerRow} gap={10} wrap="nowrap">
+        <Group
+          className={classes.pickerRow}
+          gap={10}
+          wrap="nowrap"
+          onFocusCapture={() => setActivePicker('user')}
+        >
           <Select
+            ref={userSelect}
             aria-label={t('home.selectUser')}
+            allowDeselect={false}
             className={classes.pickerSelect}
             data={userOptions}
+            dropdownOpened={openedPicker === 'user'}
+            selectFirstOptionOnDropdownOpen
             value={selectedUser}
             placeholder={
               users.isPending ? t('home.loadingUsers') : t('home.selectUser')
@@ -245,14 +396,32 @@ export function HomePage() {
             disabled={users.isPending || users.isError}
             rightSection={users.isPending ? <Loader size={16} /> : undefined}
             searchable
-            onChange={selectUser}
+            tabIndex={-1}
+            onDropdownClose={() =>
+              setOpenedPicker((current) =>
+                current === 'user' ? null : current,
+              )
+            }
+            onDropdownOpen={() => {
+              setActivePicker('user')
+              setActiveControl('select')
+              setOpenedPicker('user')
+            }}
+            onOptionSubmit={confirmUser}
           />
           <ActionIcon
+            ref={addUserButton}
             aria-label={t('home.addUser')}
             className={classes.addButton}
             size={36}
+            tabIndex={-1}
             variant="default"
-            onClick={userModal.open}
+            onClick={() => {
+              setActivePicker('user')
+              setActiveControl('add')
+              setOpenedPicker(null)
+              userModal.open()
+            }}
           >
             <Text component="span" size="lg" lh={1}>
               +
@@ -260,11 +429,20 @@ export function HomePage() {
           </ActionIcon>
         </Group>
 
-        <Group className={classes.pickerRow} gap={10} wrap="nowrap">
+        <Group
+          className={classes.pickerRow}
+          gap={10}
+          wrap="nowrap"
+          onFocusCapture={() => setActivePicker('profile')}
+        >
           <Select
+            ref={profileSelect}
             aria-label={t('home.selectProfile')}
+            allowDeselect={false}
             className={classes.pickerSelect}
             data={profileOptions}
+            dropdownOpened={openedPicker === 'profile'}
+            selectFirstOptionOnDropdownOpen
             value={selectedProfile}
             placeholder={
               profiles.isFetching
@@ -277,15 +455,33 @@ export function HomePage() {
               profiles.isFetching ? <Loader size={16} /> : undefined
             }
             searchable
-            onChange={setSelectedProfile}
+            tabIndex={-1}
+            onDropdownClose={() =>
+              setOpenedPicker((current) =>
+                current === 'profile' ? null : current,
+              )
+            }
+            onDropdownOpen={() => {
+              setActivePicker('profile')
+              setActiveControl('select')
+              setOpenedPicker('profile')
+            }}
+            onOptionSubmit={confirmProfile}
           />
           <ActionIcon
+            ref={addProfileButton}
             aria-label={t('home.addProfile')}
             className={classes.addButton}
             size={36}
+            tabIndex={-1}
             variant="default"
             disabled={!selectedUser || profiles.isFetching || profiles.isError}
-            onClick={profileModal.open}
+            onClick={() => {
+              setActivePicker('profile')
+              setActiveControl('add')
+              setOpenedPicker(null)
+              profileModal.open()
+            }}
           >
             <Text component="span" size="lg" lh={1}>
               +
@@ -293,23 +489,9 @@ export function HomePage() {
           </ActionIcon>
         </Group>
 
-        <Button
-          className={classes.continueButton}
-          disabled={!selectedUser || !selectedProfile}
-          onClick={() => {
-            const profile = profiles.data?.find(
-              (item) => item.id === selectedProfile,
-            )
-
-            if (selectedUser && profile) {
-              void navigate('/workspace', {
-                state: { username: selectedUser, profile },
-              })
-            }
-          }}
-        >
-          {t('home.continue')}
-        </Button>
+        <Text c="dimmed" size="xs" ta="center">
+          {t('home.keyboardHint')}
+        </Text>
       </Stack>
 
       {users.isError && (

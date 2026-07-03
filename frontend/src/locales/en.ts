@@ -38,6 +38,8 @@ export const en = {
     languagesMustDiffer: 'Source and target languages must be different.',
     createProfileError: 'Could not create the language profile.',
     continue: 'Continue',
+    keyboardHint:
+      '↓ Open · ↑↓ Select · → Add · ← List · Enter Confirm',
   },
   workspace: {
     cards: 'Cards',
@@ -58,6 +60,7 @@ export const en = {
     loadSettingsError: 'Could not load profile settings.',
     saveSettingsError: 'Could not save profile settings.',
     notConfigured: 'Not configured',
+    menuKeyboardHint: '↑↓ Select · Enter Open · Esc Back',
   },
   cards: {
     title: 'Cards',
@@ -146,6 +149,8 @@ export const en = {
     aiNotConfigured:
       'AI is not configured. Add a provider, API key, and model in Settings.',
     aiSettingsLoading: 'Checking AI settings…',
+    catalogKeyboardHint:
+      '↑↓ Select · Enter Open · Ctrl+Enter Add · Esc Back',
   },
   sessions: {
     testSetup: 'Start a test',
@@ -182,6 +187,7 @@ export const en = {
     endTitle: 'End this session?',
     endDescription:
       'The session cannot be resumed. Score changes already applied by the test will remain.',
+    completeKeyboardHint: 'Enter Back to menu',
   },
   backend: {
     connected: 'Backend connection is ready.',

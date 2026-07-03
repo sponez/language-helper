@@ -15,6 +15,16 @@
   margin: 8vh auto 0;
 }
 
+.menuItemSelected {
+  outline: 2px solid var(--mantine-color-indigo-5);
+  outline-offset: 1px;
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-indigo-8) 32%,
+    transparent
+  );
+}
+
 .settingsGrid {
   align-items: stretch;
 }

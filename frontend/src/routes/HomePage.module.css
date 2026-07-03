@@ -36,12 +36,6 @@
   flex: 0 0 auto;
 }
 
-.continueButton {
-  align-self: center;
-  width: 120px;
-  margin-top: 10px;
-}
-
 .loadError {
   position: absolute;
   right: 24px;

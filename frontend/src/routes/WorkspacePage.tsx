@@ -38,6 +38,15 @@ const DEFAULT_SETTINGS: AiSettings = {
 }
 
 type View = 'menu' | 'settings' | 'cards' | StudySessionMode
+type MenuItem = 'cards' | 'learning' | 'test' | 'settings' | 'back'
+
+const MENU_ITEMS: MenuItem[] = [
+  'cards',
+  'learning',
+  'test',
+  'settings',
+  'back',
+]
 
 export function WorkspacePage() {
   const client = useLanguageHelperClient()
@@ -46,6 +55,7 @@ export function WorkspacePage() {
   const location = useLocation()
   const context = location.state as WorkspaceLocationState | null
   const [view, setView] = useState<View>('menu')
+  const [menuCursor, setMenuCursor] = useState<number | null>(null)
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [saved, setSaved] = useState(false)
 
@@ -75,6 +85,48 @@ export function WorkspacePage() {
     if (loadedSettings.data) setSettings(loadedSettings.data)
   }, [loadedSettings.data])
 
+  useEffect(() => {
+    if (view === 'menu') setMenuCursor(null)
+  }, [view])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (view === 'menu') {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          void navigate('/')
+        } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault()
+          setMenuCursor((current) => {
+            if (current === null) {
+              return event.key === 'ArrowDown' ? 0 : MENU_ITEMS.length - 1
+            }
+            const offset = event.key === 'ArrowDown' ? 1 : -1
+            return Math.min(
+              MENU_ITEMS.length - 1,
+              Math.max(0, current + offset),
+            )
+          })
+        } else if (event.key === 'Enter' && menuCursor !== null) {
+          event.preventDefault()
+          const item = MENU_ITEMS[menuCursor]
+          if (item === 'back') void navigate('/')
+          else setView(item)
+        }
+      } else if (view === 'settings') {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          setSaved(false)
+          save.reset()
+          setView('menu')
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [menuCursor, navigate, save, view])
+
   if (!context?.username || !context.profile) {
     return <Navigate replace to="/" />
   }
@@ -99,37 +151,53 @@ export function WorkspacePage() {
         {view === 'menu' && (
           <Stack className={classes.menu} gap="sm">
             <Button
+              className={menuCursor === 0 ? classes.menuItemSelected : undefined}
               size="md"
+              tabIndex={-1}
               variant="default"
               onClick={() => setView('cards')}
             >
               {t('workspace.cards')}
             </Button>
             <Button
+              className={menuCursor === 1 ? classes.menuItemSelected : undefined}
               size="md"
+              tabIndex={-1}
               variant="default"
               onClick={() => setView('learning')}
             >
               {t('workspace.learn')}
             </Button>
             <Button
+              className={menuCursor === 2 ? classes.menuItemSelected : undefined}
               size="md"
+              tabIndex={-1}
               variant="default"
               onClick={() => setView('test')}
             >
               {t('workspace.test')}
             </Button>
-            <Button size="md" onClick={() => setView('settings')}>
+            <Button
+              className={menuCursor === 3 ? classes.menuItemSelected : undefined}
+              size="md"
+              tabIndex={-1}
+              onClick={() => setView('settings')}
+            >
               {t('workspace.settings')}
             </Button>
             <Button
+              className={menuCursor === 4 ? classes.menuItemSelected : undefined}
               color="gray"
               size="md"
+              tabIndex={-1}
               variant="subtle"
               onClick={() => void navigate('/')}
             >
               {t('workspace.back')}
             </Button>
+            <Text c="dimmed" size="xs" ta="center">
+              {t('workspace.menuKeyboardHint')}
+            </Text>
           </Stack>
         )}
 

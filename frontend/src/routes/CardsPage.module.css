@@ -37,6 +37,18 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 8px;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.cardRowSelected {
+  border-color: var(--mantine-color-indigo-5);
+  background: color-mix(
+    in srgb,
+    var(--mantine-color-indigo-9) 28%,
+    transparent
+  );
 }
 
 .word {
@@ -165,6 +177,22 @@
 
 .dynamicInput {
   flex: 1;
+}
+
+.addHeader {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.addHeader > :first-child {
+  grid-column: 2;
+}
+
+.addHeaderAction {
+  grid-column: 3;
+  justify-self: end;
 }
 
 @media (max-width: 48em) {

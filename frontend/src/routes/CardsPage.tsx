@@ -25,7 +25,13 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { type FormEvent, useRef, useState } from 'react'
+import {
+  type FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
 import type {
@@ -47,6 +53,19 @@ interface CardsPageProps {
 }
 
 type Screen = 'list' | 'show' | 'add' | 'inverse-review'
+
+function isTextEntryTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  )
+}
+
+function hasOpenDialog() {
+  return document.querySelector('[role="dialog"]') !== null
+}
 type EditSection = 'word' | 'readings' | 'meanings' | 'all' | null
 
 function emptyMeaning(): CardMeaning {
@@ -531,8 +550,10 @@ export function CardsPage({
   const queryClient = useQueryClient()
   const { t } = useTranslations()
   const viewport = useRef<HTMLDivElement>(null)
+  const cardRows = useRef(new Map<string, HTMLDivElement>())
   const [screen, setScreen] = useState<Screen>('list')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+  const [cursorCardId, setCursorCardId] = useState<string | null>(null)
   const [inverseCards, setInverseCards] = useState<PendingInverseCard[]>([])
   const [search, setSearch] = useState('')
   const [debouncedSearch] = useDebouncedValue(search, 250)
@@ -590,7 +611,78 @@ export function CardsPage({
     },
   })
 
-  const summaries = cards.data?.pages.flatMap((page) => page.items) ?? []
+  const summaries = useMemo(
+    () => cards.data?.pages.flatMap((page) => page.items) ?? [],
+    [cards.data],
+  )
+
+  useEffect(() => {
+    if (summaries.length === 0) {
+      setCursorCardId(null)
+      return
+    }
+    setCursorCardId((current) =>
+      current === null || summaries.some((card) => card.id === current)
+        ? current
+        : null,
+    )
+  }, [summaries])
+
+  useEffect(() => {
+    if (screen !== 'list' || !cursorCardId) return
+    cardRows.current.get(cursorCardId)?.scrollIntoView({ block: 'nearest' })
+  }, [cursorCardId, screen])
+
+  useEffect(() => {
+    if (screen !== 'list') return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (deleteOpened || hasOpenDialog()) return
+
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onBack()
+        return
+      }
+      if (event.key === 'Enter' && event.ctrlKey) {
+        event.preventDefault()
+        setScreen('add')
+        return
+      }
+      if (isTextEntryTarget(event.target)) return
+
+      const currentIndex = summaries.findIndex(
+        (card) => card.id === cursorCardId,
+      )
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        if (summaries.length === 0) return
+        event.preventDefault()
+        const offset = event.key === 'ArrowDown' ? 1 : -1
+        const nextIndex =
+          currentIndex < 0
+            ? event.key === 'ArrowDown'
+              ? 0
+              : summaries.length - 1
+            : Math.min(
+                summaries.length - 1,
+                Math.max(0, currentIndex + offset),
+              )
+        setCursorCardId(summaries[nextIndex].id)
+        return
+      }
+      if (
+        event.key === 'Enter' &&
+        currentIndex >= 0
+      ) {
+        event.preventDefault()
+        setSelectedCardId(summaries[currentIndex].id)
+        setScreen('show')
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [cursorCardId, deleteOpened, onBack, screen, summaries])
 
   function resetFilters() {
     setSearch('')
@@ -773,7 +865,20 @@ export function CardsPage({
               </Text>
             ) : (
               summaries.map((card) => (
-                <Paper key={card.id} className={classes.cardRow} p="sm" withBorder>
+                <Paper
+                  key={card.id}
+                  className={`${classes.cardRow} ${
+                    cursorCardId === card.id ? classes.cardRowSelected : ''
+                  }`}
+                  data-card-id={card.id}
+                  p="sm"
+                  ref={(element) => {
+                    if (element) cardRows.current.set(card.id, element)
+                    else cardRows.current.delete(card.id)
+                  }}
+                  withBorder
+                  onClick={() => setCursorCardId(card.id)}
+                >
                   <Badge variant="light">
                     {t(`cards.${card.direction}`)}
                   </Badge>
@@ -785,8 +890,10 @@ export function CardsPage({
                   </Text>
                   <Button
                     size="xs"
+                    tabIndex={-1}
                     variant="default"
                     onClick={() => {
+                      setCursorCardId(card.id)
                       setSelectedCardId(card.id)
                       setScreen('show')
                     }}
@@ -796,6 +903,7 @@ export function CardsPage({
                   <Button
                     color="red"
                     size="xs"
+                    tabIndex={-1}
                     variant="subtle"
                     onClick={() => {
                       setDeleteTarget({ id: card.id, word: card.word })
@@ -817,13 +925,16 @@ export function CardsPage({
       </Paper>
 
       <Group justify="center">
-        <Button w={140} onClick={() => setScreen('add')}>
+        <Button tabIndex={-1} w={140} onClick={() => setScreen('add')}>
           {t('cards.addNew')}
         </Button>
-        <Button variant="default" w={140} onClick={onBack}>
+        <Button tabIndex={-1} variant="default" w={140} onClick={onBack}>
           {t('cards.back')}
         </Button>
       </Group>
+      <Text c="dimmed" size="xs" ta="center">
+        {t('cards.catalogKeyboardHint')}
+      </Text>
 
       <Modal
         centered
@@ -916,6 +1027,26 @@ function CardDetails({
     update.reset()
     setEditSection(section)
   }
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (hasOpenDialog()) return
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        if (editSection === null) onBack()
+        else setEditSection(null)
+      } else if (
+        event.key === 'Enter' &&
+        editSection === null
+      ) {
+        event.preventDefault()
+        onBack()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [editSection, onBack])
 
   if (card.isPending) {
     return (
@@ -1164,6 +1295,17 @@ function InverseCardsReview({
       })
     : null
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || hasOpenDialog()) return
+      event.preventDefault()
+      void onDone()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onDone])
+
   return (
     <Stack className={classes.details} gap="md">
       <Title order={2} ta="center">
@@ -1407,21 +1549,39 @@ function AddCard({
     create.mutate(drafts)
   }
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key !== 'Escape' ||
+        createdCards !== null ||
+        hasOpenDialog()
+      ) {
+        return
+      }
+      event.preventDefault()
+      onCancel()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [createdCards, onCancel])
+
   return (
     <form className={classes.details} onSubmit={submit}>
       <Stack gap="md">
-        <Group justify="space-between">
-          <div />
+        <div className={classes.addHeader}>
           <Title order={2} ta="center">
             {t('cards.addTitle')}
           </Title>
-          <AiNormalizeButton
-            card={draft}
-            profileId={profileId}
-            username={username}
-            onApply={(normalized) => changeDraft(normalized)}
-          />
-        </Group>
+          <div className={classes.addHeaderAction}>
+            <AiNormalizeButton
+              card={draft}
+              profileId={profileId}
+              username={username}
+              onApply={(normalized) => changeDraft(normalized)}
+            />
+          </div>
+        </div>
         <Paper p="sm" withBorder>
           <ScrollArea.Autosize mah={220} type="auto">
             <Stack gap="xs">
