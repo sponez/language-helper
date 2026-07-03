@@ -23,23 +23,10 @@ impl SessionId {
     }
 }
 
-impl From<String> for SessionId {
-    fn from(value: String) -> Self {
-        Self::new(value)
-    }
-}
-
-impl From<&str> for SessionId {
-    fn from(value: &str) -> Self {
-        Self::new(value)
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StudySessionMode {
     Learning,
     Test,
-    Review,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,13 +43,21 @@ pub enum StudySessionStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SessionAnswerResult {
-    pub card_id: CardId,
-    pub is_correct: bool,
-    pub submitted_answer: Option<String>,
+pub struct SessionFilter {
+    pub direction: Option<CardDirection>,
+    pub min_score: Option<i32>,
+    pub max_score: Option<i32>,
 }
 
-/// Complete state stored by the backend.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionAnswerResult {
+    pub card_id: CardId,
+    pub word: String,
+    pub is_correct: bool,
+    pub submitted_answers: Vec<String>,
+    pub score_delta: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StudySession {
     pub id: SessionId,
@@ -71,18 +66,22 @@ pub struct StudySession {
     pub mode: StudySessionMode,
     pub phase: StudySessionPhase,
     pub status: StudySessionStatus,
-    pub cards: Vec<Card>,
-    pub current_set_start_index: usize,
+    pub filter: SessionFilter,
+    pub pronunciation_check_enabled: bool,
+    pub pronunciation_accuracy_threshold: u8,
     pub cards_per_set: usize,
+    pub card_ids: Vec<CardId>,
+    pub test_order: Vec<CardId>,
+    pub current_set_index: usize,
     pub current_card_index: usize,
     pub provided_answers: Vec<String>,
     pub completed_meaning_indices: Vec<usize>,
-    pub current_card_failed: bool,
+    pub awaiting_continue: bool,
+    pub current_set_failed: bool,
     pub results: Vec<SessionAnswerResult>,
     pub version: u64,
 }
 
-/// Card information safe to expose for the current session phase.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CurrentCardView {
     Study(Card),
@@ -90,6 +89,9 @@ pub enum CurrentCardView {
         id: CardId,
         direction: CardDirection,
         prompt: String,
+        readings: Vec<String>,
+        remaining_meanings: usize,
+        total_meanings: usize,
     },
 }
 
@@ -102,14 +104,25 @@ pub struct StudySessionProgress {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StudySessionSummary {
+    pub correct: usize,
+    pub incorrect: usize,
+    pub score_delta: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StudySessionView {
     pub id: SessionId,
     pub profile_id: ProfileId,
     pub mode: StudySessionMode,
     pub phase: StudySessionPhase,
     pub status: StudySessionStatus,
+    pub pronunciation_check_enabled: bool,
+    pub pronunciation_accuracy_threshold: u8,
+    pub awaiting_continue: bool,
     pub current_card: Option<CurrentCardView>,
     pub progress: StudySessionProgress,
+    pub summary: StudySessionSummary,
     pub version: u64,
 }
 
@@ -117,13 +130,23 @@ pub struct StudySessionView {
 pub struct AnswerFeedback {
     pub is_correct: bool,
     pub matched_answer: Option<String>,
-    pub completed_meaning_index: Option<usize>,
+    pub expected_answers: Vec<String>,
+    pub card_completed: bool,
+    pub remaining_meanings: usize,
+    pub score_delta: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetOutcome {
+    Passed,
+    Retry,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StudySessionTransition {
     pub session: StudySessionView,
     pub answer_feedback: Option<AnswerFeedback>,
+    pub set_outcome: Option<SetOutcome>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,21 +155,20 @@ pub struct CreateStudySessionCommand {
     pub profile_id: ProfileId,
     pub mode: StudySessionMode,
     pub direction: Option<CardDirection>,
-    pub start_card_number: Option<usize>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GetStudySessionQuery {
-    pub user_id: UserId,
-    pub session_id: SessionId,
+    pub min_score: Option<i32>,
+    pub max_score: Option<i32>,
+    pub cards_per_set: Option<usize>,
+    pub pronunciation_check_enabled: bool,
+    pub pronunciation_accuracy_threshold: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StudySessionAction {
-    Advance,
+    PreviousStudyCard,
+    NextStudyCard,
+    StartMiniTest,
     SubmitWrittenAnswer { answer: String },
-    SubmitSelfReview { is_correct: bool },
-    RetryCurrentSet,
+    ContinueAfterFeedback,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -158,7 +180,7 @@ pub struct ApplyStudySessionActionCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CancelStudySessionCommand {
+pub struct EndStudySessionCommand {
     pub user_id: UserId,
     pub session_id: SessionId,
     pub expected_version: u64,

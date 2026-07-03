@@ -64,7 +64,7 @@ pub struct Card {
     pub direction: CardDirection,
     pub word: Word,
     pub meanings: Vec<Meaning>,
-    pub streak: u32,
+    pub score: i32,
     pub created_at: i64,
     pub version: u64,
 }
@@ -81,7 +81,7 @@ pub struct CardSummary {
     pub id: CardId,
     pub word: String,
     pub direction: CardDirection,
-    pub streak: u32,
+    pub score: i32,
     pub created_at: i64,
 }
 
@@ -150,9 +150,8 @@ pub struct ListCardsQuery {
     pub profile_id: ProfileId,
     pub search: Option<String>,
     pub direction: Option<CardDirection>,
-    pub mastery: CardMastery,
-    pub mastery_threshold: u16,
-    pub max_streak: Option<u32>,
+    pub min_score: Option<i32>,
+    pub max_score: Option<i32>,
     pub sort_field: CardSortField,
     pub sort_direction: SortDirection,
     pub cursor: Option<CardListCursor>,
@@ -182,13 +181,6 @@ pub struct UpdateCardCommand {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CardMastery {
-    Any,
-    Unlearned,
-    Learned,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CardOrder {
     OldestFirst,
     Random,
@@ -198,7 +190,7 @@ pub enum CardOrder {
 pub enum CardSortField {
     Word,
     CreatedAt,
-    Streak,
+    Score,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -212,8 +204,8 @@ pub struct CardSelectionQuery {
     pub user_id: UserId,
     pub profile_id: ProfileId,
     pub direction: Option<CardDirection>,
-    pub mastery: CardMastery,
-    pub mastery_threshold: u16,
+    pub min_score: Option<i32>,
+    pub max_score: Option<i32>,
     pub order: CardOrder,
     pub limit: Option<usize>,
 }

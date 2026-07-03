@@ -2,7 +2,7 @@ use application::ports::input::{
     card_catalog::{
         CardCatalogUsecase,
         models::{
-            Card, CardChanges, CardDirection, CardId, CardListCursor, CardMastery, CardSortField,
+            Card, CardChanges, CardDirection, CardId, CardListCursor, CardSortField,
             CreateCardsCommand, DeleteCardsCommand, GetCardQuery, ListCardsQuery, Meaning, NewCard,
             PendingInverseCard, PrepareInverseCardsQuery, SaveInverseCardsCommand, SortDirection,
             UpdateCardCommand, UsageExample, Word,
@@ -59,7 +59,7 @@ pub struct CardDto {
     word: String,
     readings: Vec<String>,
     meanings: Vec<MeaningDto>,
-    streak: u32,
+    score: i32,
     created_at: i64,
     version: u64,
 }
@@ -70,7 +70,7 @@ pub struct CardSummaryDto {
     id: String,
     word: String,
     direction: String,
-    streak: u32,
+    score: i32,
     created_at: i64,
 }
 
@@ -88,9 +88,8 @@ pub struct ListCardsDto {
     profile_id: String,
     search: Option<String>,
     direction: Option<String>,
-    mastery: String,
-    mastery_threshold: u16,
-    max_streak: Option<u32>,
+    min_score: Option<i32>,
+    max_score: Option<i32>,
     sort_field: String,
     sort_direction: String,
     cursor: Option<String>,
@@ -234,7 +233,7 @@ impl From<Card> for CardDto {
             word: card.word.text,
             readings: card.word.readings,
             meanings: card.meanings.into_iter().map(map_meaning_dto).collect(),
-            streak: card.streak,
+            score: card.score,
             created_at: card.created_at,
             version: card.version,
         }
@@ -251,7 +250,7 @@ fn map_card(dto: CardDto) -> Result<Card, CommandError> {
             readings: dto.readings,
         },
         meanings: dto.meanings.into_iter().map(map_meaning).collect(),
-        streak: dto.streak,
+        score: dto.score,
         created_at: dto.created_at,
         version: dto.version,
     })
@@ -266,21 +265,10 @@ async fn browse_cards(
         .as_deref()
         .map(parse_direction)
         .transpose()?;
-    let mastery = match query.mastery.as_str() {
-        "any" => CardMastery::Any,
-        "unlearned" => CardMastery::Unlearned,
-        "learned" => CardMastery::Learned,
-        _ => {
-            return Err(
-                application::ports::input::card_catalog::models::CardCatalogError::InvalidCard
-                    .into(),
-            );
-        }
-    };
     let sort_field = match query.sort_field.as_str() {
         "word" => CardSortField::Word,
         "createdAt" => CardSortField::CreatedAt,
-        "streak" => CardSortField::Streak,
+        "score" => CardSortField::Score,
         _ => {
             return Err(
                 application::ports::input::card_catalog::models::CardCatalogError::InvalidCard
@@ -305,9 +293,8 @@ async fn browse_cards(
             profile_id: ProfileId::new(query.profile_id),
             search: query.search,
             direction,
-            mastery,
-            mastery_threshold: query.mastery_threshold,
-            max_streak: query.max_streak,
+            min_score: query.min_score,
+            max_score: query.max_score,
             sort_field,
             sort_direction,
             cursor: query.cursor.map(CardListCursor::new),
@@ -322,7 +309,7 @@ async fn browse_cards(
                     id: card.id.into_inner(),
                     word: card.word,
                     direction: direction_name(card.direction).to_string(),
-                    streak: card.streak,
+                    score: card.score,
                     created_at: card.created_at,
                 })
                 .collect(),
@@ -524,7 +511,7 @@ pub async fn save_inverse_cards(
 #[cfg(test)]
 mod tests {
     use application::ports::input::{
-        language_profile::models::{CreateLanguageProfileCommand, LearningSettings},
+        language_profile::models::CreateLanguageProfileCommand,
         local_user::models::CreateLocalUserCommand,
     };
     use lh_bootstrap::{BootstrapBridge, BootstrapConfig};
@@ -563,7 +550,6 @@ mod tests {
                 name: "Japanese".to_string(),
                 source_language: "en-US".to_string(),
                 target_language: "ja-JP".to_string(),
-                settings: LearningSettings::default(),
             })
             .await
             .unwrap();
@@ -599,9 +585,8 @@ mod tests {
                 profile_id: profile.id.as_str().to_string(),
                 search: None,
                 direction: None,
-                mastery: "any".to_string(),
-                mastery_threshold: 5,
-                max_streak: None,
+                min_score: None,
+                max_score: None,
                 sort_field: "createdAt".to_string(),
                 sort_direction: "descending".to_string(),
                 cursor: None,

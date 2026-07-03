@@ -79,16 +79,6 @@ impl LanguageProfileService {
         if let Some(target_language) = changes.target_language {
             profile.target_language = target_language;
         }
-        if let Some(settings) = changes.settings {
-            if settings.cards_per_set == 0
-                || settings.cards_per_set > 100
-                || settings.mastery_threshold == 0
-                || settings.mastery_threshold > 50
-            {
-                return Err(LanguageProfileError::InvalidProfile);
-            }
-            profile.settings = settings;
-        }
         if let Some(mut ai_settings) = changes.ai_settings {
             if ai_settings
                 .provider
@@ -137,7 +127,6 @@ impl LanguageProfileUsecase for LanguageProfileService {
                 name,
                 source_language: command.source_language,
                 target_language: command.target_language,
-                settings: command.settings,
                 ai_settings: Default::default(),
                 version: 0,
             })
@@ -214,10 +203,7 @@ mod tests {
     };
 
     use crate::ports::{
-        input::{
-            language_profile::models::{LearningSettings, ProfileId},
-            local_user::models::UserId,
-        },
+        input::{language_profile::models::ProfileId, local_user::models::UserId},
         output::repository::language_profile::models::LanguageProfileRepositoryError,
     };
 
@@ -304,7 +290,6 @@ mod tests {
             name: name.to_string(),
             source_language: source.to_string(),
             target_language: target.to_string(),
-            settings: LearningSettings::default(),
         }
     }
 

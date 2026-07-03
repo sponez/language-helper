@@ -1,20 +1,23 @@
 use async_trait::async_trait;
 
 use crate::ports::input::{
+    card_catalog::models::CardId,
+    language_profile::models::ProfileId,
     local_user::models::UserId,
     study_session::models::{SessionId, StudySession},
 };
 
-use self::models::{CancelSessionRequest, StudySessionCommit, StudySessionRepositoryError};
+use self::models::{
+    EndSessionRequest, StoreSessionRequest, StudySessionCommit, StudySessionRepositoryError,
+};
 
 pub mod models;
 
-/// Persistence port for backend-owned study sessions.
 #[async_trait]
 pub trait StudySessionRepository: Send + Sync {
     async fn insert(
         &self,
-        session: StudySession,
+        request: StoreSessionRequest,
     ) -> Result<StudySession, StudySessionRepositoryError>;
 
     async fn find(
@@ -23,14 +26,19 @@ pub trait StudySessionRepository: Send + Sync {
         session_id: &SessionId,
     ) -> Result<Option<StudySession>, StudySessionRepositoryError>;
 
-    /// Atomically stores the session transition and all related card progress.
+    async fn recent_test_cards(
+        &self,
+        profile_id: &ProfileId,
+        limit: usize,
+    ) -> Result<Vec<CardId>, StudySessionRepositoryError>;
+
     async fn commit_transition(
         &self,
         commit: StudySessionCommit,
     ) -> Result<StudySession, StudySessionRepositoryError>;
 
-    async fn cancel(
+    async fn end(
         &self,
-        request: CancelSessionRequest,
+        request: EndSessionRequest,
     ) -> Result<StudySession, StudySessionRepositoryError>;
 }

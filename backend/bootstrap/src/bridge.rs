@@ -3,15 +3,18 @@ use std::sync::Arc;
 use adapters::output::GenAiCardNormalizer;
 use adapters::output::persistence::{
     SqliteCardRepository, SqliteCardRepositoryInitError, SqliteLanguageProfileRepository,
-    SqliteLanguageProfileRepositoryInitError, SqliteUserRepository, SqliteUserRepositoryInitError,
+    SqliteLanguageProfileRepositoryInitError, SqliteStudySessionRepository,
+    SqliteStudySessionRepositoryInitError, SqliteUserRepository, SqliteUserRepositoryInitError,
 };
 use application::{
     ports::input::{
         card_catalog::CardCatalogUsecase, card_normalization::CardNormalizationUsecase,
         language_profile::LanguageProfileUsecase, local_user::LocalUserUsecase,
+        study_session::StudySessionUsecase,
     },
     usecases::{
         CardCatalogService, CardNormalizationService, LanguageProfileService, LocalUserService,
+        StudySessionService,
     },
 };
 use thiserror::Error;
@@ -26,6 +29,8 @@ pub enum BootstrapError {
     LanguageProfileRepository(#[from] SqliteLanguageProfileRepositoryInitError),
     #[error("failed to initialize the card repository: {0}")]
     CardRepository(#[from] SqliteCardRepositoryInitError),
+    #[error("failed to initialize the study session repository: {0}")]
+    StudySessionRepository(#[from] SqliteStudySessionRepositoryInitError),
 }
 
 /// Ready-to-use application ports shared by inbound adapters.
@@ -35,6 +40,7 @@ pub struct BootstrapBridge {
     language_profiles: Arc<dyn LanguageProfileUsecase>,
     cards: Arc<dyn CardCatalogUsecase>,
     card_normalization: Arc<dyn CardNormalizationUsecase>,
+    study_sessions: Arc<dyn StudySessionUsecase>,
 }
 
 impl BootstrapBridge {
@@ -43,12 +49,19 @@ impl BootstrapBridge {
         let language_profile_repository =
             Arc::new(SqliteLanguageProfileRepository::new(&config.database_path)?);
         let card_repository = Arc::new(SqliteCardRepository::new(&config.database_path)?);
+        let study_session_repository =
+            Arc::new(SqliteStudySessionRepository::new(&config.database_path)?);
         let local_users = Arc::new(LocalUserService::new(user_repository));
         let language_profiles = Arc::new(LanguageProfileService::new(Arc::clone(
             &language_profile_repository,
         )
             as Arc<dyn application::ports::output::repository::LanguageProfileRepository>));
-        let cards = Arc::new(CardCatalogService::new(card_repository));
+        let cards = Arc::new(CardCatalogService::new(Arc::clone(&card_repository)
+            as Arc<dyn application::ports::output::repository::CardRepository>));
+        let study_sessions = Arc::new(StudySessionService::new(
+            card_repository,
+            study_session_repository,
+        ));
         let card_normalization = Arc::new(CardNormalizationService::new(
             language_profile_repository,
             Arc::new(GenAiCardNormalizer),
@@ -59,6 +72,7 @@ impl BootstrapBridge {
             language_profiles,
             cards,
             card_normalization,
+            study_sessions,
         })
     }
 
@@ -76,6 +90,10 @@ impl BootstrapBridge {
 
     pub fn card_normalization(&self) -> Arc<dyn CardNormalizationUsecase> {
         Arc::clone(&self.card_normalization)
+    }
+
+    pub fn study_sessions(&self) -> Arc<dyn StudySessionUsecase> {
+        Arc::clone(&self.study_sessions)
     }
 }
 

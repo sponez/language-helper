@@ -124,7 +124,7 @@ impl CardCatalogService {
             direction: card.direction,
             word,
             meanings,
-            streak: 0,
+            score: 0,
             created_at,
             version: 0,
         })
@@ -203,7 +203,13 @@ impl CardCatalogUsecase for CardCatalogService {
         &self,
         query: crate::ports::input::card_catalog::models::ListCardsQuery,
     ) -> Result<CardPage, CardCatalogError> {
-        if query.limit == 0 || query.limit > 100 || query.mastery_threshold == 0 {
+        if query.limit == 0
+            || query.limit > 100
+            || query
+                .min_score
+                .zip(query.max_score)
+                .is_some_and(|(minimum, maximum)| minimum > maximum)
+        {
             return Err(CardCatalogError::InvalidCard);
         }
         self.repository

@@ -2,12 +2,9 @@ import {
   Alert,
   Button,
   Group,
-  NumberInput,
   Paper,
   PasswordInput,
-  Checkbox,
   Select,
-  SimpleGrid,
   Stack,
   Text,
   TextInput,
@@ -17,10 +14,15 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 
-import type { LanguageProfile } from '../api/language-helper-client'
+import type {
+  AiSettings,
+  LanguageProfile,
+  StudySessionMode,
+} from '../api/language-helper-client'
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
 import { useTranslations } from '../locales/TranslationProvider'
 import { CardsPage } from './CardsPage'
+import { SessionPage } from './SessionPage'
 import classes from './WorkspacePage.module.css'
 
 interface WorkspaceLocationState {
@@ -28,27 +30,14 @@ interface WorkspaceLocationState {
   profile: LanguageProfile
 }
 
-interface ProfileSettings {
-  version: number
-  cardsPerSet: number
-  answerMode: 'written' | 'self-review'
-  masteryThreshold: number
-  checkReadingIfPossible: boolean
-  provider: 'openai' | 'gemini' | null
-  apiKey: string
-  modelName: string
+const DEFAULT_SETTINGS: AiSettings = {
+  version: 0,
+  provider: null,
+  apiKey: null,
+  modelName: null,
 }
 
-const DEFAULT_SETTINGS: ProfileSettings = {
-  version: 0,
-  cardsPerSet: 10,
-  answerMode: 'written',
-  masteryThreshold: 5,
-  checkReadingIfPossible: false,
-  provider: null,
-  apiKey: '',
-  modelName: '',
-}
+type View = 'menu' | 'settings' | 'cards' | StudySessionMode
 
 export function WorkspacePage() {
   const client = useLanguageHelperClient()
@@ -56,47 +45,34 @@ export function WorkspacePage() {
   const navigate = useNavigate()
   const location = useLocation()
   const context = location.state as WorkspaceLocationState | null
-  const [view, setView] = useState<'menu' | 'settings' | 'cards'>('menu')
-  const [placeholder, setPlaceholder] = useState<string | null>(null)
+  const [view, setView] = useState<View>('menu')
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [saved, setSaved] = useState(false)
 
   const loadedSettings = useQuery({
-    queryKey: ['profile-settings', context?.username, context?.profile.id],
-    queryFn: () =>
-      client.getProfileSettings(context!.username, context!.profile.id),
+    queryKey: ['ai-settings', context?.username, context?.profile.id],
+    queryFn: () => client.getAiSettings(context!.username, context!.profile.id),
     enabled: Boolean(context?.username && context?.profile.id),
     retry: false,
   })
 
   const save = useMutation({
     mutationFn: () =>
-      client.saveProfileSettings({
+      client.saveAiSettings({
         username: context!.username,
         profileId: context!.profile.id,
         ...settings,
-        provider: settings.provider,
-        apiKey: settings.apiKey || null,
-        modelName: settings.modelName || null,
+        apiKey: settings.apiKey?.trim() || null,
+        modelName: settings.modelName?.trim() || null,
       }),
     onSuccess: (result) => {
-      setSettings({
-        ...result,
-        apiKey: result.apiKey ?? '',
-        modelName: result.modelName ?? '',
-      })
+      setSettings(result)
       setSaved(true)
     },
   })
 
   useEffect(() => {
-    if (loadedSettings.data) {
-      setSettings({
-        ...loadedSettings.data,
-        apiKey: loadedSettings.data.apiKey ?? '',
-        modelName: loadedSettings.data.modelName ?? '',
-      })
-    }
+    if (loadedSettings.data) setSettings(loadedSettings.data)
   }, [loadedSettings.data])
 
   if (!context?.username || !context.profile) {
@@ -104,9 +80,10 @@ export function WorkspacePage() {
   }
 
   const profileCaption = `${context.profile.name} · ${context.profile.sourceLanguage} → ${context.profile.targetLanguage}`
-
-  function saveSettings() {
-    save.mutate()
+  const closeSettings = () => {
+    setSaved(false)
+    save.reset()
+    setView('menu')
   }
 
   return (
@@ -119,24 +96,29 @@ export function WorkspacePage() {
           </Text>
         </Stack>
 
-        {view === 'menu' ? (
+        {view === 'menu' && (
           <Stack className={classes.menu} gap="sm">
-            {(['cards', 'learn', 'test'] as const).map((action) => (
-              <Button
-                key={action}
-                size="md"
-                variant="default"
-                onClick={() => {
-                  if (action === 'cards') {
-                    setView('cards')
-                  } else {
-                    setPlaceholder(t(`workspace.${action}`))
-                  }
-                }}
-              >
-                {t(`workspace.${action}`)}
-              </Button>
-            ))}
+            <Button
+              size="md"
+              variant="default"
+              onClick={() => setView('cards')}
+            >
+              {t('workspace.cards')}
+            </Button>
+            <Button
+              size="md"
+              variant="default"
+              onClick={() => setView('learning')}
+            >
+              {t('workspace.learn')}
+            </Button>
+            <Button
+              size="md"
+              variant="default"
+              onClick={() => setView('test')}
+            >
+              {t('workspace.test')}
+            </Button>
             <Button size="md" onClick={() => setView('settings')}>
               {t('workspace.settings')}
             </Button>
@@ -148,142 +130,76 @@ export function WorkspacePage() {
             >
               {t('workspace.back')}
             </Button>
-            {placeholder && (
-              <Alert
-                color="indigo"
-                title={placeholder}
-                onClose={() => setPlaceholder(null)}
-                withCloseButton
-              >
-                {t('workspace.comingSoon')}
-              </Alert>
-            )}
           </Stack>
-        ) : view === 'cards' ? (
+        )}
+
+        {view === 'cards' && (
           <CardsPage
-            masteryThreshold={settings.masteryThreshold}
             profileId={context.profile.id}
             username={context.username}
             onBack={() => setView('menu')}
           />
-        ) : (
-          <Stack gap="md">
-            <SimpleGrid className={classes.settingsGrid} cols={{ base: 1, md: 2 }}>
-              <Paper className={classes.settingsBlock} p="xl" withBorder>
-                <Stack>
-                  <Title order={3}>{t('workspace.testSettings')}</Title>
-                  <NumberInput
-                    label={t('workspace.cardsPerSet')}
-                    min={1}
-                    max={100}
-                    value={settings.cardsPerSet}
-                    onChange={(value) => {
-                      setSaved(false)
-                      setSettings((current) => ({
-                        ...current,
-                        cardsPerSet: Number(value) || 1,
-                      }))
-                    }}
-                  />
-                  <Select
-                    allowDeselect={false}
-                    data={[
-                      { value: 'written', label: t('workspace.writtenAnswer') },
-                      { value: 'self-review', label: t('workspace.selfReview') },
-                    ]}
-                    label={t('workspace.answerMode')}
-                    value={settings.answerMode}
-                    onChange={(value) => {
-                      setSaved(false)
-                      setSettings((current) => ({
-                        ...current,
-                        answerMode: (value ?? 'written') as ProfileSettings['answerMode'],
-                      }))
-                    }}
-                  />
-                  <NumberInput
-                    label={t('workspace.masteryThreshold')}
-                    min={1}
-                    max={50}
-                    value={settings.masteryThreshold}
-                    onChange={(value) => {
-                      setSaved(false)
-                      setSettings((current) => ({
-                        ...current,
-                        masteryThreshold: Number(value) || 1,
-                      }))
-                    }}
-                  />
-                  <Checkbox
-                    checked={settings.checkReadingIfPossible}
-                    label={t('workspace.checkReadingIfPossible')}
-                    onChange={(event) => {
-                      const checked = event.currentTarget.checked
-                      setSaved(false)
-                      setSettings((current) => ({
-                        ...current,
-                        checkReadingIfPossible: checked,
-                      }))
-                    }}
-                  />
-                </Stack>
-              </Paper>
+        )}
 
-              <Paper className={classes.settingsBlock} p="xl" withBorder>
-                <Stack>
-                  <Title order={3}>{t('workspace.aiSettings')}</Title>
-                  <Select
-                    allowDeselect={false}
-                    data={[
-                      {
-                        value: 'none',
-                        label: t('workspace.notConfigured'),
-                      },
-                      { value: 'openai', label: t('workspace.openAi') },
-                      { value: 'gemini', label: t('workspace.gemini') },
-                    ]}
-                    label={t('workspace.provider')}
-                    value={settings.provider ?? 'none'}
-                    onChange={(value) => {
-                      setSaved(false)
-                      setSettings((current) => ({
-                        ...current,
-                        provider:
-                          value === 'none'
-                            ? null
-                            : (value as ProfileSettings['provider']),
-                      }))
-                    }}
-                  />
-                  <PasswordInput
-                    description={t('workspace.apiKeyHint')}
-                    label={t('workspace.apiKey')}
-                    value={settings.apiKey}
-                    onChange={(event) => {
-                      const apiKey = event.currentTarget.value
-                      setSaved(false)
-                      setSettings((current) => ({
-                        ...current,
-                        apiKey,
-                      }))
-                    }}
-                  />
-                  <TextInput
-                    label={t('workspace.modelName')}
-                    value={settings.modelName}
-                    onChange={(event) => {
-                      const modelName = event.currentTarget.value
-                      setSaved(false)
-                      setSettings((current) => ({
-                        ...current,
-                        modelName,
-                      }))
-                    }}
-                  />
-                </Stack>
-              </Paper>
-            </SimpleGrid>
+        {(view === 'learning' || view === 'test') && (
+          <SessionPage
+            mode={view}
+            profileId={context.profile.id}
+            username={context.username}
+            onBack={() => setView('menu')}
+          />
+        )}
 
+        {view === 'settings' && (
+          <Stack className={classes.menu} gap="md">
+            <Paper className={classes.settingsBlock} p="xl" withBorder>
+              <Stack>
+                <Title order={3}>{t('workspace.aiSettings')}</Title>
+                <Select
+                  allowDeselect={false}
+                  data={[
+                    { value: 'none', label: t('workspace.notConfigured') },
+                    { value: 'openai', label: t('workspace.openAi') },
+                    { value: 'gemini', label: t('workspace.gemini') },
+                  ]}
+                  label={t('workspace.provider')}
+                  value={settings.provider ?? 'none'}
+                  onChange={(value) => {
+                    setSaved(false)
+                    setSettings((current) => ({
+                      ...current,
+                      provider:
+                        value === 'openai' || value === 'gemini' ? value : null,
+                    }))
+                  }}
+                />
+                <PasswordInput
+                  description={t('workspace.apiKeyHint')}
+                  label={t('workspace.apiKey')}
+                  value={settings.apiKey ?? ''}
+                  onChange={(event) => {
+                    const apiKey = event.currentTarget.value
+                    setSaved(false)
+                    setSettings((current) => ({
+                      ...current,
+                      apiKey,
+                    }))
+                  }}
+                />
+                <TextInput
+                  label={t('workspace.modelName')}
+                  value={settings.modelName ?? ''}
+                  onChange={(event) => {
+                    const modelName = event.currentTarget.value
+                    setSaved(false)
+                    setSettings((current) => ({
+                      ...current,
+                      modelName,
+                    }))
+                  }}
+                />
+              </Stack>
+            </Paper>
             {loadedSettings.isError && (
               <Alert color="red" title={t('workspace.loadSettingsError')}>
                 {loadedSettings.error.message}
@@ -296,17 +212,14 @@ export function WorkspacePage() {
             )}
             {saved && <Alert color="green">{t('workspace.saved')}</Alert>}
             <Group justify="center">
-              <Button loading={save.isPending} w={140} onClick={saveSettings}>
+              <Button
+                loading={save.isPending}
+                w={140}
+                onClick={() => save.mutate()}
+              >
                 {t('workspace.save')}
               </Button>
-              <Button
-                variant="default"
-                w={140}
-                onClick={() => {
-                  setSaved(false)
-                  setView('menu')
-                }}
-              >
+              <Button variant="default" w={140} onClick={closeSettings}>
                 {t('workspace.back')}
               </Button>
             </Group>

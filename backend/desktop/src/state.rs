@@ -3,6 +3,7 @@ use std::sync::Arc;
 use application::ports::input::{
     card_catalog::CardCatalogUsecase, card_normalization::CardNormalizationUsecase,
     language_profile::LanguageProfileUsecase, local_user::LocalUserUsecase,
+    study_session::StudySessionUsecase,
 };
 use lh_bootstrap::BootstrapBridge;
 
@@ -11,6 +12,7 @@ pub struct DesktopState {
     language_profiles: Arc<dyn LanguageProfileUsecase>,
     cards: Arc<dyn CardCatalogUsecase>,
     card_normalization: Arc<dyn CardNormalizationUsecase>,
+    study_sessions: Arc<dyn StudySessionUsecase>,
 }
 
 impl DesktopState {
@@ -20,6 +22,7 @@ impl DesktopState {
             language_profiles: bridge.language_profiles(),
             cards: bridge.cards(),
             card_normalization: bridge.card_normalization(),
+            study_sessions: bridge.study_sessions(),
         }
     }
 
@@ -37,5 +40,9 @@ impl DesktopState {
 
     pub fn card_normalization(&self) -> Arc<dyn CardNormalizationUsecase> {
         Arc::clone(&self.card_normalization)
+    }
+
+    pub fn study_sessions(&self) -> Arc<dyn StudySessionUsecase> {
+        Arc::clone(&self.study_sessions)
     }
 }

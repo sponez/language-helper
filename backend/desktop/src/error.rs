@@ -1,6 +1,7 @@
 use application::ports::input::{
     card_catalog::models::CardCatalogError, card_normalization::models::CardNormalizationError,
     language_profile::models::LanguageProfileError, local_user::models::LocalUserError,
+    study_session::models::StudySessionError,
 };
 use serde::Serialize;
 
@@ -71,6 +72,23 @@ impl From<LanguageProfileError> for CommandError {
             LanguageProfileError::Unexpected(_) => "unexpected_error",
         };
 
+        Self {
+            code,
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<StudySessionError> for CommandError {
+    fn from(error: StudySessionError) -> Self {
+        let code = match &error {
+            StudySessionError::InvalidSession => "invalid_study_session",
+            StudySessionError::NoCardsAvailable => "no_cards_available",
+            StudySessionError::NotFound => "study_session_not_found",
+            StudySessionError::InvalidAction => "invalid_study_session_action",
+            StudySessionError::Conflict => "study_session_conflict",
+            StudySessionError::Unexpected(_) => "unexpected_error",
+        };
         Self {
             code,
             message: error.to_string(),

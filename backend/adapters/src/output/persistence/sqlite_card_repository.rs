@@ -7,9 +7,9 @@ use std::{
 use application::ports::{
     input::{
         card_catalog::models::{
-            Card, CardDirection, CardId, CardListCursor, CardMastery, CardOrder, CardPage,
-            CardSelectionQuery, CardSortField, CardSummary, ListCardsQuery, Meaning,
-            PendingInverseCard, SortDirection, UsageExample, Word,
+            Card, CardDirection, CardId, CardListCursor, CardOrder, CardPage, CardSelectionQuery,
+            CardSortField, CardSummary, ListCardsQuery, Meaning, PendingInverseCard, SortDirection,
+            UsageExample, Word,
         },
         language_profile::models::ProfileId,
         local_user::models::UserId,
@@ -24,7 +24,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SqliteCardRepositoryInitError {
-    #[error("failed to create database directory {path}: {source}")]
+    #[error("failed to create database directory {path:?}: {source}")]
     CreateDirectory {
         path: PathBuf,
         #[source]
@@ -70,7 +70,7 @@ impl SqliteCardRepository {
                     word TEXT NOT NULL,
                     word_sort_key TEXT NOT NULL,
                     search_text TEXT NOT NULL,
-                    streak INTEGER NOT NULL DEFAULT 0,
+                    score INTEGER NOT NULL DEFAULT 0,
                     created_at INTEGER NOT NULL,
                     version INTEGER NOT NULL DEFAULT 0,
                     FOREIGN KEY (profile_id) REFERENCES language_profiles(id) ON DELETE CASCADE,
@@ -119,8 +119,8 @@ impl SqliteCardRepository {
                     ON cards(profile_id);
                 CREATE INDEX IF NOT EXISTS idx_cards_profile_created
                     ON cards(profile_id, created_at, id);
-                CREATE INDEX IF NOT EXISTS idx_cards_profile_streak
-                    ON cards(profile_id, streak, id);
+                CREATE INDEX IF NOT EXISTS idx_cards_profile_score
+                    ON cards(profile_id, score, id);
                 CREATE INDEX IF NOT EXISTS idx_cards_profile_word
                     ON cards(profile_id, word_sort_key, id);
                 ",
@@ -275,7 +275,7 @@ impl SqliteCardRepository {
             .execute(
                 "INSERT INTO cards (
                     id, profile_id, direction, word, word_sort_key, search_text,
-                    streak, created_at, version
+                    score, created_at, version
                  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     card.id.as_str(),
@@ -284,7 +284,7 @@ impl SqliteCardRepository {
                     card.word.text,
                     card.word.text.to_lowercase(),
                     Self::normalized_search_text(&card.word),
-                    card.streak,
+                    card.score,
                     card.created_at,
                     card.version,
                 ],
@@ -374,7 +374,7 @@ impl SqliteCardRepository {
     fn read_card(connection: &Connection, card_id: &CardId) -> Result<Card, CardRepositoryError> {
         let mut card = connection
             .query_row(
-                "SELECT id, profile_id, direction, word, streak, created_at, version
+                "SELECT id, profile_id, direction, word, score, created_at, version
                  FROM cards WHERE id = ?1",
                 params![card_id.as_str()],
                 |row| {
@@ -387,7 +387,7 @@ impl SqliteCardRepository {
                             readings: Vec::new(),
                         },
                         meanings: Vec::new(),
-                        streak: row.get(4)?,
+                        score: row.get(4)?,
                         created_at: row.get(5)?,
                         version: row.get(6)?,
                     })
@@ -471,7 +471,7 @@ impl SqliteCardRepository {
         let value = match sort_field {
             CardSortField::Word => summary.word.to_lowercase(),
             CardSortField::CreatedAt => summary.created_at.to_string(),
-            CardSortField::Streak => summary.streak.to_string(),
+            CardSortField::Score => summary.score.to_string(),
         };
         CardListCursor::new(format!("{value}\u{1f}{}", summary.id.as_str()))
     }
@@ -489,7 +489,7 @@ impl SqliteCardRepository {
             .ok_or_else(|| CardRepositoryError::Unexpected("invalid card cursor".to_string()))?;
         let value = match sort_field {
             CardSortField::Word => Value::Text(value.to_string()),
-            CardSortField::CreatedAt | CardSortField::Streak => {
+            CardSortField::CreatedAt | CardSortField::Score => {
                 Value::Integer(value.parse().map_err(|_| {
                     CardRepositoryError::Unexpected("invalid card cursor".to_string())
                 })?)
@@ -694,7 +694,7 @@ impl CardRepository for SqliteCardRepository {
             let sort_expression = match query.sort_field {
                 CardSortField::Word => "c.word_sort_key",
                 CardSortField::CreatedAt => "c.created_at",
-                CardSortField::Streak => "c.streak",
+                CardSortField::Score => "c.score",
             };
             let comparison = match query.sort_direction {
                 SortDirection::Ascending => ">",
@@ -705,25 +705,21 @@ impl CardRepository for SqliteCardRepository {
                 SortDirection::Descending => "DESC",
             };
             let sql = format!(
-                "SELECT c.id, c.word, c.direction, c.streak, c.created_at
+                "SELECT c.id, c.word, c.direction, c.score, c.created_at
                  FROM cards c
                  JOIN language_profiles p ON p.id = c.profile_id
                  WHERE p.user_id = ?1 AND c.profile_id = ?2
                    AND (?3 IS NULL OR c.direction = ?3)
+                   AND (?4 IS NULL OR c.score >= ?4)
+                   AND (?5 IS NULL OR c.score <= ?5)
+                   AND (?6 = '' OR c.search_text LIKE '%' || ?6 || '%')
                    AND (
-                     ?4 = 0 OR
-                     (?4 = 1 AND c.streak < ?5) OR
-                     (?4 = 2 AND c.streak >= ?5)
-                   )
-                   AND (?6 IS NULL OR c.streak <= ?6)
-                   AND (?7 = '' OR c.search_text LIKE '%' || ?7 || '%')
-                   AND (
-                     ?8 IS NULL OR
-                     ({sort_expression} {comparison} ?8) OR
-                     ({sort_expression} = ?8 AND c.id {comparison} ?9)
+                     ?7 IS NULL OR
+                     ({sort_expression} {comparison} ?7) OR
+                     ({sort_expression} = ?7 AND c.id {comparison} ?8)
                    )
                  ORDER BY {sort_expression} {order}, c.id {order}
-                 LIMIT ?10"
+                 LIMIT ?9"
             );
             let (cursor_value, cursor_id) = Self::decode_cursor(query.cursor, query.sort_field)?;
             let direction = query
@@ -732,13 +728,12 @@ impl CardRepository for SqliteCardRepository {
                 .map(Self::direction_name)
                 .map(|value| Value::Text(value.to_string()))
                 .unwrap_or(Value::Null);
-            let mastery = match query.mastery {
-                CardMastery::Any => 0,
-                CardMastery::Unlearned => 1,
-                CardMastery::Learned => 2,
-            };
-            let max_streak = query
-                .max_streak
+            let min_score = query
+                .min_score
+                .map(|value| Value::Integer(value.into()))
+                .unwrap_or(Value::Null);
+            let max_score = query
+                .max_score
                 .map(|value| Value::Integer(value.into()))
                 .unwrap_or(Value::Null);
             let search = query.search.unwrap_or_default().trim().to_lowercase();
@@ -746,9 +741,8 @@ impl CardRepository for SqliteCardRepository {
                 Value::Text(query.user_id.as_str().to_string()),
                 Value::Text(query.profile_id.as_str().to_string()),
                 direction,
-                Value::Integer(mastery),
-                Value::Integer(query.mastery_threshold.into()),
-                max_streak,
+                min_score,
+                max_score,
                 Value::Text(search),
                 cursor_value,
                 cursor_id,
@@ -761,7 +755,7 @@ impl CardRepository for SqliteCardRepository {
                         id: CardId::new(row.get::<_, String>(0)?),
                         word: row.get(1)?,
                         direction: Self::parse_direction(row.get(2)?)?,
-                        streak: row.get(3)?,
+                        score: row.get(3)?,
                         created_at: row.get(4)?,
                     })
                 })
@@ -806,11 +800,8 @@ impl CardRepository for SqliteCardRepository {
                  JOIN language_profiles p ON p.id = c.profile_id
                  WHERE p.user_id = ?1 AND c.profile_id = ?2
                    AND (?3 IS NULL OR c.direction = ?3)
-                   AND (
-                     ?4 = 0 OR
-                     (?4 = 1 AND c.streak < ?5) OR
-                     (?4 = 2 AND c.streak >= ?5)
-                   )
+                   AND (?4 IS NULL OR c.score >= ?4)
+                   AND (?5 IS NULL OR c.score <= ?5)
                  ORDER BY {order}
                  LIMIT {limit}"
             );
@@ -820,17 +811,20 @@ impl CardRepository for SqliteCardRepository {
                 .map(Self::direction_name)
                 .map(|value| Value::Text(value.to_string()))
                 .unwrap_or(Value::Null);
-            let mastery = match query.mastery {
-                CardMastery::Any => 0,
-                CardMastery::Unlearned => 1,
-                CardMastery::Learned => 2,
-            };
+            let min_score = query
+                .min_score
+                .map(|value| Value::Integer(value.into()))
+                .unwrap_or(Value::Null);
+            let max_score = query
+                .max_score
+                .map(|value| Value::Integer(value.into()))
+                .unwrap_or(Value::Null);
             let values = vec![
                 Value::Text(query.user_id.as_str().to_string()),
                 Value::Text(query.profile_id.as_str().to_string()),
                 direction,
-                Value::Integer(mastery),
-                Value::Integer(query.mastery_threshold.into()),
+                min_score,
+                max_score,
             ];
             let mut statement = connection.prepare(&sql).map_err(Self::map_sqlite_error)?;
             let ids = statement
@@ -853,10 +847,8 @@ impl CardRepository for SqliteCardRepository {
 mod tests {
     use application::ports::{
         input::{
-            card_catalog::models::{CardMastery, CardSortField, SortDirection},
-            language_profile::models::{
-                AiProviderSettings, LanguageProfile, LearningSettings, ProfileId,
-            },
+            card_catalog::models::{CardSortField, SortDirection},
+            language_profile::models::{AiProviderSettings, LanguageProfile, ProfileId},
             local_user::models::{LocalUser, UserId},
         },
         output::repository::{
@@ -889,7 +881,6 @@ mod tests {
                 name: "Japanese".to_string(),
                 source_language: "en-US".to_string(),
                 target_language: "ja-JP".to_string(),
-                settings: LearningSettings::default(),
                 ai_settings: AiProviderSettings::default(),
                 version: 0,
             })
@@ -904,7 +895,7 @@ mod tests {
         word: &str,
         reading: &str,
         direction: CardDirection,
-        streak: u32,
+        score: i32,
         created_at: i64,
     ) -> Card {
         Card {
@@ -924,7 +915,7 @@ mod tests {
                     translation: format!("{word} example translation"),
                 }],
             }],
-            streak,
+            score,
             created_at,
             version: 0,
         }
@@ -936,9 +927,8 @@ mod tests {
             profile_id: ProfileId::new("profile"),
             search: None,
             direction: None,
-            mastery: CardMastery::Any,
-            mastery_threshold: 5,
-            max_streak: None,
+            min_score: None,
+            max_score: None,
             sort_field: CardSortField::CreatedAt,
             sort_direction: SortDirection::Descending,
             cursor: None,
@@ -1061,8 +1051,8 @@ mod tests {
 
         let mut query = list_query();
         query.direction = Some(CardDirection::Straight);
-        query.mastery = CardMastery::Unlearned;
-        query.max_streak = Some(2);
+        query.min_score = Some(0);
+        query.max_score = Some(2);
         let page = repository.list_summaries(query).await.unwrap();
         assert_eq!(
             page.items

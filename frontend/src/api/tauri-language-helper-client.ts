@@ -9,8 +9,8 @@ import type {
   DeleteCardsInput,
   LanguageProfile,
   LanguageHelperClient,
-  ProfileSettings,
-  SaveProfileSettingsInput,
+  AiSettings,
+  SaveAiSettingsInput,
   ListCardsInput,
   PendingInverseCard,
   NormalizeCardInput,
@@ -18,6 +18,11 @@ import type {
   PrepareInverseCardsInput,
   SaveInverseCardsInput,
   UpdateCardInput,
+  ApplyStudySessionActionInput,
+  CreateStudySessionInput,
+  EndStudySessionInput,
+  StudySession,
+  StudySessionTransition,
 } from './language-helper-client'
 
 export class TauriLanguageHelperClient implements LanguageHelperClient {
@@ -48,20 +53,18 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
     })
   }
 
-  getProfileSettings(
+  getAiSettings(
     username: string,
     profileId: string,
-  ): Promise<ProfileSettings> {
-    return invoke<ProfileSettings>('get_profile_settings', {
+  ): Promise<AiSettings> {
+    return invoke<AiSettings>('get_ai_settings', {
       username,
       profileId,
     })
   }
 
-  saveProfileSettings(
-    input: SaveProfileSettingsInput,
-  ): Promise<ProfileSettings> {
-    return invoke<ProfileSettings>('save_profile_settings', {
+  saveAiSettings(input: SaveAiSettingsInput): Promise<AiSettings> {
+    return invoke<AiSettings>('save_ai_settings', {
       settings: input,
     })
   }
@@ -104,5 +107,25 @@ export class TauriLanguageHelperClient implements LanguageHelperClient {
 
   saveInverseCards(input: SaveInverseCardsInput): Promise<Card[]> {
     return invoke<Card[]>('save_inverse_cards', { command: input })
+  }
+
+  createStudySession(input: CreateStudySessionInput): Promise<StudySession> {
+    return invoke<StudySession>('create_study_session', { command: input })
+  }
+
+  applyStudySessionAction(
+    input: ApplyStudySessionActionInput,
+  ): Promise<StudySessionTransition> {
+    return invoke<StudySessionTransition>('apply_study_session_action', {
+      command: input,
+    })
+  }
+
+  finishStudySession(input: EndStudySessionInput): Promise<StudySession> {
+    return invoke<StudySession>('finish_study_session', { command: input })
+  }
+
+  cancelStudySession(input: EndStudySessionInput): Promise<StudySession> {
+    return invoke<StudySession>('cancel_study_session', { command: input })
   }
 }

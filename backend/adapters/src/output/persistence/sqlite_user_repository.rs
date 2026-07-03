@@ -15,7 +15,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SqliteUserRepositoryInitError {
-    #[error("failed to create database directory {path}: {source}")]
+    #[error("failed to create database directory {path:?}: {source}")]
     CreateDirectory {
         path: PathBuf,
         #[source]
@@ -165,7 +165,7 @@ impl UserRepository for SqliteUserRepository {
                 )
                 .map_err(Self::map_sqlite_error)?;
 
-            let users = statement
+            statement
                 .query_map([], |row| row.get::<_, String>(0))
                 .map_err(Self::map_sqlite_error)?
                 .map(|username| {
@@ -175,9 +175,7 @@ impl UserRepository for SqliteUserRepository {
                         })
                         .map_err(Self::map_sqlite_error)
                 })
-                .collect();
-
-            users
+                .collect()
         })
         .await
         .map_err(Self::map_join_error)?

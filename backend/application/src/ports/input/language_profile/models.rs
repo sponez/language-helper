@@ -31,36 +31,11 @@ impl From<&str> for ProfileId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AnswerMode {
-    Written,
-    SelfReview,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LearningSettings {
-    pub cards_per_set: u16,
-    pub answer_mode: AnswerMode,
-    pub mastery_threshold: u16,
-    pub check_reading_if_possible: bool,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AiProviderSettings {
     pub provider: Option<String>,
     pub api_key: Option<String>,
     pub model_name: Option<String>,
-}
-
-impl Default for LearningSettings {
-    fn default() -> Self {
-        Self {
-            cards_per_set: 10,
-            answer_mode: AnswerMode::Written,
-            mastery_threshold: 5,
-            check_reading_if_possible: false,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,7 +45,6 @@ pub struct LanguageProfile {
     pub name: String,
     pub source_language: String,
     pub target_language: String,
-    pub settings: LearningSettings,
     pub ai_settings: AiProviderSettings,
     pub version: u64,
 }
@@ -89,7 +63,6 @@ pub struct CreateLanguageProfileCommand {
     pub name: String,
     pub source_language: String,
     pub target_language: String,
-    pub settings: LearningSettings,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,7 +81,6 @@ pub struct LanguageProfileChanges {
     pub name: Option<String>,
     pub source_language: Option<String>,
     pub target_language: Option<String>,
-    pub settings: Option<LearningSettings>,
     pub ai_settings: Option<AiProviderSettings>,
 }
 

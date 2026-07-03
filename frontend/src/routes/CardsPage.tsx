@@ -31,7 +31,6 @@ import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
 import type {
   Card,
   CardDirection,
-  CardMastery,
   CardMeaning,
   CardSortField,
   NewCardInput,
@@ -44,7 +43,6 @@ import classes from './CardsPage.module.css'
 interface CardsPageProps {
   username: string
   profileId: string
-  masteryThreshold: number
   onBack(): void
 }
 
@@ -185,7 +183,7 @@ function ReadOnlyMeanings({ meanings }: { meanings: CardMeaning[] }) {
   )
 }
 
-function ReadOnlyCard({ card }: { card: NewCardInput }) {
+export function ReadOnlyCard({ card }: { card: NewCardInput }) {
   const { t } = useTranslations()
 
   return (
@@ -231,7 +229,7 @@ function AiNormalizeButton({
   const [proposed, setProposed] = useState<NewCardInput | null>(null)
   const settings = useQuery({
     queryKey: ['profile-settings', username, profileId],
-    queryFn: () => client.getProfileSettings(username, profileId),
+    queryFn: () => client.getAiSettings(username, profileId),
     retry: false,
   })
   const configured = Boolean(
@@ -527,7 +525,6 @@ function MeaningsEditor({
 export function CardsPage({
   username,
   profileId,
-  masteryThreshold,
   onBack,
 }: CardsPageProps) {
   const client = useLanguageHelperClient()
@@ -540,8 +537,8 @@ export function CardsPage({
   const [search, setSearch] = useState('')
   const [debouncedSearch] = useDebouncedValue(search, 250)
   const [direction, setDirection] = useState<CardDirection | null>(null)
-  const [mastery, setMastery] = useState<CardMastery>('any')
-  const [maxStreak, setMaxStreak] = useState<number | null>(null)
+  const [minScore, setMinScore] = useState<number | null>(null)
+  const [maxScore, setMaxScore] = useState<number | null>(null)
   const [sortField, setSortField] = useState<CardSortField>('createdAt')
   const [sortDirection, setSortDirection] =
     useState<SortDirection>('descending')
@@ -557,9 +554,8 @@ export function CardsPage({
     profileId,
     debouncedSearch,
     direction,
-    mastery,
-    masteryThreshold,
-    maxStreak,
+    minScore,
+    maxScore,
     sortField,
     sortDirection,
   ]
@@ -573,9 +569,8 @@ export function CardsPage({
         profileId,
         search: debouncedSearch || undefined,
         direction,
-        mastery,
-        masteryThreshold,
-        maxStreak,
+        minScore,
+        maxScore,
         sortField,
         sortDirection,
         cursor: pageParam,
@@ -600,8 +595,8 @@ export function CardsPage({
   function resetFilters() {
     setSearch('')
     setDirection(null)
-    setMastery('any')
-    setMaxStreak(null)
+    setMinScore(null)
+    setMaxScore(null)
     setSortField('createdAt')
     setSortDirection('descending')
   }
@@ -690,25 +685,20 @@ export function CardsPage({
               )
             }
           />
-          <Select
-            allowDeselect={false}
-            data={[
-              { value: 'any', label: t('cards.anyMastery') },
-              { value: 'learned', label: t('cards.learned') },
-              { value: 'unlearned', label: t('cards.unlearned') },
-            ]}
-            label={t('cards.mastery')}
-            value={mastery}
-            onChange={(value) => setMastery((value ?? 'any') as CardMastery)}
+          <NumberInput
+            allowDecimal={false}
+            label={t('cards.minScore')}
+            value={minScore ?? ''}
+            onChange={(value) =>
+              setMinScore(typeof value === 'number' ? value : null)
+            }
           />
           <NumberInput
             allowDecimal={false}
-            allowNegative={false}
-            label={t('cards.maxStreak')}
-            min={0}
-            value={maxStreak ?? ''}
+            label={t('cards.maxScore')}
+            value={maxScore ?? ''}
             onChange={(value) =>
-              setMaxStreak(typeof value === 'number' ? value : null)
+              setMaxScore(typeof value === 'number' ? value : null)
             }
           />
           <div className={classes.sortRow}>
@@ -718,7 +708,7 @@ export function CardsPage({
               data={[
                 { value: 'word', label: t('cards.sortWord') },
                 { value: 'createdAt', label: t('cards.sortCreated') },
-                { value: 'streak', label: t('cards.sortStreak') },
+                { value: 'score', label: t('cards.sortScore') },
               ]}
               label={t('cards.sortBy')}
               value={sortField}
@@ -791,7 +781,7 @@ export function CardsPage({
                     {card.word}
                   </Text>
                   <Text c="dimmed" size="sm">
-                    {card.streak}
+                    {card.score}
                   </Text>
                   <Button
                     size="xs"
@@ -1014,7 +1004,7 @@ function CardDetails({
       <Group justify="center">
         <Badge>{t(`cards.${current.direction}`)}</Badge>
         <Badge variant="light">
-          {t('cards.streak')}: {current.streak}
+          {t('cards.score')}: {current.score}
         </Badge>
       </Group>
       <Text c="dimmed" size="sm" ta="center">

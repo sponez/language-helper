@@ -7,6 +7,7 @@ edition.workspace = true
 async-trait = { workspace = true, default-features = false }
 thiserror = { workspace = true, default-features = false }
 uuid = { workspace = true, default-features = false }
+strsim = { workspace = true, default-features = false }
 
 [dev-dependencies]
 tokio = { workspace = true, default-features = false }

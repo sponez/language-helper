@@ -18,25 +18,20 @@ export interface CreateLanguageProfileInput {
   targetLanguage: string
 }
 
-export interface ProfileSettings {
+export interface AiSettings {
   version: number
-  cardsPerSet: number
-  answerMode: 'written' | 'self-review'
-  masteryThreshold: number
-  checkReadingIfPossible: boolean
   provider: 'openai' | 'gemini' | null
   apiKey: string | null
   modelName: string | null
 }
 
-export interface SaveProfileSettingsInput extends ProfileSettings {
+export interface SaveAiSettingsInput extends AiSettings {
   username: string
   profileId: string
 }
 
 export type CardDirection = 'straight' | 'reverse'
-export type CardMastery = 'any' | 'learned' | 'unlearned'
-export type CardSortField = 'word' | 'createdAt' | 'streak'
+export type CardSortField = 'word' | 'createdAt' | 'score'
 export type SortDirection = 'ascending' | 'descending'
 
 export interface UsageExample {
@@ -58,7 +53,7 @@ export interface Card {
   word: string
   readings: string[]
   meanings: CardMeaning[]
-  streak: number
+  score: number
   createdAt: number
   version: number
 }
@@ -67,7 +62,7 @@ export interface CardSummary {
   id: string
   word: string
   direction: CardDirection
-  streak: number
+  score: number
   createdAt: number
 }
 
@@ -81,9 +76,8 @@ export interface ListCardsInput {
   profileId: string
   search?: string
   direction: CardDirection | null
-  mastery: CardMastery
-  masteryThreshold: number
-  maxStreak: number | null
+  minScore: number | null
+  maxScore: number | null
   sortField: CardSortField
   sortDirection: SortDirection
   cursor: string | null
@@ -142,6 +136,88 @@ export interface SaveInverseCardsInput {
   cards: PendingInverseCard[]
 }
 
+export type StudySessionMode = 'learning' | 'test'
+export type StudySessionPhase = 'study' | 'test'
+export type StudySessionStatus = 'active' | 'completed' | 'cancelled'
+export type StudySessionAction =
+  | 'previousStudyCard'
+  | 'nextStudyCard'
+  | 'startMiniTest'
+  | 'submitWrittenAnswer'
+  | 'continueAfterFeedback'
+
+export interface CreateStudySessionInput {
+  username: string
+  profileId: string
+  mode: StudySessionMode
+  direction: CardDirection | null
+  minScore: number | null
+  maxScore: number | null
+  cardsPerSet: number | null
+  pronunciationCheckEnabled: boolean
+  pronunciationAccuracyThreshold: number
+}
+
+export interface ApplyStudySessionActionInput {
+  username: string
+  sessionId: string
+  expectedVersion: number
+  action: StudySessionAction
+  answer?: string
+}
+
+export interface EndStudySessionInput {
+  username: string
+  sessionId: string
+  expectedVersion: number
+}
+
+export interface SessionCurrentCard {
+  kind: 'study' | 'test'
+  card: Card | null
+  id: string | null
+  direction: CardDirection | null
+  prompt: string | null
+  readings: string[]
+  remainingMeanings: number | null
+  totalMeanings: number | null
+}
+
+export interface StudySession {
+  id: string
+  profileId: string
+  mode: StudySessionMode
+  phase: StudySessionPhase
+  status: StudySessionStatus
+  pronunciationCheckEnabled: boolean
+  pronunciationAccuracyThreshold: number
+  awaitingContinue: boolean
+  currentCard: SessionCurrentCard | null
+  currentCardNumber: number
+  totalCards: number
+  currentSet: number
+  totalSets: number
+  summary: {
+    correct: number
+    incorrect: number
+    scoreDelta: number
+  }
+  version: number
+}
+
+export interface StudySessionTransition {
+  session: StudySession
+  answerFeedback: {
+    isCorrect: boolean
+    matchedAnswer: string | null
+    expectedAnswers: string[]
+    cardCompleted: boolean
+    remainingMeanings: number
+    scoreDelta: number
+  } | null
+  setOutcome: 'passed' | 'retry' | null
+}
+
 /**
  * Transport-independent boundary between React and the application backend.
  *
@@ -156,13 +232,11 @@ export interface LanguageHelperClient {
   createLanguageProfile(
     input: CreateLanguageProfileInput,
   ): Promise<LanguageProfile>
-  getProfileSettings(
+  getAiSettings(
     username: string,
     profileId: string,
-  ): Promise<ProfileSettings>
-  saveProfileSettings(
-    input: SaveProfileSettingsInput,
-  ): Promise<ProfileSettings>
+  ): Promise<AiSettings>
+  saveAiSettings(input: SaveAiSettingsInput): Promise<AiSettings>
   listCards(input: ListCardsInput): Promise<CardPage>
   getCard(username: string, profileId: string, cardId: string): Promise<Card>
   createCards(input: CreateCardsInput): Promise<Card[]>
@@ -173,4 +247,10 @@ export interface LanguageHelperClient {
     input: PrepareInverseCardsInput,
   ): Promise<PendingInverseCard[]>
   saveInverseCards(input: SaveInverseCardsInput): Promise<Card[]>
+  createStudySession(input: CreateStudySessionInput): Promise<StudySession>
+  applyStudySessionAction(
+    input: ApplyStudySessionActionInput,
+  ): Promise<StudySessionTransition>
+  finishStudySession(input: EndStudySessionInput): Promise<StudySession>
+  cancelStudySession(input: EndStudySessionInput): Promise<StudySession>
 }
