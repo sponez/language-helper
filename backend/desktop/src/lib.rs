@@ -3,9 +3,11 @@ mod error;
 mod state;
 
 use lh_bootstrap::{BootstrapBridge, BootstrapConfig};
+#[cfg(target_os = "windows")]
 use std::io;
 use tauri::Manager;
 
+#[cfg(target_os = "windows")]
 fn database_path() -> Result<std::path::PathBuf, io::Error> {
     let executable_path = std::env::current_exe()?;
     let executable_directory = executable_path.parent().ok_or_else(|| {
@@ -18,10 +20,21 @@ fn database_path() -> Result<std::path::PathBuf, io::Error> {
     Ok(executable_directory.join("language-helper.db"))
 }
 
+#[cfg(not(target_os = "windows"))]
+fn database_path(app: &tauri::App) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let data_directory = app.path().app_local_data_dir()?;
+    std::fs::create_dir_all(&data_directory)?;
+    Ok(data_directory.join("language-helper.db"))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            #[cfg(target_os = "windows")]
             let bridge = BootstrapBridge::create(BootstrapConfig::new(database_path()?))?;
+
+            #[cfg(not(target_os = "windows"))]
+            let bridge = BootstrapBridge::create(BootstrapConfig::new(database_path(app)?))?;
 
             app.manage(state::DesktopState::new(bridge));
             Ok(())
