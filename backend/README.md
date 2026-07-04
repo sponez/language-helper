@@ -15,10 +15,13 @@ ports; application code does not depend on Tauri, SQLite, or provider SDKs.
 
 ## Commands
 
-```powershell
+```bash
 cargo check --workspace
 cargo test --workspace
 cargo build --release -p lh_desktop
 ```
 
-For a complete desktop build, run `npm run desktop:build` from `frontend`.
+For a complete native desktop bundle, run `npm run desktop:build` from
+`frontend` on the target operating system. Platform prerequisites, bundle
+commands, data locations, and CI targets are documented in the repository
+root README.

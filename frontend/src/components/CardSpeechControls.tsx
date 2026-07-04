@@ -12,18 +12,25 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
+import {
+  matchesPrimaryShortcut,
+  primaryAriaShortcut,
+  primaryModifierLabel,
+} from '../keyboard/shortcuts'
 import { useTranslations } from '../locales/TranslationProvider'
 
 interface CardSpeechControlsProps {
   username: string
   profileId: string
   cardId: string
+  hotkeysEnabled?: boolean
 }
 
 export function CardSpeechControls({
   username,
   profileId,
   cardId,
+  hotkeysEnabled = true,
 }: CardSpeechControlsProps) {
   const client = useLanguageHelperClient()
   const { t } = useTranslations()
@@ -98,27 +105,60 @@ export function CardSpeechControls({
       ? t('cards.speechSettingsLoading')
       : speech.isPending
         ? t('cards.speechGenerating')
-      : !isDesktop
-        ? t('cards.speechDesktopOnly')
-        : t('cards.speechNotConfigured')
+        : !isDesktop
+          ? t('cards.speechDesktopOnly')
+          : t('cards.speechNotConfigured')
+  const playShortcut = `${primaryModifierLabel()}+P`
+
+  function playSpeech() {
+    if (!disabled) speech.mutate(false)
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!hotkeysEnabled || !matchesPrimaryShortcut(event, 'KeyP')) {
+        return
+      }
+
+      event.preventDefault()
+      event.stopPropagation()
+      if (!event.repeat) playSpeech()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  })
 
   return (
     <Stack gap={4}>
       <Group gap="xs">
-        <Tooltip disabled={!disabled} label={disabledHint} multiline w={280}>
+        <Tooltip
+          label={
+            disabled
+              ? disabledHint
+              : `${t('cards.playSpeech')} (${playShortcut})`
+          }
+          multiline
+          w={280}
+        >
           <span>
             <ActionIcon
               aria-label={t('cards.playSpeech')}
+              aria-keyshortcuts={primaryAriaShortcut('P')}
               disabled={disabled}
               size="lg"
               variant="light"
-              onClick={() => speech.mutate(false)}
+              onClick={playSpeech}
             >
               {speech.isPending ? <Loader size="xs" /> : '🔊'}
             </ActionIcon>
           </span>
         </Tooltip>
-        <Tooltip disabled={!disabled} label={disabledHint} multiline w={280}>
+        <Tooltip
+          label={disabled ? disabledHint : t('cards.regenerateSpeech')}
+          multiline
+          w={280}
+        >
           <span>
             <Button
               aria-label={t('cards.regenerateSpeech')}

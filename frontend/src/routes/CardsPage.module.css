@@ -60,6 +60,11 @@
   margin: 0 auto;
 }
 
+.blockingRoot {
+  position: relative;
+  isolation: isolate;
+}
+
 .previewCard {
   width: min(720px, 100%);
   margin: 0 auto;
@@ -74,6 +79,10 @@
 
 .meaning {
   background: var(--mantine-color-default-hover);
+}
+
+.meaningInvalid {
+  border-color: var(--mantine-color-red-6);
 }
 
 .meaningLayout {
@@ -142,6 +151,22 @@
   gap: 12px;
 }
 
+.inverseCardRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inverseCardButton {
+  min-width: 0;
+  flex: 1;
+}
+
+.inverseCardSelected {
+  border-color: var(--mantine-color-indigo-5);
+  background: var(--mantine-primary-color-light);
+}
+
 .cardDraftRow {
   display: flex;
   align-items: center;
@@ -163,6 +188,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.draftWordInvalid {
+  color: var(--mantine-color-red-6);
+  font-weight: 600;
 }
 
 .dynamicRow {

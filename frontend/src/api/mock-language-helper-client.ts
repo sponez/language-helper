@@ -94,8 +94,7 @@ function answerSimilarity(expected: string, actual: string): number {
   )
   return length === 0
     ? 0
-    : 1 -
-        damerauLevenshtein(normalizedExpected, normalizedActual) / length
+    : 1 - damerauLevenshtein(normalizedExpected, normalizedActual) / length
 }
 
 export class MockLanguageHelperClient implements LanguageHelperClient {
@@ -105,7 +104,10 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
   private readonly cards = new Map<string, Card[]>()
   private readonly sessions = new Map<string, MockSessionState>()
   private readonly testHistory = new Map<string, string[]>()
-  private readonly sessionPreferences = new Map<string, StudySessionPreferences>()
+  private readonly sessionPreferences = new Map<
+    string,
+    StudySessionPreferences
+  >()
 
   async getBackendStatus(): Promise<BackendStatus> {
     return {
@@ -182,7 +184,8 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
     profileId: string,
   ): Promise<boolean> {
     const profiles = this.profiles.get(username)
-    const index = profiles?.findIndex((profile) => profile.id === profileId) ?? -1
+    const index =
+      profiles?.findIndex((profile) => profile.id === profileId) ?? -1
     if (!profiles || index < 0) return false
     profiles.splice(index, 1)
     this.cards.delete(profileId)
@@ -295,9 +298,11 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
   }
 
   async normalizeCard(input: NormalizeCardInput): Promise<NewCardInput> {
-    const settings = this.settings.get(input.profileId)
+    const settings = this.settings.get(input.username)
     if (!settings?.provider || !settings.apiKey || !settings.modelName) {
-      throw new Error('AI provider is not configured. Open Settings to configure it.')
+      throw new Error(
+        'AI provider is not configured. Open Settings to configure it.',
+      )
     }
     return structuredClone(input.card)
   }
@@ -465,10 +470,7 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
         next.push(card)
         saved.push(card)
       } else {
-        if (
-          index < 0 ||
-          next[index].version !== pending.expectedVersion
-        ) {
+        if (index < 0 || next[index].version !== pending.expectedVersion) {
           throw new Error('Card was modified concurrently.')
         }
         const card = structuredClone(pending.card)
@@ -548,14 +550,13 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       input.pronunciationCheckEnabled && input.direction !== 'reverse'
     input = { ...input, pronunciationCheckEnabled }
     const eligible = this.matchingCards(input).sort(() => Math.random() - 0.5)
-    if (eligible.length === 0) throw new Error('No matching cards are available.')
+    if (eligible.length === 0)
+      throw new Error('No matching cards are available.')
     let selected = eligible
     if (input.mode === 'test') {
       const history = this.testHistory.get(input.profileId) ?? []
       const banned = new Set(history.slice(-Math.floor(eligible.length / 2)))
-      selected = [
-        eligible.find((card) => !banned.has(card.id)) ?? eligible[0],
-      ]
+      selected = [eligible.find((card) => !banned.has(card.id)) ?? eligible[0]]
       history.push(selected[0].id)
       this.testHistory.set(input.profileId, history)
     }
@@ -635,16 +636,14 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
     if (input.action === 'previousStudyCard') {
       state.currentIndex = Math.max(0, state.currentIndex - 1)
     } else if (input.action === 'nextStudyCard') {
-      const start =
-        (state.view.currentSet - 1) * (state.input.cardsPerSet ?? 5)
+      const start = (state.view.currentSet - 1) * (state.input.cardsPerSet ?? 5)
       const length = Math.min(
         state.input.cardsPerSet ?? 5,
         state.cardIds.length - start,
       )
       state.currentIndex = Math.min(length - 1, state.currentIndex + 1)
     } else if (input.action === 'startMiniTest') {
-      const start =
-        (state.view.currentSet - 1) * (state.input.cardsPerSet ?? 5)
+      const start = (state.view.currentSet - 1) * (state.input.cardsPerSet ?? 5)
       state.testOrder = state.cardIds
         .slice(start, start + (state.input.cardsPerSet ?? 5))
         .sort(() => Math.random() - 0.5)
@@ -676,11 +675,7 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       const completed =
         !isCorrect || state.completedMeanings.length === card.meanings.length
       const delta =
-        completed && state.view.mode === 'test'
-          ? isCorrect
-            ? 1
-            : -2
-          : 0
+        completed && state.view.mode === 'test' ? (isCorrect ? 1 : -2) : 0
       if (completed) {
         state.view.awaitingContinue = true
         state.setFailed ||= !isCorrect

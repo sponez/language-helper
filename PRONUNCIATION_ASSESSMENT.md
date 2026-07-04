@@ -13,14 +13,21 @@ WAV at 16 kHz. The recording is held in memory, sent to Azure through the Rust
 backend, and is never written to SQLite, the filesystem, or application logs.
 
 Azure is an external cloud service. Audio leaves the device, internet access is
-required, and the subscription key is stored locally in `language-helper.db`
-beside the executable, following the same policy as the existing AI API key.
+required, and the subscription key is stored locally in `language-helper.db`,
+following the same policy as the existing AI API key. Windows keeps the
+database beside the executable; macOS and Linux use Tauri's
+application-local-data directory.
 
 ## Session flow
 
 Pronunciation checking and its required strict score are selected for each
 Learn or Test session. The default threshold is 75. The last selections are
 stored separately for each language profile and mode.
+
+Assessment applies only to straight cards. A reverse-only session disables the
+option, while an `Any` session checks straight cards and automatically skips
+reverse cards. Skipped cards do not send audio to Azure and do not consume
+provider quota.
 
 Before the written answer:
 
@@ -64,12 +71,8 @@ The strict scoring policy is versioned. Its current rules are:
 
 ## Reference text
 
-The card language follows its direction:
-
-- Straight uses the profile target language.
-- Reverse uses the profile source language.
-
-Reference text sent to Azure:
+Only straight cards are assessed, using the profile target language. Reference
+text sent to Azure:
 
 - English: `card.word`.
 - Russian: `card.word` with stress marks removed.

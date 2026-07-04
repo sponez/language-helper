@@ -15,13 +15,7 @@ import {
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  type FormEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react'
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 import type {
   CardDirection,
@@ -33,10 +27,8 @@ import type {
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
 import { recordingToWav } from '../audio/recording'
 import { CardSpeechControls } from '../components/CardSpeechControls'
-import {
-  ReadOnlyCard,
-  ReadOnlyMeanings,
-} from '../components/ReadOnlyCard'
+import { ReadOnlyCard, ReadOnlyMeanings } from '../components/ReadOnlyCard'
+import { primaryModifierLabel } from '../keyboard/shortcuts'
 import { useTranslations } from '../locales/TranslationProvider'
 import classes from './SessionPage.module.css'
 
@@ -81,8 +73,7 @@ export function SessionPage({
 
   const sessionPreferences = useQuery({
     queryKey: ['study-session-preferences', username, profileId, mode],
-    queryFn: () =>
-      client.getStudySessionPreferences(username, profileId, mode),
+    queryFn: () => client.getStudySessionPreferences(username, profileId, mode),
     retry: false,
   })
 
@@ -105,12 +96,10 @@ export function SessionPage({
         Boolean(pronunciationSettings.data?.configured),
     )
     setPronunciationScore(preferences.pronunciationScoreThreshold)
-  }, [
-    pronunciationSettings.data?.configured,
-    sessionPreferences.data,
-  ])
+  }, [pronunciationSettings.data?.configured, sessionPreferences.data])
 
-  const currentCardId = session?.currentCard?.id ?? session?.currentCard?.card?.id
+  const currentCardId =
+    session?.currentCard?.id ?? session?.currentCard?.card?.id
   useEffect(() => {
     setPronunciationFeedback(null)
     setFeedback(null)
@@ -183,7 +172,9 @@ export function SessionPage({
       setSession(transition.session)
       setFeedback(transition.answerFeedback)
       setPronunciationFeedback(transition.pronunciationFeedback)
-      if (transition.session.summary.scoreDelta !== session?.summary.scoreDelta) {
+      if (
+        transition.session.summary.scoreDelta !== session?.summary.scoreDelta
+      ) {
         await queryClient.invalidateQueries({
           queryKey: ['cards', username, profileId],
         })
@@ -243,9 +234,7 @@ export function SessionPage({
     (error: unknown) => {
       releaseMicrophone()
       const message =
-        error instanceof Error
-          ? error.message
-          : t('sessions.microphoneError')
+        error instanceof Error ? error.message : t('sessions.microphoneError')
       action.mutate({
         action: 'registerPronunciationCaptureFailure',
         message,
@@ -289,9 +278,7 @@ export function SessionPage({
         releaseMicrophone()
         if (discarded) return
         try {
-          const wav = await recordingToWav(
-            new Blob(chunks, { type: mimeType }),
-          )
+          const wav = await recordingToWav(new Blob(chunks, { type: mimeType }))
           assessment.mutate(wav)
         } catch (error) {
           reportCaptureFailure(error)
@@ -459,9 +446,7 @@ export function SessionPage({
     return (
       <Stack className={classes.setup} gap="md">
         <Title order={2} ta="center">
-          {mode === 'test'
-            ? t('sessions.testSetup')
-            : t('sessions.learnSetup')}
+          {mode === 'test' ? t('sessions.testSetup') : t('sessions.learnSetup')}
         </Title>
         <Select
           allowDeselect={false}
@@ -521,14 +506,12 @@ export function SessionPage({
             direction === 'reverse'
               ? t('sessions.pronunciationStraightOnly')
               : !pronunciationSettings.isLoading &&
-            !pronunciationSettings.data?.configured
+                  !pronunciationSettings.data?.configured
                 ? t('sessions.pronunciationNotConfigured')
                 : t('sessions.pronunciationStraightOnly')
           }
           label={t('sessions.checkPronunciation')}
-          onChange={(event) =>
-            setPronunciation(event.currentTarget.checked)
-          }
+          onChange={(event) => setPronunciation(event.currentTarget.checked)}
         />
         <NumberInput
           allowDecimal={false}
@@ -653,9 +636,7 @@ export function SessionPage({
             <Button
               disabled={session.currentCardNumber <= 1}
               variant="default"
-              onClick={() =>
-                action.mutate({ action: 'previousStudyCard' })
-              }
+              onClick={() => action.mutate({ action: 'previousStudyCard' })}
             >
               ← {t('sessions.previous')}
             </Button>
@@ -669,6 +650,12 @@ export function SessionPage({
               {t('sessions.startMiniTest')}
             </Button>
           </Group>
+          <Text c="dimmed" size="xs" ta="center">
+            {t('sessions.studyKeyboardHint').replace(
+              '{mod}',
+              primaryModifierLabel(),
+            )}
+          </Text>
         </>
       )}
 
@@ -722,7 +709,11 @@ export function SessionPage({
                       )}
                       {pronunciationFeedback.report.issues.map(
                         (issue, index) => (
-                          <Text c="red" key={`${issue.kind}-${index}`} size="sm">
+                          <Text
+                            c="red"
+                            key={`${issue.kind}-${index}`}
+                            size="sm"
+                          >
                             {issue.kind === 'phonemeSubstitution'
                               ? `${t('sessions.expectedPhoneme')} /${issue.expected}/, ${t('sessions.detectedPhoneme')} /${issue.detected}/ (${issue.word}).`
                               : `${issue.word}: ${t('sessions.azureWordError')} ${issue.errorType}.`}
@@ -751,11 +742,7 @@ export function SessionPage({
                                 null && (
                                 <Text size="xs">
                                   Fluency:{' '}
-                                  {
-                                    pronunciationFeedback.report
-                                      .fluencyScore
-                                  }
-                                  %
+                                  {pronunciationFeedback.report.fluencyScore}%
                                 </Text>
                               )}
                               {pronunciationFeedback.report
@@ -939,16 +926,12 @@ export function SessionPage({
         </Paper>
       )}
 
-      {action.isError && (
-        <Alert color="red">{action.error.message}</Alert>
-      )}
+      {action.isError && <Alert color="red">{action.error.message}</Alert>}
       {assessment.isError && (
         <Alert color="red">{assessment.error.message}</Alert>
       )}
       {(finish.isError || cancel.isError) && (
-        <Alert color="red">
-          {(finish.error ?? cancel.error)?.message}
-        </Alert>
+        <Alert color="red">{(finish.error ?? cancel.error)?.message}</Alert>
       )}
 
       <Modal

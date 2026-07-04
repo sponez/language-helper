@@ -150,6 +150,11 @@ export const en = {
     inverseCreated: 'New',
     inverseUpdated: 'Updated',
     editInverseTitle: 'Edit reverse card',
+    rejectInverse: 'Reject',
+    rejectInverseTitle: 'Reject reverse card?',
+    rejectInverseDescription:
+      'This reverse card will not be created or merged.',
+    discardInverseDescription: 'All remaining reverse cards will be discarded.',
     saveWithoutReview: 'Save without review',
     inverseSaveError: 'Could not save reverse cards.',
     wordRequired: 'Enter a word.',
@@ -158,13 +163,15 @@ export const en = {
     definitionRequired: 'Every meaning needs a definition.',
     translationRequired: 'Every meaning needs at least one translation.',
     exampleRequired: 'Fill both fields of every example.',
+    exampleSentenceRequired: 'Enter the example sentence.',
+    exampleTranslationRequired: 'Enter the example translation.',
+    unsavedChangesTitle: 'Discard unsaved changes?',
+    unsavedChangesDescription: 'Your unsaved card changes will be lost.',
+    discardChanges: 'Discard changes',
+    keepEditing: 'Keep editing',
     normalizeWithAi: 'Normalize with AI',
-    aiPreviewTitle: 'AI normalization preview',
-    aiPreviewDescription:
-      'Review the proposed card. Apply copies it into the editor; nothing is saved yet.',
-    aiBefore: 'Current',
-    aiAfter: 'Proposed',
-    aiApply: 'Apply to editor',
+    revertAi: 'Revert AI changes',
+    normalizing: 'Normalizing…',
     aiError: 'Could not normalize the card.',
     aiNotConfigured:
       'AI is not configured. Add a provider, API key, and model in Settings.',
@@ -180,7 +187,15 @@ export const en = {
       'AI speech generation is available only in the desktop application.',
     speechPlaybackError: 'Could not play the generated audio.',
     catalogKeyboardHint:
-      '↑↓ Select · Enter Open · Delete Remove · Ctrl+Enter Add · Esc Back',
+      '↑↓ Select · Enter Open · Delete Remove · {mod}+Enter Add · Esc Back',
+    detailsKeyboardHint:
+      '{mod}+S Save · {mod}+P Play · {mod}+Shift+N Normalize · {mod}+Shift+R Revert · Esc Back',
+    addKeyboardHint:
+      '{mod}+S Save · {mod}+Enter Add another · {mod}+Shift+N Normalize · {mod}+Shift+R Revert · Esc Back',
+    inverseKeyboardHint:
+      '↑↓ Select · Enter Edit · Delete Reject · {mod}+S Save all · Esc Cancel',
+    inverseEditKeyboardHint:
+      '{mod}+S Save · {mod}+Shift+N Normalize · {mod}+Shift+R Revert · Esc Close',
   },
   sessions: {
     testSetup: 'Start a test',
@@ -209,6 +224,7 @@ export const en = {
     previous: 'Previous',
     next: 'Next',
     startMiniTest: 'Start mini-test',
+    studyKeyboardHint: '←→ Browse · Enter Mini-test · {mod}+P Play · Esc Exit',
     sayThisWord: 'Say this word',
     requiredPronunciationScore: 'Required pronunciation score',
     pronunciationNotConfigured:
@@ -218,7 +234,8 @@ export const en = {
     startRecording: 'Start recording',
     stopRecording: 'Stop recording',
     recording: 'Recording…',
-    recordingHint: 'Enter Start/Stop · recording stops automatically after 10 seconds',
+    recordingHint:
+      'Enter Start/Stop · recording stops automatically after 10 seconds',
     microphoneError: 'Could not record audio from the microphone.',
     microphoneUnsupported:
       'Microphone recording is not supported in this environment.',
@@ -231,7 +248,8 @@ export const en = {
     azureDetails: 'Azure details',
     scoringVersion: 'Scoring version',
     recognizedAs: 'Recognized as',
-    pronunciationPassed: 'Pronunciation accepted. Continue to the written answer.',
+    pronunciationPassed:
+      'Pronunciation accepted. Continue to the written answer.',
     pronunciationRetry: 'Try saying the word once more.',
     pronunciationFailed: 'The second pronunciation attempt failed.',
     pronunciationTechnicalError:
