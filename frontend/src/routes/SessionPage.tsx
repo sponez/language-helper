@@ -33,8 +33,11 @@ import type {
 import { useLanguageHelperClient } from '../api/LanguageHelperClientProvider'
 import { recordingToWav } from '../audio/recording'
 import { CardSpeechControls } from '../components/CardSpeechControls'
+import {
+  ReadOnlyCard,
+  ReadOnlyMeanings,
+} from '../components/ReadOnlyCard'
 import { useTranslations } from '../locales/TranslationProvider'
-import { ReadOnlyCard } from './CardsPage'
 import classes from './SessionPage.module.css'
 
 interface SessionPageProps {
@@ -98,6 +101,7 @@ export function SessionPage({
     setCardsPerSet(preferences.cardsPerSet ?? 5)
     setPronunciation(
       preferences.pronunciationCheckEnabled &&
+        preferences.direction !== 'reverse' &&
         Boolean(pronunciationSettings.data?.configured),
     )
     setPronunciationScore(preferences.pronunciationScoreThreshold)
@@ -468,11 +472,12 @@ export function SessionPage({
           ]}
           label={t('cards.direction')}
           value={direction ?? 'any'}
-          onChange={(value) =>
-            setDirection(
-              value === 'straight' || value === 'reverse' ? value : null,
-            )
-          }
+          onChange={(value) => {
+            const nextDirection =
+              value === 'straight' || value === 'reverse' ? value : null
+            setDirection(nextDirection)
+            if (nextDirection === 'reverse') setPronunciation(false)
+          }}
         />
         <Group grow>
           <NumberInput
@@ -508,14 +513,17 @@ export function SessionPage({
         <Checkbox
           checked={pronunciation}
           disabled={
+            direction === 'reverse' ||
             pronunciationSettings.isLoading ||
             !pronunciationSettings.data?.configured
           }
           description={
-            !pronunciationSettings.isLoading &&
+            direction === 'reverse'
+              ? t('sessions.pronunciationStraightOnly')
+              : !pronunciationSettings.isLoading &&
             !pronunciationSettings.data?.configured
-              ? t('sessions.pronunciationNotConfigured')
-              : undefined
+                ? t('sessions.pronunciationNotConfigured')
+                : t('sessions.pronunciationStraightOnly')
           }
           label={t('sessions.checkPronunciation')}
           onChange={(event) =>
@@ -526,7 +534,7 @@ export function SessionPage({
           allowDecimal={false}
           allowNegative={false}
           description={t('sessions.pronunciationScoreDescription')}
-          disabled={!pronunciation}
+          disabled={!pronunciation || direction === 'reverse'}
           label={t('sessions.pronunciationScoreThreshold')}
           max={100}
           min={1}
@@ -858,13 +866,43 @@ export function SessionPage({
                   {feedback.isCorrect
                     ? t('sessions.correct')
                     : t('sessions.incorrect')}
-                  {!feedback.isCorrect && (
-                    <Text mt="xs">
-                      {t('sessions.acceptedAnswers')}:{' '}
-                      {feedback.expectedAnswers.join(', ')}
-                    </Text>
-                  )}
                 </Alert>
+                <Accordion variant="contained">
+                  <Accordion.Item value="answer-details">
+                    <Accordion.Control>
+                      {t('sessions.answerDetails')}
+                    </Accordion.Control>
+                    <Accordion.Panel>
+                      {!feedback.isCorrect ? (
+                        <ReadOnlyMeanings
+                          highlightedMeaningIndices={
+                            feedback.completedMeaningIndices
+                          }
+                          meanings={feedback.card.meanings}
+                        />
+                      ) : feedback.cardCompleted ? (
+                        <ReadOnlyCard
+                          card={feedback.card}
+                          highlightedMeaningIndices={feedback.card.meanings.map(
+                            (_, index) => index,
+                          )}
+                        />
+                      ) : feedback.matchedMeaningIndex !== null ? (
+                        <ReadOnlyMeanings
+                          highlightedMeaningIndices={[
+                            feedback.matchedMeaningIndex,
+                          ]}
+                          meaningIndices={[feedback.matchedMeaningIndex]}
+                          meanings={[
+                            feedback.card.meanings[
+                              feedback.matchedMeaningIndex
+                            ],
+                          ]}
+                        />
+                      ) : null}
+                    </Accordion.Panel>
+                  </Accordion.Item>
+                </Accordion>
                 <Button
                   loading={action.isPending}
                   onClick={() => {

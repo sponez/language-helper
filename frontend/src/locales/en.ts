@@ -213,6 +213,8 @@ export const en = {
     requiredPronunciationScore: 'Required pronunciation score',
     pronunciationNotConfigured:
       'Configure Azure Speech in Settings to enable this option.',
+    pronunciationStraightOnly:
+      'Pronunciation is checked only for straight cards.',
     startRecording: 'Start recording',
     stopRecording: 'Stop recording',
     recording: 'Recording…',
@@ -238,7 +240,7 @@ export const en = {
     disablePronunciation: 'Disable for this session',
     continue: 'Continue',
     meaningsRemaining: 'Meanings remaining',
-    acceptedAnswers: 'Accepted answers',
+    answerDetails: 'Details',
     answer: 'Your translation',
     submit: 'Submit answer',
     endTitle: 'End this session?',

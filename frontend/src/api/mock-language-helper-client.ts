@@ -41,6 +41,63 @@ interface MockSessionState {
   setFailed: boolean
 }
 
+function damerauLevenshtein(left: string, right: string): number {
+  const source = Array.from(left)
+  const target = Array.from(right)
+  const maxDistance = source.length + target.length
+  const distance = Array.from({ length: source.length + 2 }, () =>
+    Array<number>(target.length + 2).fill(0),
+  )
+  distance[0][0] = maxDistance
+  for (let sourceIndex = 0; sourceIndex <= source.length; sourceIndex += 1) {
+    distance[sourceIndex + 1][0] = maxDistance
+    distance[sourceIndex + 1][1] = sourceIndex
+  }
+  for (let targetIndex = 0; targetIndex <= target.length; targetIndex += 1) {
+    distance[0][targetIndex + 1] = maxDistance
+    distance[1][targetIndex + 1] = targetIndex
+  }
+
+  const lastSeen = new Map<string, number>()
+  for (let sourceIndex = 1; sourceIndex <= source.length; sourceIndex += 1) {
+    let lastMatch = 0
+    for (let targetIndex = 1; targetIndex <= target.length; targetIndex += 1) {
+      const previousSourceIndex = lastSeen.get(target[targetIndex - 1]) ?? 0
+      const previousTargetIndex = lastMatch
+      let substitutionCost = 1
+      if (source[sourceIndex - 1] === target[targetIndex - 1]) {
+        substitutionCost = 0
+        lastMatch = targetIndex
+      }
+      distance[sourceIndex + 1][targetIndex + 1] = Math.min(
+        distance[sourceIndex][targetIndex] + substitutionCost,
+        distance[sourceIndex + 1][targetIndex] + 1,
+        distance[sourceIndex][targetIndex + 1] + 1,
+        distance[previousSourceIndex][previousTargetIndex] +
+          (sourceIndex - previousSourceIndex - 1) +
+          1 +
+          (targetIndex - previousTargetIndex - 1),
+      )
+    }
+    lastSeen.set(source[sourceIndex - 1], sourceIndex)
+  }
+  return distance[source.length + 1][target.length + 1]
+}
+
+function answerSimilarity(expected: string, actual: string): number {
+  const normalizedExpected = expected.trim().toLowerCase()
+  const normalizedActual = actual.trim().toLowerCase()
+  if (normalizedExpected === normalizedActual) return 1
+  const length = Math.max(
+    Array.from(normalizedExpected).length,
+    Array.from(normalizedActual).length,
+  )
+  return length === 0
+    ? 0
+    : 1 -
+        damerauLevenshtein(normalizedExpected, normalizedActual) / length
+}
+
 export class MockLanguageHelperClient implements LanguageHelperClient {
   private readonly usernames: string[] = []
   private readonly profiles = new Map<string, LanguageProfile[]>()
@@ -474,6 +531,12 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
             totalMeanings: card.meanings.length,
           }
       : null
+    state.view.pronunciationRequired =
+      state.view.status === 'active' &&
+      state.view.phase === 'test' &&
+      state.view.pronunciationCheckEnabled &&
+      card?.direction === 'straight' &&
+      !state.view.awaitingContinue
     state.view.version += 1
     return structuredClone(state.view)
   }
@@ -481,6 +544,9 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
   async createStudySession(
     input: CreateStudySessionInput,
   ): Promise<StudySession> {
+    const pronunciationCheckEnabled =
+      input.pronunciationCheckEnabled && input.direction !== 'reverse'
+    input = { ...input, pronunciationCheckEnabled }
     const eligible = this.matchingCards(input).sort(() => Math.random() - 0.5)
     if (eligible.length === 0) throw new Error('No matching cards are available.')
     let selected = eligible
@@ -501,7 +567,7 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       mode: input.mode,
       phase: input.mode === 'learning' ? 'study' : 'test',
       status: 'active',
-      pronunciationCheckEnabled: input.pronunciationCheckEnabled,
+      pronunciationCheckEnabled,
       pronunciationScoreThreshold: input.pronunciationScoreThreshold,
       pronunciationRequired: false,
       pronunciationAttemptsUsed: 0,
@@ -533,7 +599,7 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       minScore: input.minScore,
       maxScore: input.maxScore,
       cardsPerSet: input.mode === 'learning' ? input.cardsPerSet : null,
-      pronunciationCheckEnabled: input.pronunciationCheckEnabled,
+      pronunciationCheckEnabled,
       pronunciationScoreThreshold: input.pronunciationScoreThreshold,
     })
     return this.refreshView(state)
@@ -587,22 +653,21 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       state.setFailed = false
     } else if (input.action === 'submitWrittenAnswer') {
       const card = this.sessionCard(state)
-      const answer = input.answer?.trim().toLocaleLowerCase() ?? ''
+      const answer = input.answer?.trim() ?? ''
       if (!card || !answer) throw new Error('Enter an answer.')
       let matchedIndex = -1
       let matched: string | null = null
+      let matchedScore = -1
       card.meanings.forEach((meaning, index) => {
-        if (
-          matchedIndex < 0 &&
-          !state.completedMeanings.includes(index)
-        ) {
-          const candidate = meaning.wordTranslations.find(
-            (translation) => translation.trim().toLocaleLowerCase() === answer,
-          )
-          if (candidate) {
-            matchedIndex = index
-            matched = candidate
-          }
+        if (!state.completedMeanings.includes(index)) {
+          meaning.wordTranslations.forEach((translation) => {
+            const score = answerSimilarity(translation, answer)
+            if (score >= 0.8 && score > matchedScore) {
+              matchedScore = score
+              matchedIndex = index
+              matched = translation
+            }
+          })
         }
       })
       state.answers.push(input.answer ?? '')
@@ -627,9 +692,9 @@ export class MockLanguageHelperClient implements LanguageHelperClient {
       answerFeedback = {
         isCorrect,
         matchedAnswer: matched,
-        expectedAnswers: isCorrect
-          ? []
-          : card.meanings.flatMap((meaning) => meaning.wordTranslations),
+        card: structuredClone(card),
+        matchedMeaningIndex: matchedIndex >= 0 ? matchedIndex : null,
+        completedMeaningIndices: [...state.completedMeanings],
         cardCompleted: completed,
         remainingMeanings:
           card.meanings.length - state.completedMeanings.length,

@@ -253,7 +253,9 @@ export interface StudySessionTransition {
   answerFeedback: {
     isCorrect: boolean
     matchedAnswer: string | null
-    expectedAnswers: string[]
+    card: Card
+    matchedMeaningIndex: number | null
+    completedMeaningIndices: number[]
     cardCompleted: boolean
     remainingMeanings: number
     scoreDelta: number

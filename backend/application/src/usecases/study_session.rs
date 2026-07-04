@@ -10,7 +10,7 @@ use uuid::Uuid;
 use super::pronunciation_scoring::score_pronunciation;
 use crate::ports::{
     input::{
-        card_catalog::models::{Card, CardOrder, CardSelectionQuery},
+        card_catalog::models::{Card, CardDirection, CardOrder, CardSelectionQuery},
         study_session::{
             StudySessionUsecase,
             models::{
@@ -209,6 +209,9 @@ impl StudySessionService {
 
     async fn view(&self, session: &StudySession) -> Result<StudySessionView, StudySessionError> {
         let card = self.load_current_card(session).await?;
+        let pronunciation_required_for_card = card
+            .as_ref()
+            .is_some_and(|card| card.direction == CardDirection::Straight);
         let current_card = card.map(|card| match session.phase {
             StudySessionPhase::Study => CurrentCardView::Study(card),
             StudySessionPhase::Test => CurrentCardView::Test {
@@ -270,6 +273,7 @@ impl StudySessionService {
             pronunciation_required: session.status == StudySessionStatus::Active
                 && session.phase == StudySessionPhase::Test
                 && session.pronunciation_check_enabled
+                && pronunciation_required_for_card
                 && !session.pronunciation_passed
                 && !session.awaiting_continue,
             pronunciation_attempts_used: session.pronunciation_attempts.len() as u8,
@@ -288,15 +292,42 @@ impl StudySessionService {
         })
     }
 
-    fn similarity(expected: &str, actual: &str) -> bool {
+    fn similarity_score(expected: &str, actual: &str) -> f64 {
         let expected = expected.trim().to_lowercase();
         let actual = actual.trim().to_lowercase();
         if expected == actual {
-            return true;
+            return 1.0;
         }
         let length = expected.chars().count().max(actual.chars().count());
-        length > 0
-            && 1.0 - strsim::damerau_levenshtein(&expected, &actual) as f64 / length as f64 >= 0.8
+        if length == 0 {
+            0.0
+        } else {
+            1.0 - strsim::damerau_levenshtein(&expected, &actual) as f64 / length as f64
+        }
+    }
+
+    fn best_matching_translation(
+        card: &Card,
+        completed_meaning_indices: &[usize],
+        answer: &str,
+    ) -> Option<(usize, String)> {
+        let mut best_match: Option<(f64, usize, String)> = None;
+        for (meaning_index, meaning) in card.meanings.iter().enumerate() {
+            if completed_meaning_indices.contains(&meaning_index) {
+                continue;
+            }
+            for expected in &meaning.word_translations {
+                let score = Self::similarity_score(expected, answer);
+                if score >= 0.8
+                    && best_match
+                        .as_ref()
+                        .is_none_or(|(best_score, _, _)| score > *best_score)
+                {
+                    best_match = Some((score, meaning_index, expected.clone()));
+                }
+            }
+        }
+        best_match.map(|(_, meaning_index, expected)| (meaning_index, expected))
     }
 
     fn shuffle<T>(items: &mut [T], salt: u64) {
@@ -340,7 +371,6 @@ impl StudySessionService {
         if session.phase != StudySessionPhase::Test
             || session.awaiting_continue
             || answer.trim().is_empty()
-            || (session.pronunciation_check_enabled && !session.pronunciation_passed)
         {
             return Err(StudySessionError::InvalidAction);
         }
@@ -348,24 +378,18 @@ impl StudySessionService {
             .load_current_card(&session)
             .await?
             .ok_or(StudySessionError::InvalidAction)?;
-        let mut matched = None;
-        let mut matched_index = None;
-        for (index, meaning) in card.meanings.iter().enumerate() {
-            if session.completed_meaning_indices.contains(&index) {
-                continue;
-            }
-            if let Some(expected) = meaning
-                .word_translations
-                .iter()
-                .find(|expected| Self::similarity(expected, &answer))
-            {
-                matched = Some(expected.clone());
-                matched_index = Some(index);
-                break;
-            }
+        if card.direction == CardDirection::Straight
+            && session.pronunciation_check_enabled
+            && !session.pronunciation_passed
+        {
+            return Err(StudySessionError::InvalidAction);
         }
+        let best_match =
+            Self::best_matching_translation(&card, &session.completed_meaning_indices, &answer);
 
         session.provided_answers.push(answer);
+        let matched_index = best_match.as_ref().map(|(index, _)| *index);
+        let matched = best_match.map(|(_, expected)| expected);
         let is_correct = matched_index.is_some();
         if let Some(index) = matched_index {
             session.completed_meaning_indices.push(index);
@@ -377,21 +401,13 @@ impl StudySessionService {
         } else {
             0
         };
-        let expected_answers = if is_correct {
-            Vec::new()
-        } else {
-            card.meanings
-                .iter()
-                .flat_map(|meaning| meaning.word_translations.clone())
-                .collect()
-        };
         let mut progress = Vec::new();
         if completed {
             session.awaiting_continue = true;
             session.current_set_failed |= !is_correct;
             session.results.push(SessionAnswerResult {
                 card_id: card.id.clone(),
-                word: card.word.text,
+                word: card.word.text.clone(),
                 is_correct,
                 submitted_answers: session.provided_answers.clone(),
                 pronunciation_reports: session.pronunciation_attempts.clone(),
@@ -399,11 +415,15 @@ impl StudySessionService {
             });
             if score_delta != 0 {
                 progress.push(CardProgressUpdate {
-                    card_id: card.id,
+                    card_id: card.id.clone(),
                     score_delta,
                 });
             }
         }
+        let remaining_meanings = card
+            .meanings
+            .len()
+            .saturating_sub(session.completed_meaning_indices.len());
         let session = self
             .commit(session, expected_version, progress, None)
             .await?;
@@ -413,12 +433,11 @@ impl StudySessionService {
             answer_feedback: Some(AnswerFeedback {
                 is_correct,
                 matched_answer: matched,
-                expected_answers,
+                card,
+                matched_meaning_index: matched_index,
+                completed_meaning_indices: session.completed_meaning_indices.clone(),
                 card_completed: completed,
-                remaining_meanings: card
-                    .meanings
-                    .len()
-                    .saturating_sub(session.completed_meaning_indices.len()),
+                remaining_meanings,
                 score_delta,
             }),
             pronunciation_feedback: None,
@@ -518,6 +537,13 @@ impl StudySessionService {
         {
             return Err(StudySessionError::InvalidAction);
         }
+        if self
+            .load_current_card(&session)
+            .await?
+            .is_none_or(|card| card.direction != CardDirection::Straight)
+        {
+            return Err(StudySessionError::InvalidAction);
+        }
         session.pronunciation_technical_failures = session
             .pronunciation_technical_failures
             .saturating_add(1)
@@ -564,6 +590,9 @@ impl StudySessionService {
             .load_current_card(&session)
             .await?
             .ok_or(StudySessionError::InvalidAction)?;
+        if card.direction != CardDirection::Straight {
+            return Err(StudySessionError::InvalidAction);
+        }
         let profile = self
             .profiles
             .find(&session.owner_id, &session.profile_id)
@@ -577,14 +606,7 @@ impl StudySessionService {
             .map_err(Self::map_settings_error)?
             .filter(|settings| settings.is_configured())
             .ok_or(StudySessionError::PronunciationNotConfigured)?;
-        let locale = match card.direction {
-            crate::ports::input::card_catalog::models::CardDirection::Straight => {
-                profile.target_language
-            }
-            crate::ports::input::card_catalog::models::CardDirection::Reverse => {
-                profile.source_language
-            }
-        };
+        let locale = profile.target_language;
         let reference_text = match locale.as_str() {
             "ja-JP" => card
                 .word
@@ -730,7 +752,9 @@ impl StudySessionUsecase for StudySessionService {
         command: CreateStudySessionCommand,
     ) -> Result<StudySessionView, StudySessionError> {
         Self::validate(&command)?;
-        if command.pronunciation_check_enabled
+        let pronunciation_check_enabled = command.pronunciation_check_enabled
+            && command.direction != Some(CardDirection::Reverse);
+        if pronunciation_check_enabled
             && !self
                 .pronunciation_settings
                 .find(&command.user_id)
@@ -758,7 +782,7 @@ impl StudySessionUsecase for StudySessionService {
                 min_score: command.min_score,
                 max_score: command.max_score,
             },
-            pronunciation_check_enabled: command.pronunciation_check_enabled,
+            pronunciation_check_enabled,
             pronunciation_score_threshold: command.pronunciation_score_threshold,
             cards_per_set: command.cards_per_set.unwrap_or(1),
             card_ids: Vec::new(),
@@ -964,12 +988,70 @@ impl StudySessionUsecase for StudySessionService {
 #[cfg(test)]
 mod tests {
     use super::StudySessionService;
+    use crate::ports::input::{
+        card_catalog::models::{Card, CardDirection, CardId, Meaning, Word},
+        language_profile::models::ProfileId,
+    };
+
+    fn card_with_translations(translations: &[&[&str]]) -> Card {
+        Card {
+            id: CardId::new("card"),
+            profile_id: ProfileId::new("profile"),
+            direction: CardDirection::Straight,
+            word: Word {
+                text: "word".to_string(),
+                readings: Vec::new(),
+            },
+            meanings: translations
+                .iter()
+                .map(|translations| Meaning {
+                    definition: "definition".to_string(),
+                    translated_definition: "translated definition".to_string(),
+                    word_translations: translations
+                        .iter()
+                        .map(|translation| (*translation).to_string())
+                        .collect(),
+                    examples: Vec::new(),
+                })
+                .collect(),
+            score: 0,
+            created_at: 0,
+            version: 0,
+        }
+    }
 
     #[test]
     fn written_answers_use_unicode_aware_similarity() {
-        assert!(StudySessionService::similarity("Привет", " привет "));
-        assert!(StudySessionService::similarity("hello", "helo"));
-        assert!(!StudySessionService::similarity("hello", "goodbye"));
-        assert!(!StudySessionService::similarity("猫", "犬"));
+        assert_eq!(
+            StudySessionService::similarity_score("Привет", " привет "),
+            1.0
+        );
+        assert!(StudySessionService::similarity_score("hello", "helo") >= 0.8);
+        assert!(StudySessionService::similarity_score("hello", "goodbye") < 0.8);
+        assert!(StudySessionService::similarity_score("猫", "犬") < 0.8);
+    }
+
+    #[test]
+    fn written_answer_uses_the_best_match_across_all_meanings() {
+        let card = card_with_translations(&[&["hello"], &["helo"]]);
+
+        assert_eq!(
+            StudySessionService::best_matching_translation(&card, &[], "helo"),
+            Some((1, "helo".to_string()))
+        );
+    }
+
+    #[test]
+    fn equal_matches_prefer_the_first_uncompleted_meaning() {
+        let card = card_with_translations(&[&["same"], &["same"]]);
+
+        assert_eq!(
+            StudySessionService::best_matching_translation(&card, &[], "same"),
+            Some((0, "same".to_string()))
+        );
+        assert_eq!(
+            StudySessionService::best_matching_translation(&card, &[0], "same"),
+            Some((1, "same".to_string()))
+        );
     }
 }

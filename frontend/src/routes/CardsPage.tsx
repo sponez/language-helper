@@ -3,7 +3,6 @@ import {
   Alert,
   Badge,
   Button,
-  Collapse,
   Group,
   Loader,
   Modal,
@@ -27,7 +26,6 @@ import {
 } from '@tanstack/react-query'
 import {
   type FormEvent,
-  type ReactNode,
   useEffect,
   useMemo,
   useRef,
@@ -45,6 +43,10 @@ import type {
   SortDirection,
 } from '../api/language-helper-client'
 import { CardSpeechControls } from '../components/CardSpeechControls'
+import {
+  ReadOnlyCard,
+  ReadOnlyMeanings,
+} from '../components/ReadOnlyCard'
 import { useTranslations } from '../locales/TranslationProvider'
 import classes from './CardsPage.module.css'
 
@@ -116,133 +118,6 @@ function validateCard(card: NewCardInput): string | null {
     return 'cards.exampleRequired'
   }
   return null
-}
-
-function ReadOnlyMeanings({ meanings }: { meanings: CardMeaning[] }) {
-  const { t } = useTranslations()
-  const [openedExamples, setOpenedExamples] = useState<Set<number>>(
-    () => new Set(),
-  )
-
-  return (
-    <Stack>
-      {meanings.map((meaning, index) => {
-        const examplesOpened = openedExamples.has(index)
-
-        return (
-          <Paper key={index} className={classes.meaning} p="md" withBorder>
-            <div className={classes.meaningLayout}>
-              <div className={classes.meaningIndex}>{index + 1}</div>
-              <Stack className={classes.meaningContent} gap="sm">
-                <div className={classes.meaningField}>
-                  <Text c="dimmed" size="xs">
-                    {t('cards.definition')}
-                  </Text>
-                  <Text>{meaning.definition}</Text>
-                </div>
-                {meaning.translatedDefinition && (
-                  <div className={classes.meaningField}>
-                    <Text c="dimmed" size="xs">
-                      {t('cards.translatedDefinition')}
-                    </Text>
-                    <Text>{meaning.translatedDefinition}</Text>
-                  </div>
-                )}
-                <div className={classes.meaningField}>
-                  <Text c="dimmed" size="xs">
-                    {t('cards.translations')}
-                  </Text>
-                  <Text size="lg">{meaning.wordTranslations.join(', ')}</Text>
-                </div>
-                {meaning.examples.length > 0 && (
-                  <div>
-                    <Button
-                      className={`${classes.examplesToggle} ${
-                        examplesOpened ? classes.examplesToggleOpened : ''
-                      }`}
-                      fullWidth
-                      variant="light"
-                      onClick={() =>
-                        setOpenedExamples((opened) => {
-                          const next = new Set(opened)
-                          if (next.has(index)) next.delete(index)
-                          else next.add(index)
-                          return next
-                        })
-                      }
-                    >
-                      {examplesOpened
-                        ? t('cards.hideExamples')
-                        : t('cards.showExamples')}{' '}
-                      ({meaning.examples.length})
-                    </Button>
-                    <Collapse expanded={examplesOpened}>
-                      <Stack className={classes.examplesList} gap="xs">
-                        {meaning.examples.map((example, exampleIndex) => (
-                          <Paper
-                            key={exampleIndex}
-                            className={classes.example}
-                            p="sm"
-                            withBorder
-                          >
-                            <Text>{example.sentence}</Text>
-                            <Text c="dimmed" size="sm">
-                              {example.translation}
-                            </Text>
-                          </Paper>
-                        ))}
-                      </Stack>
-                    </Collapse>
-                  </div>
-                )}
-              </Stack>
-            </div>
-          </Paper>
-        )
-      })}
-    </Stack>
-  )
-}
-
-export function ReadOnlyCard({
-  card,
-  wordActions,
-}: {
-  card: NewCardInput
-  wordActions?: ReactNode
-}) {
-  const { t } = useTranslations()
-
-  return (
-    <Stack className={classes.previewCard} gap="md">
-      <Group justify="center">
-        <Badge>{t(`cards.${card.direction}`)}</Badge>
-      </Group>
-      <Paper p="lg" withBorder>
-        <Title order={3}>{t('cards.word')}</Title>
-        <Text fw={600} mt="md" size="xl" ta="center">
-          {card.word}
-        </Text>
-        {wordActions && (
-          <Group justify="center" mt="md">
-            {wordActions}
-          </Group>
-        )}
-      </Paper>
-      <Paper p="lg" withBorder>
-        <Title order={3}>{t('cards.readings')}</Title>
-        <Text c={card.readings.length ? undefined : 'dimmed'} mt="md">
-          {card.readings.length
-            ? card.readings.join(', ')
-            : t('cards.noReadings')}
-        </Text>
-      </Paper>
-      <Paper p="lg" withBorder>
-        <Title order={3}>{t('cards.meanings')}</Title>
-        <ReadOnlyMeanings meanings={card.meanings} />
-      </Paper>
-    </Stack>
-  )
 }
 
 function AiNormalizeButton({

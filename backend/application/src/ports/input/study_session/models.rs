@@ -167,7 +167,9 @@ pub struct StudySessionView {
 pub struct AnswerFeedback {
     pub is_correct: bool,
     pub matched_answer: Option<String>,
-    pub expected_answers: Vec<String>,
+    pub card: Card,
+    pub matched_meaning_index: Option<usize>,
+    pub completed_meaning_indices: Vec<usize>,
     pub card_completed: bool,
     pub remaining_meanings: usize,
     pub score_delta: i32,
