@@ -1,0 +1,344 @@
+export interface BackendStatus {
+  transport: 'tauri' | 'mock'
+  ready: boolean
+  message: string
+}
+
+export interface LanguageProfile {
+  id: string
+  name: string
+  sourceLanguage: string
+  targetLanguage: string
+}
+
+export interface CreateLanguageProfileInput {
+  username: string
+  name: string
+  sourceLanguage: string
+  targetLanguage: string
+}
+
+export interface AiSettings {
+  version: number
+  provider: 'openai' | 'gemini' | null
+  apiKey: string | null
+  modelName: string | null
+}
+
+export interface SaveAiSettingsInput extends AiSettings {
+  username: string
+}
+
+export interface PronunciationSettings {
+  version: number
+  endpoint: string | null
+  subscriptionKey: string | null
+  configured: boolean
+}
+
+export interface SavePronunciationSettingsInput {
+  username: string
+  version: number
+  endpoint: string | null
+  subscriptionKey: string | null
+}
+
+export type CardDirection = 'straight' | 'reverse'
+export type CardSortField = 'word' | 'createdAt' | 'score'
+export type SortDirection = 'ascending' | 'descending'
+
+export interface UsageExample {
+  sentence: string
+  translation: string
+}
+
+export interface CardMeaning {
+  definition: string
+  translatedDefinition: string
+  wordTranslations: string[]
+  examples: UsageExample[]
+}
+
+export interface Card {
+  id: string
+  profileId: string
+  direction: CardDirection
+  word: string
+  readings: string[]
+  meanings: CardMeaning[]
+  score: number
+  createdAt: number
+  version: number
+}
+
+export interface CardSummary {
+  id: string
+  word: string
+  direction: CardDirection
+  score: number
+  createdAt: number
+}
+
+export interface CardPage {
+  items: CardSummary[]
+  nextCursor: string | null
+}
+
+export interface ListCardsInput {
+  username: string
+  profileId: string
+  search?: string
+  direction: CardDirection | null
+  minScore: number | null
+  maxScore: number | null
+  sortField: CardSortField
+  sortDirection: SortDirection
+  cursor: string | null
+  limit: number
+}
+
+export interface NewCardInput {
+  direction: CardDirection
+  word: string
+  readings: string[]
+  meanings: CardMeaning[]
+}
+
+export interface CreateCardsInput {
+  username: string
+  profileId: string
+  cards: NewCardInput[]
+}
+
+export interface NormalizeCardInput {
+  username: string
+  profileId: string
+  card: NewCardInput
+}
+
+export interface GetCardSpeechInput {
+  username: string
+  profileId: string
+  cardId: string
+  regenerate: boolean
+}
+
+export interface UpdateCardInput {
+  username: string
+  profileId: string
+  cardId: string
+  expectedVersion: number
+  word: string
+  readings: string[]
+  meanings: CardMeaning[]
+}
+
+export interface DeleteCardsInput {
+  username: string
+  profileId: string
+  cardIds: string[]
+}
+
+export interface PendingInverseCard {
+  card: Card
+  expectedVersion: number | null
+}
+
+export interface PrepareInverseCardsInput {
+  username: string
+  profileId: string
+  sourceCardIds: string[]
+}
+
+export interface SaveInverseCardsInput {
+  username: string
+  profileId: string
+  cards: PendingInverseCard[]
+}
+
+export type StudySessionMode = 'learning' | 'test'
+export type StudySessionPhase = 'study' | 'test'
+export type StudySessionStatus = 'active' | 'completed' | 'cancelled'
+export type StudySessionAction =
+  | 'previousStudyCard'
+  | 'nextStudyCard'
+  | 'startMiniTest'
+  | 'submitWrittenAnswer'
+  | 'continueAfterFeedback'
+  | 'registerPronunciationCaptureFailure'
+  | 'disablePronunciation'
+
+export interface CreateStudySessionInput {
+  username: string
+  profileId: string
+  mode: StudySessionMode
+  direction: CardDirection | null
+  minScore: number | null
+  maxScore: number | null
+  cardsPerSet: number | null
+  pronunciationCheckEnabled: boolean
+  pronunciationScoreThreshold: number
+}
+
+export interface StudySessionPreferences {
+  direction: CardDirection | null
+  minScore: number | null
+  maxScore: number | null
+  cardsPerSet: number | null
+  pronunciationCheckEnabled: boolean
+  pronunciationScoreThreshold: number
+}
+
+export interface ApplyStudySessionActionInput {
+  username: string
+  sessionId: string
+  expectedVersion: number
+  action: StudySessionAction
+  answer?: string
+  message?: string
+}
+
+export interface AssessPronunciationInput {
+  username: string
+  sessionId: string
+  expectedVersion: number
+  audio: number[]
+}
+
+export interface EndStudySessionInput {
+  username: string
+  sessionId: string
+  expectedVersion: number
+}
+
+export interface SessionCurrentCard {
+  kind: 'study' | 'test'
+  card: Card | null
+  id: string | null
+  direction: CardDirection | null
+  prompt: string | null
+  readings: string[]
+  remainingMeanings: number | null
+  totalMeanings: number | null
+}
+
+export interface StudySession {
+  id: string
+  profileId: string
+  mode: StudySessionMode
+  phase: StudySessionPhase
+  status: StudySessionStatus
+  pronunciationCheckEnabled: boolean
+  pronunciationScoreThreshold: number
+  pronunciationRequired: boolean
+  pronunciationAttemptsUsed: number
+  pronunciationTechnicalFailures: number
+  pronunciationDisableRequired: boolean
+  awaitingContinue: boolean
+  currentCard: SessionCurrentCard | null
+  currentCardNumber: number
+  totalCards: number
+  currentSet: number
+  totalSets: number
+  summary: {
+    correct: number
+    incorrect: number
+    scoreDelta: number
+  }
+  version: number
+}
+
+export interface StudySessionTransition {
+  session: StudySession
+  answerFeedback: {
+    isCorrect: boolean
+    matchedAnswer: string | null
+    card: Card
+    matchedMeaningIndex: number | null
+    completedMeaningIndices: number[]
+    cardCompleted: boolean
+    remainingMeanings: number
+    scoreDelta: number
+  } | null
+  pronunciationFeedback: {
+    kind:
+      | 'passed'
+      | 'retry'
+      | 'failed'
+      | 'technicalError'
+      | 'disableRequired'
+    report: {
+      strictScore: number
+      weakestPhonemeScore: number | null
+      weakestWordScore: number | null
+      pronunciationScore: number | null
+      fluencyScore: number | null
+      completenessScore: number | null
+      prosodyScore: number | null
+      recognizedText: string | null
+      issues: Array<{
+        kind: 'wordError' | 'phonemeSubstitution'
+        word: string
+        errorType: string | null
+        expected: string | null
+        detected: string | null
+      }>
+      scoringVersion: number
+      passed: boolean
+    } | null
+    attempt: number
+    threshold: number
+    technicalFailures: number
+    message: string | null
+  } | null
+  setOutcome: 'passed' | 'retry' | null
+}
+
+/**
+ * Transport-independent boundary between React and the application backend.
+ *
+ * Keep Tauri imports out of components. A future browser build can provide an
+ * HTTP implementation without changing routes or feature components.
+ */
+export interface LanguageHelperClient {
+  getBackendStatus(): Promise<BackendStatus>
+  getUsernames(): Promise<string[]>
+  createUser(username: string): Promise<string>
+  deleteUser(username: string): Promise<boolean>
+  getLanguageProfiles(username: string): Promise<LanguageProfile[]>
+  createLanguageProfile(
+    input: CreateLanguageProfileInput,
+  ): Promise<LanguageProfile>
+  deleteLanguageProfile(username: string, profileId: string): Promise<boolean>
+  getAiSettings(username: string): Promise<AiSettings>
+  saveAiSettings(input: SaveAiSettingsInput): Promise<AiSettings>
+  getPronunciationSettings(username: string): Promise<PronunciationSettings>
+  savePronunciationSettings(
+    input: SavePronunciationSettingsInput,
+  ): Promise<PronunciationSettings>
+  listCards(input: ListCardsInput): Promise<CardPage>
+  getCard(username: string, profileId: string, cardId: string): Promise<Card>
+  createCards(input: CreateCardsInput): Promise<Card[]>
+  normalizeCard(input: NormalizeCardInput): Promise<NewCardInput>
+  getCardSpeech(input: GetCardSpeechInput): Promise<Blob>
+  updateCard(input: UpdateCardInput): Promise<Card>
+  deleteCards(input: DeleteCardsInput): Promise<number>
+  prepareInverseCards(
+    input: PrepareInverseCardsInput,
+  ): Promise<PendingInverseCard[]>
+  saveInverseCards(input: SaveInverseCardsInput): Promise<Card[]>
+  getStudySessionPreferences(
+    username: string,
+    profileId: string,
+    mode: StudySessionMode,
+  ): Promise<StudySessionPreferences>
+  createStudySession(input: CreateStudySessionInput): Promise<StudySession>
+  applyStudySessionAction(
+    input: ApplyStudySessionActionInput,
+  ): Promise<StudySessionTransition>
+  assessPronunciation(
+    input: AssessPronunciationInput,
+  ): Promise<StudySessionTransition>
+  finishStudySession(input: EndStudySessionInput): Promise<StudySession>
+  cancelStudySession(input: EndStudySessionInput): Promise<StudySession>
+}

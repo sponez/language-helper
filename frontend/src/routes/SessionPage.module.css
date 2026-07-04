@@ -1,0 +1,21 @@
+.page {
+  width: min(760px, 100%);
+  margin: 0 auto;
+}
+
+.setup {
+  width: min(560px, 100%);
+  margin: 0 auto;
+}
+
+.prompt {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.answer {
+  width: min(720px, 100%);
+  margin: 0 auto;
+}

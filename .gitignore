@@ -1,5 +1,12 @@
 .vscode
+.cargo
 
 data
 target
 release/
+
+frontend/node_modules/
+frontend/dist/
+
+*.md
+!PRONUNCIATION_ASSESSMENT.md

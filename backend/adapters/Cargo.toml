@@ -1,0 +1,19 @@
+[package]
+name = "adapters"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+application = { path = "../application", default-features = false }
+rusqlite = { version = "0.37.0", default-features = false, features = ["bundled"] }
+thiserror = { workspace = true, default-features = false }
+tokio = { workspace = true, default-features = false }
+async-trait = { workspace = true, default-features = false }
+genai = { workspace = true, default-features = false, features = ["rustls-tls"] }
+serde = { workspace = true, default-features = false }
+serde_json = { workspace = true, default-features = false }
+reqwest = { workspace = true, default-features = false, features = ["json", "rustls-tls"] }
+base64 = { workspace = true, default-features = false, features = ["alloc"] }
+
+[dev-dependencies]
+tempfile = { version = "3.8", default-features = false }

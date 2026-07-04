@@ -1,0 +1,16 @@
+[package]
+name = "application"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait = { workspace = true, default-features = false }
+thiserror = { workspace = true, default-features = false }
+uuid = { workspace = true, default-features = false }
+strsim = { workspace = true, default-features = false }
+sha2 = { workspace = true, default-features = false }
+
+[dev-dependencies]
+serde = { workspace = true, default-features = false }
+serde_json = { workspace = true, default-features = false }
+tokio = { workspace = true, default-features = false }

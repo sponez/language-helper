@@ -1,93 +1,76 @@
-name: build
+name: desktop-release
 
 on:
   push:
-  pull_request:
+    tags:
+      - "v*"
+  workflow_dispatch:
 
 jobs:
   build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    env:
-      PKG_NAME: app
-      BIN_NAME: app
-      PROFILE: release
+        include:
+          - name: Windows x64
+            os: windows-latest
+            bundles: nsis
+            artifact: windows-x64
+          - name: Linux x64
+            os: ubuntu-22.04
+            bundles: deb,appimage
+            artifact: linux-x64
+          - name: macOS Apple Silicon
+            os: macos-15
+            bundles: dmg
+            artifact: macos-arm64
+          - name: macOS Intel
+            os: macos-15-intel
+            bundles: dmg
+            artifact: macos-x64
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo
+      - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
 
-      # ---------- macOS ----------
-      - name: Add macOS targets
-        if: matrix.os == 'macos-latest'
-        run: |
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Build (macOS aarch64)
-        if: matrix.os == 'macos-latest'
-        run: |
-          cargo build --${{ env.PROFILE }} \
-            --manifest-path Cargo.toml \
-            -p ${{ env.PKG_NAME }} \
-            --bin ${{ env.BIN_NAME }} \
-            --target aarch64-apple-darwin
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
 
-      - name: Build (macOS x86_64)
-        if: matrix.os == 'macos-latest'
-        run: |
-          cargo build --${{ env.PROFILE }} \
-            --manifest-path Cargo.toml \
-            -p ${{ env.PKG_NAME }} \
-            --bin ${{ env.BIN_NAME }} \
-            --target x86_64-apple-darwin
+      - name: Build desktop bundles
+        working-directory: frontend
+        run: npm run desktop:build -- --bundles "${{ matrix.bundles }}"
 
-      - name: Create universal binary
-        if: matrix.os == 'macos-latest'
-        run: |
-          set -e
-          mkdir -p dist
-          A=target/aarch64-apple-darwin/${{ env.PROFILE }}/${{ env.BIN_NAME }}
-          B=target/x86_64-apple-darwin/${{ env.PROFILE }}/${{ env.BIN_NAME }}
-          test -f "$A" && test -f "$B"
-          lipo -create "$A" "$B" -output "dist/${{ env.BIN_NAME }}-universal"
-          file "dist/${{ env.BIN_NAME }}-universal"
-          lipo -info "dist/${{ env.BIN_NAME }}-universal"
-
-      - name: Upload macOS artifact
-        if: matrix.os == 'macos-latest'
+      - name: Upload desktop bundles
         uses: actions/upload-artifact@v4
         with:
-          name: macos-universal
-          path: dist/*
-
-      # ---------- Windows ----------
-      - name: Build (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          cargo build --release `
-            -p $env:PKG_NAME `
-            --bin $env:BIN_NAME
-
-      - name: Package (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item "target\release\$env:BIN_NAME.exe" "dist\"
-          Compress-Archive -Path dist\* -DestinationPath dist\windows-release.zip -Force
-
-      - name: Upload Windows artifact
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows
-          path: dist/*
+          name: language-helper-${{ matrix.artifact }}
+          path: backend/target/release/bundle/**
+          if-no-files-found: error

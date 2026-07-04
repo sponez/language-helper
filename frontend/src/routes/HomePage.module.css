@@ -1,0 +1,58 @@
+.page {
+  position: relative;
+  min-height: 100dvh;
+  background: var(--mantine-color-body);
+}
+
+.toolbar {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+}
+
+.settingSelect {
+  width: 150px;
+}
+
+.pickers {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(392px, calc(100vw - 32px));
+  transform: translate(-50%, -50%);
+}
+
+.pickerRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px 36px;
+  width: 100%;
+}
+
+.pickerSelect {
+  width: 100%;
+}
+
+.addButton {
+  flex: 0 0 auto;
+}
+
+.loadError {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  width: min(400px, calc(100vw - 48px));
+}
+
+@media (max-width: 520px) {
+  .toolbar {
+    right: 16px;
+    left: 16px;
+    flex-wrap: nowrap;
+  }
+
+  .settingSelect {
+    flex: 1;
+    width: auto;
+  }
+}

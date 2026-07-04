@@ -1,0 +1,67 @@
+use std::sync::Arc;
+
+use application::ports::input::{
+    ai_settings::AiSettingsUsecase, card_catalog::CardCatalogUsecase,
+    card_normalization::CardNormalizationUsecase, card_speech::CardSpeechUsecase,
+    language_profile::LanguageProfileUsecase, local_user::LocalUserUsecase,
+    pronunciation_settings::PronunciationSettingsUsecase, study_session::StudySessionUsecase,
+};
+use lh_bootstrap::BootstrapBridge;
+
+pub struct DesktopState {
+    local_users: Arc<dyn LocalUserUsecase>,
+    language_profiles: Arc<dyn LanguageProfileUsecase>,
+    cards: Arc<dyn CardCatalogUsecase>,
+    card_normalization: Arc<dyn CardNormalizationUsecase>,
+    card_speech: Arc<dyn CardSpeechUsecase>,
+    ai_settings: Arc<dyn AiSettingsUsecase>,
+    pronunciation_settings: Arc<dyn PronunciationSettingsUsecase>,
+    study_sessions: Arc<dyn StudySessionUsecase>,
+}
+
+impl DesktopState {
+    pub fn new(bridge: BootstrapBridge) -> Self {
+        Self {
+            local_users: bridge.local_users(),
+            language_profiles: bridge.language_profiles(),
+            cards: bridge.cards(),
+            card_normalization: bridge.card_normalization(),
+            card_speech: bridge.card_speech(),
+            ai_settings: bridge.ai_settings(),
+            pronunciation_settings: bridge.pronunciation_settings(),
+            study_sessions: bridge.study_sessions(),
+        }
+    }
+
+    pub fn local_users(&self) -> Arc<dyn LocalUserUsecase> {
+        Arc::clone(&self.local_users)
+    }
+
+    pub fn language_profiles(&self) -> Arc<dyn LanguageProfileUsecase> {
+        Arc::clone(&self.language_profiles)
+    }
+
+    pub fn cards(&self) -> Arc<dyn CardCatalogUsecase> {
+        Arc::clone(&self.cards)
+    }
+
+    pub fn card_normalization(&self) -> Arc<dyn CardNormalizationUsecase> {
+        Arc::clone(&self.card_normalization)
+    }
+
+    pub fn card_speech(&self) -> Arc<dyn CardSpeechUsecase> {
+        Arc::clone(&self.card_speech)
+    }
+
+    pub fn ai_settings(&self) -> Arc<dyn AiSettingsUsecase> {
+        Arc::clone(&self.ai_settings)
+    }
+
+    pub fn pronunciation_settings(&self) -> Arc<dyn PronunciationSettingsUsecase> {
+        Arc::clone(&self.pronunciation_settings)
+    }
+
+    pub fn study_sessions(&self) -> Arc<dyn StudySessionUsecase> {
+        Arc::clone(&self.study_sessions)
+    }
+}
